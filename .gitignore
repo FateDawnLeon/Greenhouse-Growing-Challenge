@@ -241,5 +241,5 @@ Temporary Items
 
 ## Custom Rules
 .idea/
-collect-data/control_jsons/
-collect-data/output_jsons/
+collect_data/control_jsons/
+collect_data/output_jsons/
