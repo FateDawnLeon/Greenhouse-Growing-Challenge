@@ -203,20 +203,23 @@ class ControlParamSampleSpace(object):
 
 if __name__ == '__main__':
     import os
+    import argparse
+    from tqdm import tqdm
 
-    save_dir = 'control_jsons'
-    os.makedirs(save_dir, exist_ok=True)
-    hash_strs = os.listdir(save_dir)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-N', '--num-controls', type=int)
+    parser.add_argument('-D', '--control-json-dir', type=str, default='control_jsons')
+    args = parser.parse_args()
+
+    os.makedirs(args.control_json_dir, exist_ok=True)
+    control_json_names = os.listdir(args.control_json_dir)
 
     SP = ControlParamSampleSpace()
     
-    # modify this N_sample to sample for more control parameters
-    cnt, N_sample = 0, 10
-    
-    while cnt < N_sample:
-        CP = SP.sample_control_params()
-        hashcode = hex(hash(CP))
-        if f'{hashcode}.json' not in hash_strs:
-            CP.save_as_json(f'{save_dir}/{hashcode}')
-            cnt += 1
-    
+    for _ in tqdm(range(args.num_controls)):
+        while True:
+            control = SP.sample_control_params()
+            hashcode = hex(hash(control))
+            if f'{hashcode}.json' not in control_json_names:
+                break
+        control.save_as_json(f'{args.control_json_dir}/{hashcode}')
