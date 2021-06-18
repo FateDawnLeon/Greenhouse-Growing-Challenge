@@ -34,10 +34,10 @@ if __name__ == '__main__':
 	parser.add_argument('-T', '--num-workers', type=int, default=1)
 	parser.add_argument('-S', '--simulator', choices=['A', 'B'], type=str, default='A')
 	parser.add_argument('-C', '--clear-invalid-output', action='store_true', default=False)
+	parser.add_argument('-F', '--control-json-file', type=str, default=None)
 	args = parser.parse_args()
 
 	key = KEYS[args.simulator]
-	control_json_dir = 'control_jsons'
 	output_json_dir = f'output_jsons_{args.simulator}'
 	os.makedirs(output_json_dir, exist_ok=True)
 	
@@ -49,10 +49,16 @@ if __name__ == '__main__':
 				os.remove(path)
 				print(f'{path} has been removed.')
 
-	# only test those control jsons that are not uploaded before
-	control_json_names = os.listdir(control_json_dir)
-	output_json_names = os.listdir(output_json_dir)
-	control_json_names = set(control_json_names).difference(output_json_names)
+	if args.control_json_file:
+		control_json_dir, file_name = os.path.split(args.control_json_file)
+		control_json_names = [file_name]
+		args.num_trials = 1
+	else:
+		# only test those control jsons that are not uploaded before
+		control_json_dir = 'control_jsons'
+		control_json_names = os.listdir(control_json_dir)
+		output_json_names = os.listdir(output_json_dir)
+		control_json_names = set(control_json_names).difference(output_json_names)
 
 	# if jsons are not enough, just upload all valid ones	
 	num_trials = min(args.num_trials, len(control_json_names))
