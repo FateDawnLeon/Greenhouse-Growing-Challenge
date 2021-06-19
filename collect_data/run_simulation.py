@@ -6,18 +6,21 @@ KEYS = {
 	'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
 	'B': 'C48B-PTmQ-89Kx-jqV5-3zRL' 
 }
-URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
+URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 
 
 def try_on_simulator(json_name, control_json_dir, output_json_dir, key):
 	with open(f'{control_json_dir}/{json_name}', 'r') as f:
 		control = json.load(f)
 
-	control["key"] = key
+	data = {}
+	data["key"] = key
+	data["parameters"] = json.dumps(control)
 	headers = {'ContentType': 'application/json'}
-	response = requests.post(URL, data=control, headers=headers, timeout=300)
+	response = requests.post(URL, data=data, headers=headers, timeout=300)
 
 	output = response.json()
+	print(json_name)
 	print(response, output['responsemsg'])
 
 	with open(f'{output_json_dir}/{json_name}', 'w') as f:
@@ -35,10 +38,13 @@ if __name__ == '__main__':
 	parser.add_argument('-S', '--simulator', choices=['A', 'B'], type=str, default='A')
 	parser.add_argument('-C', '--clear-invalid-output', action='store_true', default=False)
 	parser.add_argument('-F', '--control-json-file', type=str, default=None)
+	parser.add_argument('-D', '--control-json-dir', type=str, default='control_jsons')
 	args = parser.parse_args()
 
 	key = KEYS[args.simulator]
-	output_json_dir = f'output_jsons_{args.simulator}'
+
+	suffix = args.control_json_dir.split('_')[-1]
+	output_json_dir = f'output_jsons_{suffix}_{args.simulator}'
 	os.makedirs(output_json_dir, exist_ok=True)
 	
 	if args.clear_invalid_output:
@@ -55,7 +61,7 @@ if __name__ == '__main__':
 		args.num_trials = 1
 	else:
 		# only test those control jsons that are not uploaded before
-		control_json_dir = 'control_jsons'
+		control_json_dir = args.control_json_dir
 		control_json_names = os.listdir(control_json_dir)
 		output_json_names = os.listdir(output_json_dir)
 		control_json_names = set(control_json_names).difference(output_json_names)
