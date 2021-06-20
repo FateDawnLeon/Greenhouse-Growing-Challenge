@@ -241,8 +241,6 @@ Temporary Items
 
 ## Custom Rules
 .idea/
-collect_data/control_jsons/
-collect_data/output_jsons/
-collect_data/control_jsons_grid/
-collect_data/output_jsons_grid/
+collect_data/control_jsons*/
+collect_data/output_jsons*/
 *.zip

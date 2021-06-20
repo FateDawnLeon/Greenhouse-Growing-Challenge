@@ -1,4 +1,4 @@
-# Greenhouse-Growing-Challenge
+# [Greenhouse-Growing-Challenge](http://www.autonomousgreenhouses.com/)
 - For the machine learning challenge, teams will get access to a simple greenhouse climate and lettuce production model (simple simulator) during the preparation phase.
 
 - The simple simulator consists of a given set of outside climate conditions, a given greenhouse type and given greenhouse actuators (ventilation, heating, lighting, screening). It needs to be provided with a series of climate setpoints (ventilation strategy, heating strategy, lighting strategy, screening strategy per timestep) as inputs. The input climate setpoints will activate the available actuators, which will control the inside greenhouse climate. The realised inside climate parameters will be provided as a feed back value. Crop management consists of defining plant density (number of plants m-2) over time. Since the crop growth in the simulator is determined by the realised greenhouse climate, also the crop growth parameters (fresh weight, height, diameter) over time will be provided as output.

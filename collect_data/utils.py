@@ -60,7 +60,7 @@ control_params_path = [
 class ControlParams(object):
 
     START_DATE = datetime.date(2021, 3, 4)
-    DEFAULT_JSON_PATH = "control_jsons/ClimateControlSample.json"
+    DEFAULT_JSON_PATH = "ClimateControlSample.json"
 
     def __init__(self, initialize_with_sample=True):
         super().__init__()
@@ -88,7 +88,7 @@ class ControlParams(object):
     def set_end_date(self, duration=None):
         if duration is not None:
             end_date = self.START_DATE + datetime.timedelta(days=duration)
-            self.data["simset"] = {"@endDate": end_date.strftime("%y-%m-%d")}
+            self.data["simset"] = {"@endDate": end_date.strftime("%Y-%m-%d")}
 
     def set_heatingpipes(self, maxTemp=None, minTemp=None, radiationInfluence=None):
         if maxTemp is not None:

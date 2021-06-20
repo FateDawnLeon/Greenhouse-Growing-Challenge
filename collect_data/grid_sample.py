@@ -3,7 +3,9 @@ from utils import ControlParams
 
 temp_high = [12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
 temp_low = [8, 10, 12, 14, 16]
-dark_time = [1, 2, 3, 4, 6, 8, 10]
+temp = [18, 19, 20, 21, 22, 23, 24, 25]
+dark_time = [1, 2, 3, 4, 6]
+
 
 
 search_space_A = {
@@ -34,12 +36,13 @@ search_space_B = {
     
     # temperature control
     "heatingTemp": [
-        {"01-01": {"r-1": t_low,"r+1": t_high, "s-1": t_high, "s+1": t_low}} for t_low in temp_low for t_high in temp_high if t_low <= t_high
+        # {"01-01": {"r-1": t_low,"r+1": t_high, "s-1": t_high, "s+1": t_low}} for t_low in temp_low for t_high in temp_high if t_low <= t_high
+        {"01-01": {"8.0":t}} for t in temp
     ], 
 
     # CO2 control
     # "pureCO2Cap": [100, 150, 200],
-    "setpoint": [400, 500, 600, 700],
+    "setpoint": [400, 500, 600, 700, 800, 900, 1000, 1100, 1200],
 
     # lighting time and intensity control
     "hoursLight": [24 - dt for dt in dark_time],
@@ -92,7 +95,9 @@ def grid_search_B():
                 CP.set_illumination(hoursLight=hoursLight)
 
                 hashcode = hex(hash(CP))
-                CP.save_as_json(f'control_jsons/{hashcode}')
+                import os
+                os.makedirs('control_jsons_grid', exist_ok=True)
+                CP.save_as_json(f'control_jsons_grid/{hashcode}')
 
                 cnt += 1
                 print(f'Control parameters {cnt} generated: {hashcode}')

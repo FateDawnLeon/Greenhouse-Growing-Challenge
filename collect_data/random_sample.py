@@ -81,10 +81,12 @@ class ControlParamSampleSpace(object):
 
     def sample_temp_heatingTemp(self):
         # TODO: need to design better sample space
-        temp_high = [12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
-        temp_low = [8, 10, 12, 14, 16]
+        # temp_high = [12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
+        # temp_low = [8, 10, 12, 14, 16]
+        temp = [18, 19, 20, 21, 22, 23, 24, 25]
         schemes = [
-            {"01-01": {"r-1": t_low,"r+1": t_high, "s-1": t_high, "s+1": t_low}} for t_low in temp_low for t_high in temp_high if t_low <= t_high
+            # {"01-01": {"r-1": t_low,"r+1": t_high, "s-1": t_high, "s+1": t_low}} for t_low in temp_low for t_high in temp_high if t_low <= t_high
+            {"01-01": {"8.0":t}} for t in temp
         ]
         heatingTemp = random.choice(schemes)
         return heatingTemp
@@ -157,6 +159,7 @@ class ControlParamSampleSpace(object):
         return winLeeMin, winLeeMax
 
     def sample_ventilation_winWndMinMax(self):
+        # TODO fix range: Parameter [comp1.setpoints.ventilation.@winWndMax] exceeds limits [30,100]
         # TODO: need to design sample space for more fine-grained control
         winWndMin = random.randint(0, 100)
         winWndMax = random.randint(max(winWndMin, 10), 100)
@@ -203,20 +206,23 @@ class ControlParamSampleSpace(object):
 
 if __name__ == '__main__':
     import os
+    import argparse
+    from tqdm import tqdm
 
-    save_dir = 'control_jsons'
-    os.makedirs(save_dir, exist_ok=True)
-    hash_strs = os.listdir(save_dir)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-N', '--num-controls', type=int)
+    parser.add_argument('-D', '--control-json-dir', type=str, default='control_jsons')
+    args = parser.parse_args()
+
+    os.makedirs(args.control_json_dir, exist_ok=True)
+    control_json_names = os.listdir(args.control_json_dir)
 
     SP = ControlParamSampleSpace()
     
-    # modify this N_sample to sample for more control parameters
-    cnt, N_sample = 0, 10
-    
-    while cnt < N_sample:
-        CP = SP.sample_control_params()
-        hashcode = hex(hash(CP))
-        if f'{hashcode}.json' not in hash_strs:
-            CP.save_as_json(f'{save_dir}/{hashcode}')
-            cnt += 1
-    
+    for _ in tqdm(range(args.num_controls)):
+        while True:
+            control = SP.sample_control_params()
+            hashcode = hex(hash(control))
+            if f'{hashcode}.json' not in control_json_names:
+                break
+        control.save_as_json(f'{args.control_json_dir}/{hashcode}')
