@@ -3,9 +3,8 @@ import numpy as np
 
 import torch
 from torch import nn, optim
-from torch.utils.data import DataLoader
 
-from dataset import AGCDataSet
+from dataset import AGCDataset, agc_dataloader
 from utils import *
 
 
@@ -34,9 +33,8 @@ class RNNModel(nn.Module):
 
 
 class RNN:
-    def __init__(self, input_size=30, hidden_size=128, output_size=2, num_layers=4, bias=True, dropout=0.2,
-                 seq_len=959, lr=0.0001, batch_size=64):
-        self.seq_len = seq_len
+    def __init__(self, input_size=37, hidden_size=128, output_size=22, num_layers=4, bias=True, dropout=0.2,
+                 lr=0.0001, batch_size=64):
         self.batch_size = batch_size
         self.lr = lr
 
@@ -55,6 +53,7 @@ class RNN:
 
         optimizer.zero_grad()
         y_pred, state = self.net(x, state)
+
         loss = criterion(y_pred, y)
         loss.backward()
         optimizer.step()
@@ -72,57 +71,59 @@ class RNN:
 
         return y_pred
 
-    def save_state_dict(self, model_save_path='./trained_model/rnn.pth'):
+    def save_state_dict(self, model_save_path='./model/trained_model/rnn.pth'):
         verify_output_path(model_save_path)
         torch.save(self.net.state_dict(), model_save_path)
 
-    def load_state_dict(self, model_load_path='./trained_model/rnn.pth'):
+    def load_state_dict(self, model_load_path='./model/trained_model/rnn.pth'):
         state_dict = torch.load(model_load_path)
         self.net.load_state_dict(state_dict)
 
 
 def train(num_epoch=100):
     rnn = RNN()
-    dataset = AGCDataSet()
+    dataloader = agc_dataloader(rnn.batch_size)
 
-    dataloader = DataLoader(dataset, batch_size=rnn.batch_size, shuffle=True, drop_last=True)
+    print('training...')
 
     for epoch in range(num_epoch):
         loss = 0.0
-        for x, y in dataloader:
-            x = torch.transpose(x, 0, 1)
-            y = torch.transpose(y, 0, 1)
-            loss += rnn.optimize(x, y) / len(dataloader)
-        print(f'epoch: {epoch}, loss: {loss}')
+        for batch, (x, y) in enumerate(dataloader):
+            cur_loss = rnn.optimize(x, y)
+            loss += cur_loss / len(dataloader)
+            print(f'epoch: {epoch:03}, bathc: {batch:03}, loss: {cur_loss}')
 
     rnn.save_state_dict()
 
 
-def test():
+def test(seed=42):
+    np.random.seed(seed)
+
     rnn = RNN()
     rnn.load_state_dict()
-    dataset = AGCDataSet()
-    xs, ys = dataset[int(len(dataset) // 2)]
+    dataset = AGCDataset()
+    xs, ys = dataset[np.random.randint(len(dataset))]
     y_pred = rnn.predict(xs)
 
     ys = dataset.denormalize_target(ys)
     y_pred = dataset.denormalize_target(y_pred)
 
     plt.figure(dpi=300)
-    plt.plot(ys[:, 0], label='truth')
-    plt.plot(y_pred[:, 0], label='predicted')
+    plt.plot(ys[:, -4], label='truth')
+    plt.plot(y_pred[:, -4], label='predicted')
     plt.title('headFW')
     plt.legend()
     plt.show()
     plt.clf()
 
-    plt.plot(ys[:, 1], label='truth')
-    plt.plot(y_pred[:, 1], label='predicted')
+    plt.plot(ys[:, -3], label='truth')
+    plt.plot(y_pred[:, -3], label='predicted')
     plt.title('shootDryMatterContent')
     plt.legend()
     plt.show()
 
 
 if __name__ == '__main__':
-    # train()
+    train()
     test()
+
