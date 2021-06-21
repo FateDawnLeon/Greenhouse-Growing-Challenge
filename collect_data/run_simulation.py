@@ -42,9 +42,11 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	key = KEYS[args.simulator]
-
-	suffix = args.control_json_dir.split('_')[-1]
-	output_json_dir = f'output_jsons_{suffix}_{args.simulator}'
+	if args.control_json_file:
+		output_json_dir = f'output_jsons_{args.simulator}'
+	else:
+		suffix = args.control_json_dir.split('_')[-1]
+		output_json_dir = f'output_jsons_{suffix}_{args.simulator}'
 	os.makedirs(output_json_dir, exist_ok=True)
 	
 	if args.clear_invalid_output:

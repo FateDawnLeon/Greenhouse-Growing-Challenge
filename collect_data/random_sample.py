@@ -159,10 +159,9 @@ class ControlParamSampleSpace(object):
         return winLeeMin, winLeeMax
 
     def sample_ventilation_winWndMinMax(self):
-        # TODO fix range: Parameter [comp1.setpoints.ventilation.@winWndMax] exceeds limits [30,100]
         # TODO: need to design sample space for more fine-grained control
         winWndMin = random.randint(0, 100)
-        winWndMax = random.randint(max(winWndMin, 10), 100)
+        winWndMax = random.randint(max(winWndMin, 30), 100)
         return winWndMin, winWndMax
 
     def sample_plantDensity(self):
