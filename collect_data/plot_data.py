@@ -13,7 +13,7 @@ def plot_data(data_path, save_dir):
     os.makedirs(save_dir, exist_ok=True)
 
     for param_name in data:
-        plt.figure()
+        plt.figure(dpi=300)
         
         unit = data[param_name]["unit"]
         values = np.asarray(data[param_name]["data"])
@@ -40,7 +40,7 @@ def plot_multi_data(data_paths, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     
     for param_name in param_names:
-        plt.figure()
+        plt.figure(dpi=300)
         
         for filename in data_all:
             unit = data_all[filename][param_name]["unit"]
