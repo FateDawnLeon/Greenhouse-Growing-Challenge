@@ -63,27 +63,28 @@ class ControlParamSampleSpace(object):
         return CP
 
     def sample_duration(self, min=30, max=50):
-        duration = random.randint(min, max)
+        duration = random.randrange(min, max, step=2)
         return duration
 
     def sample_heatingpipes_maxTemp(self, min=45, max=75):
-        maxTemp = random.randint(min, max)
+        maxTemp = random.randrange(min, max, step=3)
         return maxTemp
     
     def sample_heatingpipes_minTemp(self, min=0, max=45):
-        minTemp = random.randint(min, max)
+        minTemp = random.randrange(min, max, step=3)
         return minTemp
 
     def sample_heatingpipes_radiationInfluence(self):
         # TODO: need to design sample space
-        radinf = "100 300"
+        # radinf = "100 300"
+        radinf = "0"
         return radinf
 
     def sample_temp_heatingTemp(self):
         # TODO: need to design better sample space
         # temp_high = [12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
         # temp_low = [8, 10, 12, 14, 16]
-        temp = [18, 19, 20, 21, 22, 23, 24, 25]
+        temp = [10, 12, 14, 16, 18, 20, 22, 24]
         schemes = [
             # {"01-01": {"r-1": t_low,"r+1": t_high, "s-1": t_high, "s+1": t_low}} for t_low in temp_low for t_high in temp_high if t_low <= t_high
             {"01-01": {"8.0":t}} for t in temp
@@ -107,15 +108,15 @@ class ControlParamSampleSpace(object):
         return PbandVent
 
     def sample_CO2_pureCO2cap(self, min=50, max=200):
-        pureCO2cap = random.randint(min, max)
+        pureCO2cap = random.randrange(min, max, step=10)
         return pureCO2cap
 
-    def sample_CO2_setpoint(self, min=400, max=800):
-        setpoint = random.randint(min, max)
+    def sample_CO2_setpoint(self, min=400, max=1200):
+        setpoint = random.randrange(min, max, step=100)
         return setpoint
 
     def sample_CO2_setpIfLamps(self, min=700, max=900):
-        setpIfLamps = random.randint(min, max)
+        setpIfLamps = random.randrange(min, max, step=10)
         return setpIfLamps
 
     def sample_CO2_doseCapacity(self):
@@ -129,39 +130,43 @@ class ControlParamSampleSpace(object):
         return enabled
 
     def sample_illumination_intensity(self, min=50, max=200):
-        intensity = random.randint(min, max)
+        intensity = random.randrange(min, max, step=10)
         return intensity
 
-    def sample_illumination_hoursLight(self, min=0, max=20):
-        hoursLight = random.randint(min, max)
+    def sample_illumination_hoursLight(self, min=12, max=20):
+        hoursLight = random.randrange(min, max, step=2)
         return hoursLight
 
     def sample_illumination_endTime(self, min=18, max=24):
-        endTime = random.randint(min, max)
+        endTime = random.randrange(min, max, step=2)
         return endTime
 
     def sample_illumination_maxIglob(self, min=150, max=300):
-        maxIglob = random.randint(min, max)
+        maxIglob = random.randrange(min, max, step=10)
         return maxIglob
 
     def sample_illumination_maxPARsum(self, min=15, max=40):
-        maxPARsum = random.randint(min, max)
+        maxPARsum = random.randrange(min, max, step=2)
         return maxPARsum
 
     def sample_ventilation_startWnd(self, min=0, max=50):
-        startWnd = random.randint(min, max)
+        startWnd = random.randrange(min, max, step=5)
         return startWnd
 
     def sample_ventilation_winLeeMinMax(self):
         # TODO: need to design sample space for more fine-grained control
-        winLeeMin = random.randint(0, 100)
-        winLeeMax = random.randint(max(winLeeMin, 30), 100)
+        # winLeeMin = random.randint(0, 100)
+        # winLeeMax = random.randint(max(winLeeMin, 30), 100)
+        winLeeMin = 0
+        winLeeMax = 100
         return winLeeMin, winLeeMax
 
     def sample_ventilation_winWndMinMax(self):
         # TODO: need to design sample space for more fine-grained control
-        winWndMin = random.randint(0, 100)
-        winWndMax = random.randint(max(winWndMin, 30), 100)
+        # winWndMin = random.randint(0, 100)
+        # winWndMax = random.randint(max(winWndMin, 30), 100)
+        winWndMin = 0
+        winWndMax = 100
         return winWndMin, winWndMax
 
     def sample_plantDensity(self):
@@ -189,17 +194,17 @@ class ControlParamSampleSpace(object):
         return material, lightPollutionPrevention
 
     def sample_screen_ToutMax(self, min=-20, max=30):
-        ToutMax = random.randint(min, max)
+        ToutMax = random.randrange(min, max, step=2)
         return ToutMax
 
     def sample_screen_closeBelow(self, min=5, max=100):
         # TODO: need to design boarder-line based sample space 
-        closeBelow = random.randint(min, max)
+        closeBelow = random.randrange(min, max, step=5)
         return closeBelow
 
     def sample_screen_closeAbove(self, min=1000, max=1400):
         # TODO: need to design boarder-line based sample space 
-        closeAbove = random.randint(min, max)
+        closeAbove = random.randrange(min, max, step=50)
         return closeAbove
 
 
