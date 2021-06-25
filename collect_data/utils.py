@@ -1,3 +1,4 @@
+import os
 import json
 import datetime
 
@@ -60,30 +61,18 @@ control_params_path = [
 class ControlParams(object):
 
     START_DATE = datetime.date(2021, 3, 4)
-    DEFAULT_JSON_PATH = "ClimateControlSample.json"
 
-    def __init__(self, initialize_with_sample=True):
+    def __init__(self, init_json_path='ClimateControlSample.json'):
         super().__init__()
+        with open(init_json_path, 'r') as f:
+            self.data = json.load(f)
 
-        if initialize_with_sample:
-            with open(self.DEFAULT_JSON_PATH, 'r') as f:
-                self.data = json.load(f)
-        else:
-            self.data = {
-                "simset": {},
-                "common": {"CO2dosing": {}},
-                "comp1": {
-                    "heatingpipes": {"pipe1":{}},
-                    "setpoints": {"temp": {}, "ventilation": {}, "CO2": {}},
-                    "screens": {"scr1": {}, "scr2": {}},
-                    "illumination": {"lmp1": {}}
-                },
-                "crp_lettuce": {"Intkam": {"management": {}}}
-            }
-
-    def save_as_json(self, path):
-        with open(f'{path}.json', 'w') as f:
-            json.dump(self.data, f, indent=4, sort_keys=True)
+    def save_as_json(self, save_dir, save_name=None):
+        os.makedirs(save_dir, exist_ok=True)
+        if save_name is None:
+            save_name = f'{hex(hash(self))}.json'
+        with open(os.path.join(save_dir, save_name), 'w') as f:
+            json.dump(self.data, f, indent=4)
 
     def set_end_date(self, duration=None):
         if duration is not None:
