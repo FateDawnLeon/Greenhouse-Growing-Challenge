@@ -1,11 +1,11 @@
 import warnings
-from pprint import pprint
 warnings.filterwarnings('ignore')
 
 from skopt import gp_minimize, forest_minimize, gbrt_minimize
-from skopt.utils import use_named_args, dump, load
+from skopt.utils import use_named_args, dump
 from skopt.space import Integer, Real
 
+from pprint import pprint
 from utils import ControlParams
 from run_simulation import try_on_simulator
 
@@ -38,17 +38,17 @@ DIMS = {
         Real(name='light_maxIglob', low=100, high=200),
     ],
     'C': [
-        Integer(name='duration', low=35, high=45),
-        Integer(name='temp_night', low=10, high=30),
-        Integer(name='temp_day', low=10, high=20),
+        Integer(name='duration', low=30, high=50),
+        Integer(name='temp_night', low=0, high=20),
+        Integer(name='temp_day', low=10, high=30),
         Integer(name='CO2_supply_rate', low=100, high=200),
-        Integer(name='CO2_setpoint_night', low=400, high=1200),
-        Integer(name='CO2_setpoint_day', low=400, high=1200),
-        Integer(name='CO2_setpoint_lamp', low=400, high=1200),
+        Integer(name='CO2_setpoint_night', low=0, high=1200),
+        Integer(name='CO2_setpoint_day', low=0, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=0, high=1200),
         Integer(name='light_intensity', low=0, high=200),
-        Real(name='light_hours', low=4, high=20),
-        Real(name='light_endTime', low=0, high=24),
-        Integer(name='light_maxIglob', low=100, high=200),
+        Integer(name='light_hours', low=0, high=24),
+        Integer(name='light_endTime', low=0, high=24),
+        Integer(name='light_maxIglob', low=100, high=300),
     ]
 }
 
@@ -76,19 +76,6 @@ class NetProfitOptimizer(object):
                 light_hours,
                 light_endTime,
                 light_maxIglob):
-
-        print(duration,
-            temp_night,
-            temp_day,
-            CO2_supply_rate,
-            CO2_setpoint_night,
-            CO2_setpoint_day,
-            CO2_setpoint_lamp,
-            light_intensity,
-            light_hours,
-            light_endTime,
-            light_maxIglob)
-        # breakpoint()
         
         duration = int(duration)
         temp_night = float(temp_night)
@@ -131,11 +118,19 @@ class NetProfitOptimizer(object):
         return - output['stats']['economics']['balance']
 
     def save_result(self, res):
-        dump(res, 'result.gz')
-
+        result = {
+            'space': res.space,
+            'random_state': res.random_state,
+            'xs': res.x_iters,
+            'ys': list(res.func_vals),
+            'x*': res.x,
+            'y*': res.fun,
+        }
+        
+        dump(result, f'{self.data_dir}/result.gz')
+        
         with open(f'{self.data_dir}/result.log', 'w') as log_file:
-            # res.models = [res.models[0]]
-            pprint(res, log_file)
+            pprint(result, log_file)
 
     def optimize(self, opt, verbose):
         if opt == 'gp':
@@ -179,5 +174,5 @@ if __name__ == '__main__':
     optimizer = NetProfitOptimizer(args)
     res  = optimizer.optimize(opt=args.optimizer, verbose=args.logging)
     
-    pprint('Best Parameters:', res.x)
-    pprint('Best NetProfit:', - res.fun)
+    print(f'Best Parameters:', res.x)
+    print(f'Best NetProfit:', - res.fun)

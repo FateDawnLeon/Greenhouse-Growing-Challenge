@@ -246,3 +246,4 @@ collect_data/output_jsons*/
 *.zip
 *.json
 *.png
+*.gz
