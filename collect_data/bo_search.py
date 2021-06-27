@@ -49,6 +49,19 @@ DIMS = {
         Integer(name='light_hours', low=0, high=24),
         Integer(name='light_endTime', low=0, high=24),
         Integer(name='light_maxIglob', low=100, high=300),
+    ],
+    'D': [
+        Integer(name='duration', low=38, high=42),
+        Integer(name='temp_night', low=10, high=15),
+        Integer(name='temp_day', low=15, high=30),
+        Integer(name='CO2_supply_rate', low=150, high=200),
+        Integer(name='CO2_setpoint_night', low=400, high=800),
+        Integer(name='CO2_setpoint_day', low=1199, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
+        Integer(name='light_intensity', low=0, high=200),
+        Integer(name='light_hours', low=10, high=20),
+        Integer(name='light_endTime', low=18, high=24),
+        Integer(name='light_maxIglob', low=299, high=300),
     ]
 }
 
