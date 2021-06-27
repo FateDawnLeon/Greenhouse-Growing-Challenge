@@ -1,3 +1,4 @@
+from pickle import NONE
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -173,10 +174,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-NC', '--num-calls', type=int, default=20)
     parser.add_argument('-NI', '--num-initial-points', type=int, default=10)
-    parser.add_argument('-RS', '--random-seed', type=int, default=123)
+    parser.add_argument('-RS', '--random-seed', type=int, default=None)
     parser.add_argument('-DS', '--dimension-spec', type=str, default='A')
     parser.add_argument('-S', '--simulator', type=str, default='A')
-    parser.add_argument('-D', '--data-dir', type=str, default='bo_search')
+    parser.add_argument('-D', '--data-dir', type=str, default=None)
     parser.add_argument('-O', '--optimizer', type=str, default='gp')
     parser.add_argument('-L', '--logging', action='store_true')
     args = parser.parse_args()
