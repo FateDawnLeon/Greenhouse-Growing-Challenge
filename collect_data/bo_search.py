@@ -52,6 +52,8 @@ DIMS = {
         Integer(name='light_maxIglob', low=100, high=300),
     ],
     'D': [
+        # Best Parameters: [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300]
+        # Best NetProfit: 4.941
         Integer(name='duration', low=38, high=42),
         Integer(name='temp_night', low=10, high=15),
         Integer(name='temp_day', low=15, high=30),
@@ -62,6 +64,19 @@ DIMS = {
         Integer(name='light_intensity', low=0, high=200),
         Integer(name='light_hours', low=10, high=20),
         Integer(name='light_endTime', low=18, high=24),
+        Integer(name='light_maxIglob', low=299, high=300),
+    ],
+    'E': [
+        Integer(name='duration', low=35, high=40),
+        Real(name='temp_night', low=8, high=12),
+        Real(name='temp_day', low=24, high=28),
+        Integer(name='CO2_supply_rate', low=175, high=200),
+        Integer(name='CO2_setpoint_night', low=600, high=800),
+        Integer(name='CO2_setpoint_day', low=1199, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1000),
+        Integer(name='light_intensity', low=0, high=200),
+        Real(name='light_hours', low=0, high=24),
+        Real(name='light_endTime', low=0, high=24),
         Integer(name='light_maxIglob', low=299, high=300),
     ]
 }
@@ -77,6 +92,7 @@ class NetProfitOptimizer(object):
         self.random_state = args.random_seed
         self.simulator = args.simulator
         self.netprofit = use_named_args(dimensions=self.dimensions)(self.netprofit)
+        self.float_precision = args.float_precision
 
     def netprofit(self,
                 duration,
@@ -92,16 +108,16 @@ class NetProfitOptimizer(object):
                 light_maxIglob):
         
         duration = int(duration)
-        temp_night = float(temp_night)
-        temp_day = float(temp_day)
-        CO2_supply_rate = float(CO2_supply_rate)
-        CO2_setpoint_night = float(CO2_setpoint_night)
-        CO2_setpoint_day = float(CO2_setpoint_day)
-        CO2_setpoint_lamp = float(CO2_setpoint_lamp)
-        light_intensity = float(light_intensity)
-        light_hours = float(light_hours)
-        light_endTime = float(light_endTime)
-        light_maxIglob = float(light_maxIglob)
+        temp_night = round(float(temp_night), self.float_precision)
+        temp_day = round(float(temp_day), self.float_precision)
+        CO2_supply_rate = round(float(CO2_supply_rate), self.float_precision)
+        CO2_setpoint_night = round(float(CO2_setpoint_night), self.float_precision)
+        CO2_setpoint_day = round(float(CO2_setpoint_day), self.float_precision)
+        CO2_setpoint_lamp = round(float(CO2_setpoint_lamp), self.float_precision)
+        light_intensity = round(float(light_intensity), self.float_precision)
+        light_hours = round(float(light_hours), self.float_precision)
+        light_endTime = round(float(light_endTime), self.float_precision)
+        light_maxIglob = round(float(light_maxIglob), self.float_precision)
 
         CP = ControlParams()
         CP.set_end_date(duration=duration)
@@ -116,6 +132,7 @@ class NetProfitOptimizer(object):
             setpIfLamps=CO2_setpoint_lamp
         )
         CP.set_illumination(
+            enabled=True if light_intensity > 0 else False,
             intensity=light_intensity,
             hoursLight=light_hours,
             endTime=light_endTime,
@@ -180,6 +197,7 @@ if __name__ == '__main__':
     parser.add_argument('-D', '--data-dir', type=str, default=None)
     parser.add_argument('-O', '--optimizer', type=str, default='gp')
     parser.add_argument('-L', '--logging', action='store_true')
+    parser.add_argument('-P', '--float-precision', type=int, default=0)
     args = parser.parse_args()
     print(args)
 
