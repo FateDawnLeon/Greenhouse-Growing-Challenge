@@ -1,5 +1,7 @@
-from pickle import NONE
 import warnings
+from scipy.sparse.lil import lil_matrix
+
+from torch.nn.modules import linear
 warnings.filterwarnings('ignore')
 
 from skopt import gp_minimize, forest_minimize, gbrt_minimize
@@ -67,6 +69,8 @@ DIMS = {
         Integer(name='light_maxIglob', low=299, high=300),
     ],
     'E': [
+        # Best Parameters: [38, 9.5, 26.1, 184, 603, 1199, 857, 4, 4.2, 6.0, 300]
+        # Best NetProfit: 4.94
         Integer(name='duration', low=35, high=40),
         Real(name='temp_night', low=8, high=12),
         Real(name='temp_day', low=24, high=28),
@@ -78,6 +82,15 @@ DIMS = {
         Real(name='light_hours', low=0, high=24),
         Real(name='light_endTime', low=0, high=24),
         Integer(name='light_maxIglob', low=299, high=300),
+    ],
+    'F': [
+        Integer(name='CO2_supply_rate', low=100, high=200),
+        Integer(name='CO2_setpoint_night', low=600, high=800),
+        Integer(name='CO2_setpoint_day', low=800, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
+        Integer(name='light_intensity', low=0, high=200),
+        Real(name='light_hours', low=0, high=24),
+        Real(name='light_endTime', low=0, high=24),
     ]
 }
 
@@ -91,8 +104,14 @@ class NetProfitOptimizer(object):
         self.n_initial_points = args.num_initial_points
         self.random_state = args.random_seed
         self.simulator = args.simulator
-        self.netprofit = use_named_args(dimensions=self.dimensions)(self.netprofit)
         self.float_precision = args.float_precision
+        
+        if args.dimension_spec == 'F':
+            target_func = self.netprofit2
+        else:
+            target_func = self.netprofit
+            
+        self.netprofit = use_named_args(dimensions=self.dimensions)(target_func)
 
     def netprofit(self,
                 duration,
@@ -148,6 +167,28 @@ class NetProfitOptimizer(object):
 
         return - output['stats']['economics']['balance']
 
+    def netprofit2(self, 
+                CO2_supply_rate,
+                CO2_setpoint_night,
+                CO2_setpoint_day,
+                CO2_setpoint_lamp,
+                light_intensity,
+                light_hours,
+                light_endTime):
+        return self.netprofit(
+            duration=38,
+            temp_night=10,
+            temp_day=26,
+            CO2_supply_rate=CO2_supply_rate,
+            CO2_setpoint_night=CO2_setpoint_night,
+            CO2_setpoint_day=CO2_setpoint_day,
+            CO2_setpoint_lamp=CO2_setpoint_lamp,
+            light_intensity=light_intensity,
+            light_hours=light_hours,
+            light_endTime=light_endTime,
+            light_maxIglob=300
+        )
+
     def save_result(self, res):
         result = {
             'space': res.space,
@@ -172,7 +213,7 @@ class NetProfitOptimizer(object):
             opt_func = gbrt_minimize
         else:
             raise NotImplementedError(f'optimizer {opt} not supported!')
-        
+
         res = opt_func(
             func=self.netprofit,
             dimensions=self.dimensions,
