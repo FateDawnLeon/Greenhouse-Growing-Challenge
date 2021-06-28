@@ -1,7 +1,4 @@
 import warnings
-from scipy.sparse.lil import lil_matrix
-
-from torch.nn.modules import linear
 warnings.filterwarnings('ignore')
 
 from skopt import gp_minimize, forest_minimize, gbrt_minimize
