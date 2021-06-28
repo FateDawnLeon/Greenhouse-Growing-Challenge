@@ -108,7 +108,7 @@ class NetProfitOptimizer(object):
         else:
             target_func = self.netprofit
             
-        self.netprofit = use_named_args(dimensions=self.dimensions)(target_func)
+        self.target_func = use_named_args(dimensions=self.dimensions)(target_func)
 
     def netprofit(self,
                 duration,
@@ -212,7 +212,7 @@ class NetProfitOptimizer(object):
             raise NotImplementedError(f'optimizer {opt} not supported!')
 
         res = opt_func(
-            func=self.netprofit,
+            func=self.target_func,
             dimensions=self.dimensions,
             n_initial_points=self.n_initial_points,
             n_calls=self.n_calls,
