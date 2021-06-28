@@ -12,17 +12,17 @@ from run_simulation import try_on_simulator
 
 DIMS = {
     'A': [
-        Integer(name='duration', low=20, high=50),
-        Real(name='temp_night', low=10, high=30),
-        Real(name='temp_day', low=10, high=30),
+        Integer(name='duration', low=30, high=50),
+        Real(name='temp_night', low=15, high=30),
+        Real(name='temp_day', low=5, high=20),
         Real(name='CO2_supply_rate', low=100, high=200),
-        Real(name='CO2_setpoint_night', low=400, high=1200),
-        Real(name='CO2_setpoint_day', low=400, high=1200),
-        Real(name='CO2_setpoint_lamp', low=400, high=1200),
-        Real(name='light_intensity', low=50, high=100),
+        Real(name='CO2_setpoint_night', low=400, high=800),
+        Real(name='CO2_setpoint_day', low=800, high=1200),
+        Real(name='CO2_setpoint_lamp', low=800, high=1200),
+        Real(name='light_intensity', low=0, high=200),
         Real(name='light_hours', low=0, high=24),
-        Real(name='light_endTime', low=18, high=24),
-        Real(name='light_maxIglob', low=100, high=200),
+        Real(name='light_endTime', low=0, high=24),
+        Real(name='light_maxIglob', low=100, high=400),
     ],
     'B': [
         Integer(name='duration', low=35, high=45),
@@ -81,6 +81,8 @@ DIMS = {
         Integer(name='light_maxIglob', low=299, high=300),
     ],
     'F': [
+        # Best Parameters: [193, 672, 1124, 949, 0, 8.0, 0.4]
+        # Best NetProfit: 4.901
         Integer(name='CO2_supply_rate', low=100, high=200),
         Integer(name='CO2_setpoint_night', low=600, high=800),
         Integer(name='CO2_setpoint_day', low=800, high=1200),
