@@ -12,6 +12,9 @@ from run_simulation import try_on_simulator
 
 DIMS = {
     'A': [
+        # runtime: method=gbrt_init=1000_ncall=10000_RS=42_SP=A_P=1_sim=A
+        # Best Parameters: [37, 29.331173428460527, 19.740135016200067, 105.54579140908399, 735.4649817201819, 800.7794533665503, 1114.7327640161704, 10.831808389882115, 12.963267259805608, 16.377776700064487, 347.19371387181457]
+        # Best NetProfit: 3.923
         Integer(name='duration', low=30, high=50),
         Real(name='temp_night', low=15, high=30),
         Real(name='temp_day', low=5, high=20),
