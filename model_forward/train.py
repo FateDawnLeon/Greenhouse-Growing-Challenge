@@ -9,6 +9,7 @@ from torch import nn
 import warnings
 warnings.filterwarnings('ignore')
 matplotlib.use('agg')
+plt.ioff()
 
 
 class Normalizer(object):
