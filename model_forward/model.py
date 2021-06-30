@@ -142,93 +142,41 @@ def compute_netprofit(control_param, output_param):
 
 
 class Model(nn.Module):
-
-    CONTROL_KEYS = [
-        "simset.@endDate",
-        "comp1.heatingpipes.pipe1.@maxTemp",
-        "comp1.heatingpipes.pipe1.@minTemp",
-        "comp1.heatingpipes.pipe1.@radiationInfluence",
-        "comp1.setpoints.temp.@heatingTemp",
-        "comp1.setpoints.temp.@ventOffset",
-        "comp1.setpoints.temp.@radiationInfluence",
-        "comp1.setpoints.temp.@PbandVent",
-        "comp1.setpoints.ventilation.@startWnd",
-        "comp1.setpoints.ventilation.@winLeeMin",
-        "comp1.setpoints.ventilation.@winLeeMax",
-        "comp1.setpoints.ventilation.@winWndMin",
-        "comp1.setpoints.ventilation.@winWndMax",
-        "common.CO2dosing.@pureCO2cap",
-        "comp1.setpoints.CO2.@setpoint",
-        "comp1.setpoints.CO2.@setpIfLamps",
-        "comp1.setpoints.CO2.@doseCapacity",
-        "comp1.screens.scr1.@enabled",
-        "comp1.screens.scr1.@material",
-        "comp1.screens.scr1.@ToutMax",
-        "comp1.screens.scr1.@closeBelow",
-        "comp1.screens.scr1.@closeAbove",
-        "comp1.screens.scr1.@lightPollutionPrevention",
-        "comp1.screens.scr2.@enabled",
-        "comp1.screens.scr2.@material",
-        "comp1.screens.scr2.@ToutMax",
-        "comp1.screens.scr2.@closeBelow",
-        "comp1.screens.scr2.@closeAbove",
-        "comp1.screens.scr2.@lightPollutionPrevention",
-        "comp1.illumination.lmp1.@enabled",
-        "comp1.illumination.lmp1.@intensity",
-        "comp1.illumination.lmp1.@hoursLight",
-        "comp1.illumination.lmp1.@endTime",
-        "comp1.illumination.lmp1.@maxIglob",
-        "comp1.illumination.lmp1.@maxPARsum",
-        "crp_lettuce.Intkam.management.@plantDensity",
-    ]
-
-    ENV_KEYS = [
-        'common.Iglob.Value',
-        'common.TOut.Value',
-        'common.RHOut.Value',
-        'common.Windsp.Value',
-        'common.Economics.PeakHour',
-    ]
-
-    OUTPUT_KEYS = [
-        'comp1.Air.T',
-        'comp1.Air.RH',
-        'comp1.Air.ppm',
-        'comp1.PARsensor.Above',
-        'comp1.TPipe1.Value',
-        'comp1.ConPipes.TSupPipe1',
-        'comp1.PConPipe1.Value',
-        'comp1.ConWin.WinLee',
-        'comp1.ConWin.WinWnd',
-        'comp1.Setpoints.SpHeat',
-        'comp1.Setpoints.SpVent',
-        'comp1.Scr1.Pos',
-        'comp1.Scr2.Pos',
-        'comp1.McPureAir.Value',
-        'comp1.Plant.headFW',
-        'comp1.Plant.fractionGroundCover',
-        'comp1.Plant.shootDryMatterContent',
-        'comp1.Plant.plantProjection',
-        'comp1.Plant.PlantDensity',
-        'comp1.Lmp1.ElecUse',
-    ]
-
-    def __init__(self):
+    def __init__(self, in_features, out_features):
         super(Model, self).__init__()
 
-        num_in_features = len(Model.OUTPUT_KEYS) + len(Model.CONTROL_KEYS) + len(Model.ENV_KEYS)
-        num_out_features = len(Model.OUTPUT_KEYS)
-        
         self.net = nn.Sequential(
-            nn.Linear(num_in_features, 128),
+            nn.Linear(in_features, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
             nn.Linear(128, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(inplace=True),
-            nn.Linear(64, num_out_features),
+            nn.Linear(64, out_features),
         )
 
-    def forward(self, cp, w, op):
-        x = torch.cat([cp, w, op], dim=-1)
+    def forward(self, cp, ep, op_pre):
+        x = torch.cat([cp, ep, op_pre], dim=-1)
         return self.net(x)
+    
+    def inference_output_episode(self, cp, ep, op_0):
+        self.eval()
+
+        # cp: np.ndarray -> T x num_cp_params 
+        # ep: np.ndarray -> T x num_ep_params
+        # op_0: np.ndarray -> num_op_params
+
+        op_i = torch.from_numpy(op_0).unsqueeze(0)
+        cp = torch.from_numpy(cp)
+        ep = torch.from_numpy(ep)
+
+        with torch.no_grad():
+            op_episode = []
+            for cp_i, ep_i in zip(cp, ep):
+                cp_i = cp_i.unsqueeze(0)    
+                ep_i = ep_i.unsqueeze(0)    
+                op_i = self(cp_i, ep_i, op_i)
+                op_episode.append(op_i)
+
+        return torch.cat(op_episode, dim=0).cpu().numpy() # T x num_op_params
+    

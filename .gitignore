@@ -249,3 +249,6 @@ collect_data/output_jsons*/
 *.gz
 *.txt
 *.pkl
+*.npz
+*.npy
+*.ipynb
