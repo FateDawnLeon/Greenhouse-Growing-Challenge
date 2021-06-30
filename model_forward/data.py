@@ -5,11 +5,7 @@ import numpy as np
 
 from astral.geocoder import lookup, database
 from astral.sun import sun
-from numpy.core.fromnumeric import mean
-from torch.functional import norm
-from torch.serialization import normalize_storage_type
 from torch.utils.data import Dataset
-from scipy import stats
 
 
 CITY = lookup('Amsterdam', database())

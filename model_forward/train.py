@@ -41,6 +41,7 @@ def plot_running_stats_step(stats_name, stats_data, save_path, title=None):
     plt.xlabel('step')
     plt.ylabel(stats_name)
     plt.savefig(save_path)
+    plt.close()
 
 
 if __name__ == '__main__':
