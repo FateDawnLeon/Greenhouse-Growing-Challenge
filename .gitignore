@@ -252,3 +252,4 @@ collect_data/output_jsons*/
 *.npz
 *.npy
 *.ipynb
+*.pth

@@ -364,6 +364,9 @@ class SupervisedModelDataset(Dataset):
         self.op_pre = np.concatenate(op_pre_arr_list, axis=0, dtype=np.float32)
         self.op_cur = np.concatenate(op_cur_arr_list, axis=0, dtype=np.float32)
 
+        assert self.cp.shape[0] == self.ep.shape[0] == self.op_pre.shape[0]
+        assert self.op_pre.shape == self.op_cur.shape
+
     def __getitem__(self, index):
         cp_vec = self.cp[index]
         ep_vec = self.ep[index]
@@ -377,4 +380,16 @@ class SupervisedModelDataset(Dataset):
 
     def __len__(self):
         return self.cp.shape[0]
+
+    @property
+    def cp_dim(self):
+        return self.cp.shape[1]
+    
+    @property
+    def ep_dim(self):
+        return self.ep.shape[1]
+    
+    @property
+    def op_dim(self):
+        return self.op_pre.shape[1]
     
