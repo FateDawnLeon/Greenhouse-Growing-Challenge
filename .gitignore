@@ -247,3 +247,5 @@ collect_data/output_jsons*/
 *.json
 *.png
 *.gz
+*.txt
+*.pkl
