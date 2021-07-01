@@ -1,9 +1,12 @@
 import os
 import json
 import datetime
+import numpy as np
 
 
-control_params_path = [
+START_DATE = datetime.date(2021, 3, 4)
+
+CONTROL_KEYS = [
     # simulation duration
     "simset.@endDate",
 
@@ -56,6 +59,61 @@ control_params_path = [
     # planting density for multiple growth stages: influence overall grorwing speed and final quality of the crop
     "crp_lettuce.Intkam.management.@plantDensity",
 ]
+
+
+def valseq_to_scheme(vals, start_date):
+    assert isinstance(vals, list) and len(vals) > 0 and len(vals) % 24 == 0
+
+    scheme = {}
+    for i in range(len(vals) // 24):
+        date = start_date + datetime.timedelta(days=i)
+        vals_day = vals[i*24:(i+1)*24]
+        scheme[f'{date.day:02d}-{date.month:02d}'] = {str(t): vals_day[t] for t in range(24)}
+    
+    return scheme
+
+
+class ControlParamSimple(object):
+    def __init__(self, init_json_path='ClimateControlSample.json', start_date=START_DATE):
+        super().__init__()
+        with open(init_json_path, 'r') as f:
+            self.data = json.load(f)
+
+        assert type(start_date) == datetime.date
+        self.start_date = start_date
+
+    def dump_json(self, save_dir, save_name=None):
+        os.makedirs(save_dir, exist_ok=True)
+        if save_name is None:
+            save_name = f'{hex(hash(self))}.json'
+        with open(os.path.join(save_dir, save_name), 'w') as f:
+            json.dump(self.data, f, indent=4)
+    
+    def set_value(self, key_path, value):
+        keys = key_path.split('.')
+        field = self.data
+        for key in keys[:-1]:
+            field = field[key]
+
+        if type(value) in [int, float, bool, str, dict]:
+            field[keys[-1]] = value
+        elif type(value) == list:
+            field[keys[-1]] = valseq_to_scheme(value, self.start_date)
+        else:
+            raise ValueError(f'value type of {value} not supported!')
+    
+    def set_endDate(self, num_days:int):
+        end_date = self.start_date + datetime.timedelta(days=num_days)
+        self.set_value("simset.@endDate", end_date.isoformat())
+
+    def __repr__(self):
+        return json.dumps(self.data, indent=4)
+
+    def __str__(self):
+        return repr(self)
+
+    def __hash__(self):
+        return str(self.data).__hash__()
 
 
 class ControlParams(object):
@@ -163,62 +221,9 @@ class ControlParams(object):
 
 
 if __name__ == '__main__':
-    CP = ControlParams()
-
-    # default settings from the sample json file
-    CP.set_end_date(duration=40)
-    CP.set_heatingpipes(
-        maxTemp=60,
-        minTemp=0, 
-        radiationInfluence="100 300"
-    )
-    CP.set_temperature(
-        heatingTemp={"01-01": {"r-1": 10,"r+1": 12, "s-1": 12, "s+1": 10}}, 
-        ventOffset={"01-01" : {"0" : 2}},
-        radiationInfluence={"01-01": "50 150 1"},
-        PbandVent="0 10; 20 5"
-    )
-    CP.set_CO2(
-        pureCO2cap=100, 
-        setpoint=600, 
-        setpIfLamps=800, 
-        doseCapacity="100"
-    )
-    CP.set_illumination(
-        enabled=True, 
-        intensity=80, 
-        hoursLight=14, 
-        endTime=18, 
-        maxIglob=100, 
-        maxPARsum=50
-    )
-    CP.set_ventilation(
-        startWnd=50, 
-        winLeeMin=0, 
-        winLeeMax=100, 
-        winWndMin=0, 
-        winWndMax=100
-    )
-    CP.set_plant_density(
-        plantDensity="1 80; 10 40; 20 30; 25 20; 30 10"
-    )
-    CP.set_screen(
-        scr_id=1, 
-        enabled=True,
-        material="scr_Blackout.par",
-        ToutMax=8,
-        closeBelow=5,
-        closeAbove=1200,
-        lightPollutionPrevention=True
-    )
-    CP.set_screen(
-        scr_id=2, 
-        enabled=False, 
-        material="scr_Transparent.par", 
-        ToutMax=12, 
-        closeBelow="0 100; 10 5", 
-        closeAbove=1000,
-        lightPollutionPrevention=False
-    )
-
+    vals = np.random.randint(10, 30, (24*2,)).tolist()
+    # vals = [str(x) for x in vals]
+    CP = ControlParamSimple()
+    CP.set_endDate(2)
+    CP.set_value("comp1.setpoints.temp.@heatingTemp", vals)
     print(CP)
