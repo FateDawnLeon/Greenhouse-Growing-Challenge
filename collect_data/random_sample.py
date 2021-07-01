@@ -63,22 +63,16 @@ class ControlParamSampleSpace(object):
         return CP
 
     def sample_duration(self, min=30, max=50):
-        duration = random.randrange(min, max, step=2)
-        return duration
+        return random.randrange(min, max, step=2)
 
     def sample_heatingpipes_maxTemp(self, min=45, max=75):
-        maxTemp = random.randrange(min, max, step=3)
-        return maxTemp
+        return random.randrange(min, max, step=3)
     
     def sample_heatingpipes_minTemp(self, min=0, max=45):
-        minTemp = random.randrange(min, max, step=3)
-        return minTemp
+        return random.randrange(min, max, step=3)
 
     def sample_heatingpipes_radiationInfluence(self):
-        # TODO: need to design sample space
-        # radinf = "100 300"
-        radinf = "0"
-        return radinf
+        return "0"
 
     def sample_temp_heatingTemp(self):
         # TODO: need to design better sample space
@@ -89,69 +83,49 @@ class ControlParamSampleSpace(object):
             # {"01-01": {"r-1": t_low,"r+1": t_high, "s-1": t_high, "s+1": t_low}} for t_low in temp_low for t_high in temp_high if t_low <= t_high
             {"01-01": {"8.0":t}} for t in temp
         ]
-        heatingTemp = random.choice(schemes)
-        return heatingTemp
+        return random.choice(schemes)
 
     def sample_temp_ventOffset(self):
-        # TODO: need to design sample space
-        ventOffset = {"01-01": {"0": 2}}
-        return ventOffset
+        return {"01-01": {"0": 2}}
 
     def sample_temp_radiationInfluence(self):
-        # TODO: need to design sample space
-        radinf = {"01-01": "50 150 1"}
-        return radinf
+        return {"01-01": "50 150 1"}
 
     def sample_temp_PbandVent(self):
-        # TODO: need to design sample space
-        PbandVent="0 10; 20 5"
-        return PbandVent
+        return "0 10; 20 5"
 
     def sample_CO2_pureCO2cap(self, min=50, max=200):
-        pureCO2cap = random.randrange(min, max, step=10)
-        return pureCO2cap
+        return random.randrange(min, max, step=10)
 
     def sample_CO2_setpoint(self, min=400, max=1200):
-        setpoint = random.randrange(min, max, step=100)
-        return setpoint
+        return random.randrange(min, max, step=100)
 
     def sample_CO2_setpIfLamps(self, min=700, max=900):
-        setpIfLamps = random.randrange(min, max, step=10)
-        return setpIfLamps
+        return random.randrange(min, max, step=10)
 
     def sample_CO2_doseCapacity(self):
-        # TODO: need to design sample space
-        doseCapacity = "100"
-        return doseCapacity
+        return "100"
 
     def sample_illumination_enabled(self):
-        # TODO: need to design sample space
-        enabled = True
-        return enabled
+        return True
 
     def sample_illumination_intensity(self, min=50, max=200):
-        intensity = random.randrange(min, max, step=10)
-        return intensity
+        return random.randrange(min, max, step=10)
 
     def sample_illumination_hoursLight(self, min=12, max=20):
-        hoursLight = random.randrange(min, max, step=2)
-        return hoursLight
+        return random.randrange(min, max, step=2)
 
     def sample_illumination_endTime(self, min=18, max=24):
-        endTime = random.randrange(min, max, step=2)
-        return endTime
+        return random.randrange(min, max, step=2)
 
     def sample_illumination_maxIglob(self, min=150, max=300):
-        maxIglob = random.randrange(min, max, step=10)
-        return maxIglob
+        return random.randrange(min, max, step=10)
 
     def sample_illumination_maxPARsum(self, min=15, max=40):
-        maxPARsum = random.randrange(min, max, step=2)
-        return maxPARsum
+        return random.randrange(min, max, step=2)
 
     def sample_ventilation_startWnd(self, min=0, max=50):
-        startWnd = random.randrange(min, max, step=5)
-        return startWnd
+        return random.randrange(min, max, step=5)
 
     def sample_ventilation_winLeeMinMax(self):
         # TODO: need to design sample space for more fine-grained control
@@ -175,13 +149,10 @@ class ControlParamSampleSpace(object):
             "1 90; 7 60; 14 40; 21 30; 28 20; 34 15",
             "1 80; 10 40; 20 30; 25 20; 30 10",
         ]
-        plantDensity = random.choice(schemes)
-        return plantDensity
+        return random.choice(schemes)
 
     def sample_screen_enabled(self):
-        # TODO: need to design sample space for more fine-grained control
-        enabled = random.choice([True, False])
-        return enabled
+        return random.choice([True, False])
 
     def sample_screen_material_lpp(self):
         types = [
@@ -194,18 +165,13 @@ class ControlParamSampleSpace(object):
         return material, lightPollutionPrevention
 
     def sample_screen_ToutMax(self, min=-20, max=30):
-        ToutMax = random.randrange(min, max, step=2)
-        return ToutMax
+        return random.randrange(min, max, step=2)
 
     def sample_screen_closeBelow(self, min=5, max=100):
-        # TODO: need to design boarder-line based sample space 
-        closeBelow = random.randrange(min, max, step=5)
-        return closeBelow
+        return random.randrange(min, max, step=5)
 
     def sample_screen_closeAbove(self, min=1000, max=1400):
-        # TODO: need to design boarder-line based sample space 
-        closeAbove = random.randrange(min, max, step=50)
-        return closeAbove
+        return random.randrange(min, max, step=50)
 
 
 if __name__ == '__main__':

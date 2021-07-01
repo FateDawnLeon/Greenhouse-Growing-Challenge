@@ -90,14 +90,16 @@ def load_json_data(path):
 
 def preprocess_str(param):
     if '.par' in param:
-        val = param == np.array(['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par'])
+        return param == np.array(
+            ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
+        )
+
     elif ';' in param: # this is a table
         numbers = [[float(x) for x in y.split()] for y in param.split(';')]
-        val = np.asarray(numbers).flatten()
+        return np.asarray(numbers).flatten()
     else: # this is a number list
         numbers = [float(x) for x in param.split()]
-        val = np.asarray(numbers)
-    return val
+        return np.asarray(numbers)
 
 
 def preprocess_screen_threshold(param, num_hours):
@@ -144,24 +146,22 @@ special_preprocess = {
 
 def parse_static_param(key, param, num_hours):
     if key in special_preprocess:
-        values = special_preprocess[key](param, num_hours)
+        return special_preprocess[key](param, num_hours)
+    if type(param) in [int, float, bool]:
+        val = np.array([param])
+    elif type(param) == str:
+        val = preprocess_str(param)
     else:
-        if type(param) in [int, float, bool]:
-            val = np.array([param])
-        elif type(param) == str:
-            val = preprocess_str(param)
-        else:
-            raise ValueError(f'praram {key}:{param} data type not supported!')
-        values = np.repeat(val[:, np.newaxis], num_hours, axis=1)
-    return values
+        raise ValueError(f'praram {key}:{param} data type not supported!')
+    return np.repeat(val[:, np.newaxis], num_hours, axis=1)
 
 
-def parse_dynamic_param(key, param, num_hours):
+def parse_dynamic_param(key, param, num_hours):  # sourcery no-metrics
     value_scheme = []
     for date in param:
         day, month = [int(x) for x in date.split('-')]
         dateinfo = datetime.date(2021, month, day)
-        
+
         day_param = param[date]
         if isinstance(day_param, dict): # this is a 24-hour schedule
             s = sun(CITY.observer, date=dateinfo, tzinfo=CITY.timezone)
@@ -181,23 +181,23 @@ def parse_dynamic_param(key, param, num_hours):
                 for cur in range(len(time_vals)):
                     left_time, left_val = time_vals[cur]
                     right_time, right_val = time_vals[(cur+1) % len(time_vals)]
-                    
+
                     if right_time < left_time:
                         right_time += 24
 
+                    d_v = right_val - left_val
+                    d_t = right_time - left_time
                     for i in range(left_time, right_time):
-                        d_v = right_val - left_val
-                        d_t = right_time - left_time
                         day_values[i%24] = left_val + (i - left_time) * d_v / d_t
             day_values = np.array(day_values)
             day_values = day_values[np.newaxis, :]
         else:
             day_values = parse_static_param(key, day_param, 24)
-        
+
         delta = dateinfo - START_DATE
         day_offset = max(0, delta.days)
         value_scheme.append((day_offset, day_values))
-    
+
     n = value_scheme[0][1].shape[0]
     values = np.zeros((n, num_hours))
     for day_offset, day_values in value_scheme:
@@ -309,8 +309,7 @@ def zscore_normalize(data_arr, mean_arr, std_arr):
 
 
 def zscore_denormalize(norm_arr, mean_arr, std_arr):
-    data_arr = norm_arr * std_arr + mean_arr
-    return data_arr
+    return norm_arr * std_arr + mean_arr
 
 
 def compute_mean_std(data_dirs):
