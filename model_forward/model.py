@@ -47,14 +47,13 @@ class Gain:
     @staticmethod
     def std_price(FW):
         if FW < 210 or FW > 290:
-            price = 0
+            return 0
         elif 210 <= FW < 230:
-            price = 0.4 * (FW - 210) / (230 - 210)
+            return 0.4 * (FW - 210) / (230 - 210)
         elif 230 <= FW <= 250:
-            price = 0.4 + 0.1 * (FW - 230) / (250 - 230)
+            return 0.4 + 0.1 * (FW - 230) / (250 - 230)
         else:
-            price = Gain.std_price(500 - FW)
-        return price
+            return Gain.std_price(500 - FW)
 
 
 class FixedCost:
@@ -188,7 +187,7 @@ class Environment:
 
     def reset(self, op_init=None):
         self.step_cnt = 0
-        op_init = op_init if op_init else self.op_init
+        op_init = op_init or self.op_init
         self.state = {'ep': self.ep_seq[0], 'op': op_init}
 
 

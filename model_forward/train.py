@@ -38,7 +38,7 @@ class DataNormalizer(object):
 def plot_running_stats_step(stats_name, stats_data, save_path, title=None):
     plt.figure(dpi=300)
     plt.plot(stats_data)
-    plt.title(title if title else f'step vs. {stats_name}')
+    plt.title(title or f'step vs. {stats_name}')
     plt.xlabel('step')
     plt.ylabel(stats_name)
     plt.savefig(save_path)

@@ -14,16 +14,14 @@ def try_on_simulator(json_name, control_json_dir, output_json_dir, sim_id):
     with open(f'{control_json_dir}/{json_name}', 'r') as f:
         control = json.load(f)
 
-    data = {}
-    data["key"] = KEYS[sim_id]
-    data["parameters"] = json.dumps(control)
+    data = {"key": KEYS[sim_id], "parameters": json.dumps(control)}
     headers = {'ContentType': 'application/json'}
 
     while True:
         response = requests.post(URL, data=data, headers=headers, timeout=300)
         output = response.json()
         print(json_name, response, output['responsemsg'])
-        
+
         if output['responsemsg'] == 'ok':
             break
         elif output['responsemsg'] == 'busy':
@@ -34,7 +32,7 @@ def try_on_simulator(json_name, control_json_dir, output_json_dir, sim_id):
     os.makedirs(output_json_dir, exist_ok=True)
     with open(f'{output_json_dir}/{json_name}', 'w') as f:
         json.dump(output, f)
-    
+
     return output
 
 

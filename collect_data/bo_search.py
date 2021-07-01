@@ -138,12 +138,8 @@ class NetProfitOptimizer(object):
         self.random_state = args.random_seed
         self.simulator = args.simulator
         self.float_precision = args.float_precision
-        
-        if args.dimension_spec == 'F':
-            target_func = self.netprofit2
-        else:
-            target_func = self.netprofit
-            
+
+        target_func = self.netprofit2 if args.dimension_spec == 'F' else self.netprofit
         self.target_func = use_named_args(dimensions=self.dimensions)(target_func)
 
     def netprofit(self,
@@ -184,12 +180,13 @@ class NetProfitOptimizer(object):
             setpIfLamps=CO2_setpoint_lamp
         )
         CP.set_illumination(
-            enabled=True if light_intensity > 0 else False,
+            enabled=light_intensity > 0,
             intensity=light_intensity,
             hoursLight=light_hours,
             endTime=light_endTime,
             maxIglob=light_maxIglob,
         )
+        
 
         control_name = f'D={duration}_TN={temp_night}_TD={temp_day}_CO2Cap={CO2_supply_rate}_CO2N={CO2_setpoint_night}_CO2D={CO2_setpoint_day}_CO2L={CO2_setpoint_lamp}_LI={light_intensity}_LH={light_hours}_LET={light_endTime}_LMI={light_maxIglob}.json'
         control_dir = f'{self.data_dir}/controls'
@@ -247,7 +244,7 @@ class NetProfitOptimizer(object):
         else:
             raise NotImplementedError(f'optimizer {opt} not supported!')
 
-        res = opt_func(
+        return opt_func(
             func=self.target_func,
             dimensions=self.dimensions,
             n_initial_points=self.n_initial_points,
@@ -256,7 +253,6 @@ class NetProfitOptimizer(object):
             callback=self.save_result,
             verbose=verbose
         )
-        return res
 
 
 def get_func_and_callback(args):
@@ -355,7 +351,7 @@ def optimize(args):
 
     netprofit, save_result = get_func_and_callback(args)
 
-    res = opt_func(
+    return opt_func(
         func=netprofit,
         dimensions=DIMS[args.dimension_spec],
         n_initial_points=args.num_initial_points,
@@ -364,7 +360,6 @@ def optimize(args):
         callback=save_result,
         verbose=args.logging
     )
-    return res
 
 
 if __name__ == '__main__':
