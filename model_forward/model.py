@@ -141,6 +141,57 @@ def compute_netprofit(control_param, output_param):
     return gain - cost_fixed - cost_variable
 
 
+class Environment:
+    def __init__(self, cp_dim, ep_seq, op_init, max_num_steps):
+        # state: ep + op
+        # action: cp
+        # transition: (state, action) -> state
+        # ep_seq: np.ndarray (T x ep_dim)
+        # op_init: np.ndarray (op_dim)
+        # cp: np.ndarray (op_dim)
+
+        ep_dim = len(ep_seq[0])
+        op_dim = len(op_init)
+        self.transition = Model(cp_dim + ep_dim + op_dim, op_dim)
+        
+        self.ep_seq = ep_seq
+        self.op_init = op_init
+        self.max_num_steps = min(len(ep_seq)-1, max_num_steps)
+        self.step_cnt = 0
+        self.reset()
+
+    def step(self, action):
+        state = self.state
+        
+        cp = action
+        ep_pre = self.state['ep']
+        op_pre = self.state['op']
+
+        op_cur = self.transition(cp, ep_pre, op_pre)
+        ep_cur = self.ep_seq[self.step_cnt+1]
+
+        self.state['ep'] = ep_cur
+        self.state['op'] = op_cur
+
+        state_next = self.state
+        reward = self.reward(state, action, state_next)
+        done = self.step_cnt >= self.max_num_steps
+        
+        if done:
+            print('maximum number of steps reached, reset to initial.')
+            self.reset()
+
+        return state_next, reward, done
+
+    def reward(self, state, action, state_next):
+        raise NotImplementedError()
+
+    def reset(self, op_init=None):
+        self.step_cnt = 0
+        op_init = op_init if op_init else self.op_init
+        self.state = {'ep': self.ep_seq[0], 'op': op_init}
+
+
 class Model(nn.Module):
     def __init__(self, in_features, out_features):
         super(Model, self).__init__()
