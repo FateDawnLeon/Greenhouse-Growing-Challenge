@@ -1,6 +1,8 @@
 import os
 import json
 import requests
+import numpy as np
+from utils import ControlParamSimple
 
 
 KEYS = {
@@ -10,17 +12,26 @@ KEYS = {
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 
 
-def try_on_simulator(json_name, control_json_dir, output_json_dir, sim_id):
-    with open(f'{control_json_dir}/{json_name}', 'r') as f:
-        control = json.load(f)
+ENV_KEYS = [
+    # related to greenhouse-inside environment parameters
+    'common.Iglob.Value',
+    'common.TOut.Value',
+    'common.RHOut.Value',
+    'common.Windsp.Value',
 
+    # related to variable cost
+    'common.Economics.PeakHour',
+]
+
+
+def get_output(control, sim_id):
     data = {"key": KEYS[sim_id], "parameters": json.dumps(control)}
     headers = {'ContentType': 'application/json'}
 
     while True:
         response = requests.post(URL, data=data, headers=headers, timeout=300)
         output = response.json()
-        print(json_name, response, output['responsemsg'])
+        print(response, output['responsemsg'])
 
         if output['responsemsg'] == 'ok':
             break
@@ -28,10 +39,39 @@ def try_on_simulator(json_name, control_json_dir, output_json_dir, sim_id):
             continue
         else:
             raise ValueError('response message not expected!')
+    
+    return output
+
+
+def get_EP(sim_id, num_days=50):
+    CP = ControlParamSimple()
+    CP.set_endDate(num_days=num_days)
+
+    output = get_output(CP.data, sim_id)
+
+    env_vals = []
+    for key in ENV_KEYS:
+        val = output['data'][key]['data']
+        env_vals.append(val)
+    env_vals = np.array(env_vals)
+    env_vals = env_vals.T # T x N1
+
+    print(env_vals.shape)
+
+    return env_vals
+
+
+def try_on_simulator(json_name, control_json_dir, output_json_dir, sim_id):
+    with open(f'{control_json_dir}/{json_name}', 'r') as f:
+        control = json.load(f)
+
+    output = get_output(control, sim_id)
 
     os.makedirs(output_json_dir, exist_ok=True)
     with open(f'{output_json_dir}/{json_name}', 'w') as f:
         json.dump(output, f)
+    
+    print(json_name, 'finished')
 
     return output
 
@@ -43,11 +83,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-N', '--num-trials', type=int, default=0)
     parser.add_argument('-T', '--num-workers', type=int, default=1)
-    parser.add_argument('-S', '--simulator', choices=['A', 'B'], type=str, default='A')
+    parser.add_argument('-S', '--simulator', choices=['A', 'B', 'C', 'D'], type=str, default='A')
     parser.add_argument('-C', '--clear-invalid-output', action='store_true', default=False)
     parser.add_argument('-F', '--control-json-file', type=str, default=None)
     parser.add_argument('-D', '--control-json-dir', type=str, default='control_jsons')
+    parser.add_argument('-EP', '--get-ep', action='store_true')
     args = parser.parse_args()
+
+    if args.get_ep:
+        ep = get_EP(args.simulator)
+        os.makedirs('common', exist_ok=True)
+        np.save(f'common/EP-SIM={args.simulator}.npy', ep)
+        exit(0)
 
     if args.control_json_file:
         output_json_dir = f'output_jsons_{args.simulator}'

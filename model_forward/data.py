@@ -12,42 +12,42 @@ CITY = lookup('Amsterdam', database())
 START_DATE = datetime.date(2021, 3, 4)
 
 CONTROL_KEYS = [
-    "simset.@endDate",
-    "comp1.heatingpipes.pipe1.@maxTemp",
-    "comp1.heatingpipes.pipe1.@minTemp",
-    "comp1.heatingpipes.pipe1.@radiationInfluence",
-    "comp1.setpoints.temp.@heatingTemp",
-    "comp1.setpoints.temp.@ventOffset",
-    "comp1.setpoints.temp.@radiationInfluence",
-    "comp1.setpoints.temp.@PbandVent",
-    "comp1.setpoints.ventilation.@startWnd",
-    "comp1.setpoints.ventilation.@winLeeMin",
-    "comp1.setpoints.ventilation.@winLeeMax",
-    "comp1.setpoints.ventilation.@winWndMin",
-    "comp1.setpoints.ventilation.@winWndMax",
-    "common.CO2dosing.@pureCO2cap",
-    "comp1.setpoints.CO2.@setpoint",
-    "comp1.setpoints.CO2.@setpIfLamps",
-    "comp1.setpoints.CO2.@doseCapacity",
-    "comp1.screens.scr1.@enabled",
-    "comp1.screens.scr1.@material",
-    "comp1.screens.scr1.@ToutMax",
-    "comp1.screens.scr1.@closeBelow",
-    "comp1.screens.scr1.@closeAbove",
-    "comp1.screens.scr1.@lightPollutionPrevention",
-    "comp1.screens.scr2.@enabled",
-    "comp1.screens.scr2.@material",
-    "comp1.screens.scr2.@ToutMax",
-    "comp1.screens.scr2.@closeBelow",
-    "comp1.screens.scr2.@closeAbove",
-    "comp1.screens.scr2.@lightPollutionPrevention",
-    "comp1.illumination.lmp1.@enabled",
-    "comp1.illumination.lmp1.@intensity",
-    "comp1.illumination.lmp1.@hoursLight",
-    "comp1.illumination.lmp1.@endTime",
-    "comp1.illumination.lmp1.@maxIglob",
-    "comp1.illumination.lmp1.@maxPARsum",
-    "crp_lettuce.Intkam.management.@plantDensity",
+    "simset.@endDate", # "yyyy-mm-dd" -> fixed
+    "comp1.heatingpipes.pipe1.@maxTemp", # float -> variable
+    "comp1.heatingpipes.pipe1.@minTemp", # float -> variable 
+    "comp1.heatingpipes.pipe1.@radiationInfluence", # [float, float] -> variable
+    "comp1.setpoints.temp.@heatingTemp", # float -> variable
+    "comp1.setpoints.temp.@ventOffset", # float -> variable
+    "comp1.setpoints.temp.@radiationInfluence", # [float, float, float] -> variable
+    "comp1.setpoints.temp.@PbandVent", # [float, float, float, float] -> variable
+    "comp1.setpoints.ventilation.@startWnd", # float -> variable
+    "comp1.setpoints.ventilation.@winLeeMin", # float -> variable
+    "comp1.setpoints.ventilation.@winLeeMax", # float -> variable
+    "comp1.setpoints.ventilation.@winWndMin", # float -> variable
+    "comp1.setpoints.ventilation.@winWndMax", # float -> variable
+    "common.CO2dosing.@pureCO2cap", # float -> fixed
+    "comp1.setpoints.CO2.@setpoint", # float -> variable
+    "comp1.setpoints.CO2.@setpIfLamps", # float -> variable
+    "comp1.setpoints.CO2.@doseCapacity", # [float, float, float, float, float, float] -> variable
+    "comp1.screens.scr1.@enabled", # [0/1] -> fixed
+    "comp1.screens.scr1.@material", # [0/1, 0/1, 0/1] -> fixed
+    "comp1.screens.scr1.@ToutMax", # float -> variable
+    "comp1.screens.scr1.@closeBelow", # [float, float, float, float] -> variable
+    "comp1.screens.scr1.@closeAbove", # float -> variable
+    "comp1.screens.scr1.@lightPollutionPrevention", # [0/1] -> fixed
+    "comp1.screens.scr2.@enabled", # [0/1] -> fixed
+    "comp1.screens.scr2.@material", # [0/1, 0/1, 0/1] -> fixed
+    "comp1.screens.scr2.@ToutMax", # float -> variable
+    "comp1.screens.scr2.@closeBelow", # [float, float, float, float] -> variable
+    "comp1.screens.scr2.@closeAbove", # float -> variable
+    "comp1.screens.scr2.@lightPollutionPrevention", # [0/1] -> fixed
+    "comp1.illumination.lmp1.@enabled", # [0/1] -> variable
+    "comp1.illumination.lmp1.@intensity", # float -> fixed
+    "comp1.illumination.lmp1.@hoursLight", # float -> variable (day-wise)
+    "comp1.illumination.lmp1.@endTime", # float -> variable (day-wise)
+    "comp1.illumination.lmp1.@maxIglob", # float -> variable (day-wise)
+    "comp1.illumination.lmp1.@maxPARsum", # float -> variable (day-wise)
+    "crp_lettuce.Intkam.management.@plantDensity", # float -> variable (day-wise)
 ]
 
 ENV_KEYS = [
@@ -55,31 +55,52 @@ ENV_KEYS = [
     'common.TOut.Value',
     'common.RHOut.Value',
     'common.Windsp.Value',
+
+    # related to variable cost
     'common.Economics.PeakHour',
 ]
 
-OUTPUT_KEYS = [
-    'comp1.Air.T',
-    'comp1.Air.RH',
-    'comp1.Air.ppm',
-    'comp1.PARsensor.Above',
-    'comp1.TPipe1.Value',
-    'comp1.ConPipes.TSupPipe1',
-    'comp1.PConPipe1.Value',
-    'comp1.ConWin.WinLee',
-    'comp1.ConWin.WinWnd',
-    'comp1.Setpoints.SpHeat',
-    'comp1.Setpoints.SpVent',
-    'comp1.Scr1.Pos',
-    'comp1.Scr2.Pos',
-    'comp1.McPureAir.Value',
-    'comp1.Plant.headFW',
-    'comp1.Plant.fractionGroundCover',
-    'comp1.Plant.shootDryMatterContent',
-    'comp1.Plant.plantProjection',
-    'comp1.Plant.PlantDensity',
-    'comp1.Lmp1.ElecUse',
-]
+OUTPUT_KEYS_RANGE = {
+    #================= no need to predict =================
+    # Greenhouse Env Param: directly related to FW and DMC
+    'comp1.Air.T': [0, 30], # lower=0, upper=30
+    'comp1.Air.RH': [0, 100], # lower=0, upper=100
+    'comp1.Air.ppm': [0, 1200], # lower=0, upper=1200
+    'comp1.PARsensor.Above': [0, 1200], # lower=0, upper=1200
+    # Crop Growth Param: directly realted to gain
+    'comp1.Plant.headFW': [0, 500], # lower=0, upper=500
+    'comp1.Plant.shootDryMatterContent': [0, 0.1], # lower=0
+    # Variable Cost Param: related to variable cost
+    'comp1.Lmp1.ElecUse': [0, 100], # lower=0
+    'comp1.PConPipe1.Value': [0, 200], # lower=0, upper=200
+    'comp1.McPureAir.Value': [0, 1e-5], # lower=0
+    
+    #================= no need to predict =================
+    # Plant Density: directly realted to fixed cost
+    'comp1.Plant.PlantDensity': [0, 100], # lower=0, upper=100
+    # Other Stats
+    'comp1.TPipe1.Value': [0, 60], # lower=0, upper=60
+    'comp1.ConPipes.TSupPipe1': [0, 60], # lower=0, upper=60
+    'comp1.ConWin.WinLee': [0, 100], # lower=0, upper=100
+    'comp1.ConWin.WinWnd': [0, 100], # lower=0, upper=100
+    'comp1.Setpoints.SpHeat': [0, 30], # lower=0, upper=30
+    'comp1.Setpoints.SpVent': [0, 30], # lower=0, upper=30
+    'comp1.Scr1.Pos': [0, 1], # lower=0, upper=1
+    'comp1.Scr2.Pos': [0, 1], # lower=0, upper=1
+    'comp1.Plant.fractionGroundCover': [0, 1], # lower=0, upper=1
+    'comp1.Plant.plantProjection': [0, 0.1], # lower=0
+
+    # ===================== Assumption =====================
+    # CP + EP -> GEP
+    # CP + EP -> VCP
+    # CP + GEP -> CGP
+    # CP -> PD
+    # CP + EP + GEP -> OS
+}
+
+OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
+OUTPUT_KEYS_LOWER_BOUND = [r[0] for r in OUTPUT_KEYS_RANGE.values()]
+OUTPUT_KEYS_UPPER_BOUND = [r[1] for r in OUTPUT_KEYS_RANGE.values()]
 
 
 def load_json_data(path):
@@ -333,10 +354,13 @@ def compute_mean_std(data_dirs):
 
 
 class SupervisedModelDataset(Dataset):
-    def __init__(self, data_dirs, transform=None):
+    def __init__(self, data_dirs, normalize=False):
         super(SupervisedModelDataset, self).__init__()
 
-        self.transform = transform
+        if normalize:
+            (self.cp_mean, self.cp_std), (self.ep_mean, self.ep_std), (self.op_mean, self.op_std) = compute_mean_std(data_dirs)
+
+        self.normalize = normalize
 
         cp_arr_list, ep_arr_list = [], []
         op_pre_arr_list, op_cur_arr_list = [], []
@@ -362,15 +386,17 @@ class SupervisedModelDataset(Dataset):
         assert self.cp.shape[0] == self.ep.shape[0] == self.op_pre.shape[0]
         assert self.op_pre.shape == self.op_cur.shape
 
+        if self.normalize:
+            self.cp = zscore_normalize(self.cp, self.cp_mean, self.cp_std)
+            self.ep = zscore_normalize(self.ep, self.ep_mean, self.ep_std)
+            self.op_pre = zscore_normalize(self.op_pre, self.op_mean, self.op_std)
+            self.op_cur = zscore_normalize(self.op_cur, self.op_mean, self.op_std)
+
     def __getitem__(self, index):
         cp_vec = self.cp[index]
         ep_vec = self.ep[index]
         op_pre_vec = self.op_pre[index]
         op_cur_vec = self.op_cur[index]
-
-        if self.transform:
-            cp_vec, ep_vec, op_pre_vec, op_cur_vec = self.transform(cp_vec, ep_vec, op_pre_vec, op_cur_vec)
-
         return cp_vec, ep_vec, op_pre_vec, op_cur_vec
 
     def __len__(self):
@@ -387,4 +413,3 @@ class SupervisedModelDataset(Dataset):
     @property
     def op_dim(self):
         return self.op_pre.shape[1]
-    

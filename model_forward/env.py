@@ -2,27 +2,33 @@ import gym
 import numpy as np
 import torch
 
-from data import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS
+from data import ENV_KEYS, OUTPUT_KEYS
 from model import Model
+
+
+STATE_DICT_PATH = '/home/leondawn/Greenhouse-Growing-Challenge/model_forward/exp_data/net(Linear_BN_LeakyReLU_128x3)_lr(ROP[0.001][100])_wd(1e-4)_bs(128)_ms(10000)_data(test_bo)/checkpoints/model_step=6000.pth'
+
+EP_PATH = '/home/leondawn/Greenhouse-Growing-Challenge/collect_data/common/EP-SIM=A.npy'
 
 
 class GreenhouseSim(gym.Env):
     min_fw = 210
     unchangeable_action_indices = (13, 17, 18, 23, 24, 30)
+    num_control_params = 56 # count from CONTROL_KEYS
+    num_env_params = len(ENV_KEYS)
+    num_output_params = len(OUTPUT_KEYS)
 
     # TODO: set a default load path for the params
-    def __init__(self, state_dict_path='TODO', ep_path='TODO'):
+    def __init__(self, state_dict_path=STATE_DICT_PATH, ep_path=EP_PATH):
         # The spaces are NOT discrete. Here only using the # dim in the space info
-        self.action_space = gym.spaces.Discrete(len(CONTROL_KEYS))
-        self.observation_space = gym.spaces.Discrete(len(ENV_KEYS) + len(OUTPUT_KEYS))
+        # TODO: determines space types -> Discrete or else?
+        self.action_space = gym.spaces.Discrete(self.num_control_params)
+        self.observation_space = gym.spaces.Discrete(self.num_env_params + self.num_output_params)
 
-        # TODO: init net and load state dict
         self.net = Model(self.observation_space.n + self.action_space.n, self.observation_space.n)
-        # self.net.load_state_dict(torch.load(state_dict_path))
+        self.net.load_state_dict(torch.load(state_dict_path))
 
-        # TODO: load ep values
-        self.env_values = np.zeros((1000, len(ENV_KEYS)))
-        # self.env_values = np.load(ep_path)
+        self.env_values = np.load(ep_path)
         self.max_step = self.env_values.shape[0]
 
         self.step = 0
