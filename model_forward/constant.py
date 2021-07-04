@@ -102,7 +102,7 @@ START_DATE = datetime.date(2021, 3, 4)
 
 CITY = lookup('Amsterdam', database())
 
-COMMON_DATA_DIR = '../collect_data/common' #TODO: change this to your own directory
+COMMON_DATA_DIR = '../policy' #TODO: change this to your own directory
 
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 

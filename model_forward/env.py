@@ -1,7 +1,7 @@
 import gym
 import torch
 import numpy as np
-
+import torch
 from model import Model
 from constant import ENV_KEYS, EP_PATH, INIT_STATE_PATH, OUTPUT_KEYS, STATE_DICT_PATH
 
@@ -89,16 +89,16 @@ class GreenhouseSim(gym.Env):
         self.rng = np.random.default_rng()
 
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
-        self.observation_space = gym.spaces.Discrete(self.num_env_params + self.num_output_params)
+        self.observation_space = gym.spaces.Box(low=-np.inf,high=np.inf,shape=(self.num_env_params + self.num_output_params, ))
 
         self.net = Model(56 + 5 + 20, 20)
         self.net.load_state_dict(torch.load(state_dict_path))
 
-        self.init_states = np.load(INIT_STATE_PATH)
+        self.init_states = np.load(INIT_STATE_PATH) # shape: (998, 20), e.g. (998，20)
 
-        self.env_values = np.load(ep_path)
-        self.max_step = self.env_values.shape[0]
-        self.max_step = 0
+        self.env_values = np.load(ep_path) # shape (day*24, 5); e.g. (1440,5) 1440=60*24
+        self._max_episode_steps = self.env_values.shape[0]
+        # self.max_step = 0
 
         self.iter = 0
         self.state = None
@@ -106,7 +106,7 @@ class GreenhouseSim(gym.Env):
         self.day_action = None
         self.num_spacings = 1
 
-        self.reset()
+        # self.reset()
 
     def parse_action(self, action):
         # record prev action
@@ -134,15 +134,17 @@ class GreenhouseSim(gym.Env):
 
         return parsed_action[0], parsed_action[1:]
 
-    def seed(self, seed=None):
-        self.rng = np.random.default_rng(seed=seed)
+    # def seed(self, seed=None):
+    #     self.rng = np.random.default_rng(seed=seed)
 
     def step(self, action: np.ndarray):
-        # if exceeds the ep data, end trajectory
-        if self.iter >= self.max_step:
-            return self.state, 0, True, None
-
+        # # if exceeds the ep data, end trajectory
+        # if self.iter >= self.max_step:
+        #     return self.state, 0, True, None
+        
+        # print('action before parse:', action)
         # parse action to model input dim
+        # TODO: action type changed to int after parse
         end, action = self.parse_action(action)
 
         # update spacing info
@@ -151,22 +153,41 @@ class GreenhouseSim(gym.Env):
 
         # use nn to predict next state
         prev_state = self.state
-        self.state = self.net.forward(action, self.env_values[self.iter], self.state).flatten()
-        output_state = np.concatenate(self.env_values[self.iter + 1], self.state)
+        # inputs should be tensor and float32
+        # print('action after parse:', action) # type: numpy.int64
+        # print('env', self.env_values[self.iter]) # type: numpy.float64
+        # print('op:', self.state) # numpy.float32
+        cp = action.astype(np.float32)
+        ep = self.env_values[self.iter].astype(np.float32)
+        op = self.state.astype(np.float32)
+        self.net.eval() #sets the module in evaluation mode.
+        self.state = self.net.forward( 
+            torch.from_numpy(cp.reshape((1,len(cp)))),
+            torch.from_numpy(ep.reshape((1,len(ep)))),
+            torch.from_numpy(op.reshape((1,len(op))))
+        ).flatten()
+        # cast self.state from tensor to numpy
+        self.state = self.state.detach().numpy()
+        # TODO: check nan
+        self.state[np.where(np.isnan(self.state))[0]] = 0
+        output_state = np.concatenate([self.env_values[self.iter + 1], self.state])
+        # TODO: check nan
+        output_state[np.where(np.isnan(output_state))[0]] = 0
+        # print('output_state:', output_state)
 
         # compute reward
         gain_diff = self.gain(self.state) - self.gain(prev_state)
         cost = self.fixed_cost(action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
 
-        # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
-        done = (end and self.state[-6] > self.min_fw) or self.iter >= self.max_step
-
         # update step and prev_action
         self.iter += 1
         self.prev_action = action
 
-        return output_state, reward, done, None
+        # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
+        done = (end and self.state[-6] > self.min_fw) or self.iter >= self._max_episode_steps
+
+        return output_state, reward, done, {'step_action':action}
 
     def reset(self, start=None):
         # if START is none, randomly choose a start date
@@ -182,7 +203,10 @@ class GreenhouseSim(gym.Env):
         self.day_action = None
         self.num_spacings = 1
 
-        return np.concatenate(self.env_values[0], self.state)
+        # TODO: check nan
+        output_state = np.concatenate([self.env_values[self.iter], self.state])
+        output_state[np.where(np.isnan(output_state))[0]] = 0
+        return output_state
 
     def render(self, mode='human'):
         raise NotImplementedError
@@ -219,6 +243,7 @@ class GreenhouseSim(gym.Env):
         cost += (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
         if action[-1] != self.prev_action[-1]:
+            # TODO: any problem with iter?
             cost += self.iter * 1.5 / 365 / 24
         cost += self.num_spacings * 1.5 / 365 / 24
         return cost
