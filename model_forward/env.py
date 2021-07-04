@@ -91,12 +91,18 @@ class GreenhouseSim(gym.Env):
     action_parse_indices = [0, 5, 6, 10, 11, 12, 13, 14, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
                             35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 54, 56]
 
+    init_day_range = 20
+
     def __init__(self, state_dict_path=STATE_DICT_PATH, ep_path=EP_PATH):
+        self.rng = np.random.default_rng()
+
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Discrete(self.num_env_params + self.num_output_params)
 
         self.net = Model(56 + 5 + 20, 20)
         self.net.load_state_dict(torch.load(state_dict_path))
+
+        self.init_states = np.load(INIT_STATE_PATH)
 
         self.env_values = np.load(ep_path)
         self.max_step = self.env_values.shape[0]
@@ -136,6 +142,9 @@ class GreenhouseSim(gym.Env):
 
         return parsed_action[0], parsed_action[1:]
 
+    def seed(self, seed=None):
+        self.rng = np.random.default_rng(seed=seed)
+
     def step(self, action: np.ndarray):
         # if exceeds the ep data, end trajectory
         if self.iter >= self.max_step:
@@ -150,7 +159,8 @@ class GreenhouseSim(gym.Env):
 
         # use nn to predict next state
         prev_state = self.state
-        self.state = self.net.forward(action, self.env_values[self.iter], self.state)
+        self.state = self.net.forward(action, self.env_values[self.iter], self.state).flatten()
+        output_state = np.concatenate(self.env_values[self.iter + 1], self.state)
 
         # compute reward
         gain_diff = self.gain(self.state) - self.gain(prev_state)
@@ -164,16 +174,23 @@ class GreenhouseSim(gym.Env):
         self.iter += 1
         self.prev_action = action
 
-        return self.state, reward, done, None
+        return output_state, reward, done, None
 
-    def reset(self):
-        self.iter = 0
-        self.state = np.load(INIT_STATE_PATH)
+    def reset(self, start=None):
+        # if START is none, randomly choose a start date
+        if start is None:
+            self.iter = self.rng.integers(0, self.init_day_range) * 24
+        # otherwise, start from day START
+        else:
+            self.iter = start * 24
+
+        # randomly choose a OP1 to start from
+        self.state = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
         self.prev_action = None
         self.day_action = None
         self.num_spacings = 1
 
-        return self.state
+        return np.concatenate(self.env_values[0], self.state)
 
     def render(self, mode='human'):
         raise NotImplementedError
@@ -203,11 +220,11 @@ class GreenhouseSim(gym.Env):
         # greenhouse occupation
         cost += 11.5 / 365 / 24
         # CO2 dosing capacity
-        cost += action[13] * 0.015 / 365 / 24
+        cost += action[8] * 0.015 / 365 / 24
         # lamp maintenance
-        cost += action[30] * 0.0281 / 365 / 24
+        cost += action[40] * 0.0281 / 365 / 24
         # screen usage
-        cost += (action[17] + action[19]) * 0.75 / 365 / 24
+        cost += (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
         if action[-1] != self.prev_action[-1]:
             cost += self.iter * 1.5 / 365 / 24
