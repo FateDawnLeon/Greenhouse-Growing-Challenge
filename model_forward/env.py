@@ -1,17 +1,9 @@
 import gym
-import numpy as np
 import torch
+import numpy as np
 
-from data import ENV_KEYS, OUTPUT_KEYS
 from model import Model
-
-STATE_DICT_PATH = '/home/leondawn/Greenhouse-Growing-Challenge/model_forward/exp_data/net(Linear_BN_LeakyReLU_128x3)_' \
-                  'lr(ROP[0.001][100])_wd(1e-4)_bs(128)_ms(10000)_data(test_bo)/checkpoints/model_step=6000.pth'
-
-EP_PATH = '/home/leondawn/Greenhouse-Growing-Challenge/collect_data/common/EP-SIM=A.npy'
-
-# TODO: add
-INIT_STATE_PATH = 'TODO'
+from constant import ENV_KEYS, EP_PATH, INIT_STATE_PATH, OUTPUT_KEYS, STATE_DICT_PATH
 
 
 class GreenhouseSim(gym.Env):
