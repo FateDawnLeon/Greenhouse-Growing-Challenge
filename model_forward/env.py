@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import torch
 from model import Model
-from constant import ENV_KEYS, EP_PATH, INIT_STATE_PATH, OUTPUT_KEYS, STATE_DICT_PATH
+from constant import ENV_KEYS, EP_PATH, INIT_STATE_PATH, OUTPUT_KEYS, STATE_DICT_PATH, NORM_DATA_PATH
 
 
 class GreenhouseSim(gym.Env):
@@ -108,9 +108,7 @@ class GreenhouseSim(gym.Env):
         self.day_action = None
         self.num_spacings = 1
 
-        self.norm_data = np.load(norm_data_path) # {'op_mean': op_mean, 'op_std':op_std, ...}
-
-        # self.reset()
+        self.norm_data = np.load(norm_data_path)  # {'op_mean': op_mean, 'op_std':op_std, ...}
 
     def parse_action(self, action):
         # record prev action
@@ -160,11 +158,12 @@ class GreenhouseSim(gym.Env):
         # print('action after parse:', action) # type: numpy.int64
         # print('env', self.env_values[self.iter]) # type: numpy.float64
         # print('op:', self.state) # numpy.float32
-        cp = action.astype(np.float32)
-        ep = self.env_values[self.iter].astype(np.float32)
-        op_pre = self.state.astype(np.float32)
+        cp = self.normalize(action.astype(np.float32), self.norm_data['cp_mean'], self.norm_data['cp_std'])
+        ep = self.normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
+                            self.norm_data['ep_std'])
+        op_pre = self.normalize(self.state.astype(np.float32), self.norm_data['op_mean'], self.norm_data['op_std'])
 
-        op_cur = self.net.predict_op(cp, ep, op_pre).flatten()
+        op_cur = self.net.predict_op(cp, ep, op_pre)
         ep_cur = self.normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
         output_state = np.concatenate([ep_cur, op_cur])
         self.state = op_cur
