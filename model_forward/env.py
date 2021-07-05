@@ -74,7 +74,7 @@ class GreenhouseSim(gym.Env):
     ])
     default_action = np.array([0, 60, 0, 0, 0, 0, 0, 50, 150, 1, 0, 0, 0, 0, 0, 0, 100, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0,
                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 50,
-                               0])
+                               0], dtype=np.float32)
 
     bool_indices = [0, 17, 18, 19, 20, 28, 29, 30, 31, 38, 39]
     unchangeable_indices = [8, 17, 18, 19, 20, 28, 29, 30, 31, 40]
@@ -89,17 +89,19 @@ class GreenhouseSim(gym.Env):
         self.rng = np.random.default_rng()
 
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
-        self.observation_space = gym.spaces.Box(low=-np.inf,high=np.inf,shape=(self.num_env_params + self.num_output_params, ))
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
+                                                shape=(self.num_env_params + self.num_output_params,))
 
         self.net = Model(56 + 5 + 20, 20)
         self.net.load_state_dict(torch.load(state_dict_path))
 
-        self.init_states = np.load(INIT_STATE_PATH) # shape: (998, 20), e.g. (998，20)
+        self.init_states = np.load(INIT_STATE_PATH)  # shape: (998, 20), e.g. (998，20)
 
-        self.env_values = np.load(ep_path) # shape (day*24, 5); e.g. (1440,5) 1440=60*24
+        self.env_values = np.load(ep_path)  # shape (day*24, 5); e.g. (1440,5) 1440=60*24
         self._max_episode_steps = self.env_values.shape[0]
         # self.max_step = 0
 
+        self.start_iter = 0
         self.iter = 0
         self.state = None
         self.prev_action = None
@@ -134,17 +136,16 @@ class GreenhouseSim(gym.Env):
 
         return parsed_action[0], parsed_action[1:]
 
-    # def seed(self, seed=None):
-    #     self.rng = np.random.default_rng(seed=seed)
+    def seed(self, seed=None):
+        self.rng = np.random.default_rng(seed=seed)
 
     def step(self, action: np.ndarray):
         # # if exceeds the ep data, end trajectory
         # if self.iter >= self.max_step:
         #     return self.state, 0, True, None
-        
+
         # print('action before parse:', action)
         # parse action to model input dim
-        # TODO: action type changed to int after parse
         end, action = self.parse_action(action)
 
         # update spacing info
@@ -160,11 +161,11 @@ class GreenhouseSim(gym.Env):
         cp = action.astype(np.float32)
         ep = self.env_values[self.iter].astype(np.float32)
         op = self.state.astype(np.float32)
-        self.net.eval() #sets the module in evaluation mode.
-        self.state = self.net.forward( 
-            torch.from_numpy(cp.reshape((1,len(cp)))),
-            torch.from_numpy(ep.reshape((1,len(ep)))),
-            torch.from_numpy(op.reshape((1,len(op))))
+        self.net.eval()  # sets the module in evaluation mode.
+        self.state = self.net.forward(
+            torch.from_numpy(cp.reshape((1, len(cp)))),
+            torch.from_numpy(ep.reshape((1, len(ep)))),
+            torch.from_numpy(op.reshape((1, len(op))))
         ).flatten()
         # cast self.state from tensor to numpy
         self.state = self.state.detach().numpy()
@@ -185,17 +186,19 @@ class GreenhouseSim(gym.Env):
         self.prev_action = action
 
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
-        done = (end and self.state[-6] > self.min_fw) or self.iter >= self._max_episode_steps
+        fw = self.state[4]
+        done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
 
-        return output_state, reward, done, {'step_action':action}
+        return output_state, reward, done, {'step_action': action}
 
     def reset(self, start=None):
         # if START is none, randomly choose a start date
         if start is None:
-            self.iter = self.rng.integers(0, self.init_day_range) * 24
+            self.start_iter = self.rng.integers(0, self.init_day_range) * 24
         # otherwise, start from day START
         else:
-            self.iter = start * 24
+            self.start_iter = start * 24
+        self.iter = self.start_iter
 
         # randomly choose a OP1 to start from
         self.state = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
@@ -213,7 +216,7 @@ class GreenhouseSim(gym.Env):
 
     @staticmethod
     def gain(state):
-        fw, dmc = state[-6], state[-4]
+        fw, dmc = state[4], state[5]
         # mirror fresh weight
         fw = fw if fw <= 250 else 500 - fw
         if fw <= 210:
@@ -243,8 +246,7 @@ class GreenhouseSim(gym.Env):
         cost += (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
         if action[-1] != self.prev_action[-1]:
-            # TODO: any problem with iter?
-            cost += self.iter * 1.5 / 365 / 24
+            cost += (self.iter - self.start_iter) * 1.5 / 365 / 24
         cost += self.num_spacings * 1.5 / 365 / 24
         return cost
 
@@ -252,12 +254,12 @@ class GreenhouseSim(gym.Env):
         cost = 0
         # electricity cost
         if ep[-1] > 0.5:
-            cost += self.state[-1] / 1000 * 0.1
+            cost += self.state[6] / 1000 * 0.1
         else:
-            cost += self.state[-1] / 1000 * 0.06
+            cost += self.state[6] / 1000 * 0.06
         # heating cost
-        cost += self.state[6] / 1000 * 0.03
+        cost += self.state[7] / 1000 * 0.03
         # CO2 cost
-        cost += self.state[13] * 3600 * 0.12
+        cost += self.state[8] * 3600 * 0.12
 
         return cost
