@@ -121,7 +121,7 @@ class GreenhouseSim(gym.Env):
         # TODO: normalization data and function (std == 0), keep constantly with model side
         self.norm_data = self.npz2dic(norm_data_path)  # {'op_mean': op_mean, 'op_std':op_std, ...}
 
-    # TODO: prev_action needs to projection first
+    # TODO: prev_action&day_action needs to projection first
     # TODO: parsed action are not satisfied, e.g. action[17]==100, should be [0/1]
     def parse_action(self, action):
         # record prev action
@@ -146,10 +146,11 @@ class GreenhouseSim(gym.Env):
             action[np.random.choice(t, 1)] = 1
 
         # add fixed actions
-        parsed_action = self.default_action
-        parsed_action[self.action_parse_indices] = action
+        sim_action = self.default_action
+        sim_action[self.action_parse_indices] = action
 
-        return parsed_action[0], parsed_action[1:], action
+        # sim_action dim=57, action dim=44
+        return sim_action[0], sim_action[1:], action
 
     def seed(self, seed=None):
         self.rng = np.random.default_rng(seed=seed)
@@ -157,10 +158,11 @@ class GreenhouseSim(gym.Env):
     def step(self, action: np.ndarray):
         # print('action before parse:', action)
         # parse action to model input dim
-        end, action, projected_action = self.parse_action(action)
+        # end dim=1, model_action dim=56, agent_action dim=44
+        end, model_action, agent_action = self.parse_action(action)
 
         # update spacing info
-        if action[-1] != self.prev_action[-1]:
+        if agent_action[-1] != self.prev_action[-1]:
             self.num_spacings += 1
 
         # use nn to predict next state
@@ -168,7 +170,7 @@ class GreenhouseSim(gym.Env):
         # print('env', self.env_values[self.iter])  # type: numpy.float64 unnormalize
         # print('op:', self.state)  # type: numpy.float32 unnormalize
         # inputs should be float32 and normalized
-        norm_cp = normalize(action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
+        norm_cp = normalize(model_action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
         norm_ep = normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
                             self.norm_data['ep_std'])
         op_pre = self.state
@@ -183,19 +185,19 @@ class GreenhouseSim(gym.Env):
         # TODO: caculate reward and cost with denormalize state
         # compute reward
         gain_diff = self.gain(self.state) - self.gain(op_pre)
-        cost = self.fixed_cost(projected_action) + self.variable_cost(self.env_values[self.iter])
+        cost = self.fixed_cost(agent_action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
 
         # update step and prev_action
         self.iter += 1
-        self.prev_action = action
+        self.prev_action = agent_action
 
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
         fw = self.state[4]
         done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
         
         # TODO: std is 0, normalize to inf
-        return output_state, reward, done, {'step_action': projected_action}
+        return output_state, reward, done, {'step_action': agent_action}
 
     def reset(self, start=None):
         # if START is none, randomly choose a start date
@@ -245,7 +247,7 @@ class GreenhouseSim(gym.Env):
         return price
 
     def fixed_cost(self, action):
-        # TODO: action should be the projected agent action (44)
+        # action should be the projected agent action (dim=44)
         cost = 0
         # greenhouse occupation
         cost += 11.5 / 365 / 24
@@ -256,6 +258,7 @@ class GreenhouseSim(gym.Env):
         # screen usage
         cost += (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
+        # TODO: spacing changes cost counted two times?
         if action[-1] != self.prev_action[-1]:
             cost += (self.iter - self.start_iter) * 1.5 / 365 / 24
         cost += self.num_spacings * 1.5 / 365 / 24
