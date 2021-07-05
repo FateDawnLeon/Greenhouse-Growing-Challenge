@@ -19,66 +19,66 @@ class GreenhouseSim(gym.Env):
     num_output_params = len(OUTPUT_KEYS)
 
     action_range = np.array([
-        [0, 1],  # end (bool)
-        # comp1.heatingpipes.pipe1.@maxTemp = 60
-        # comp1.heatingpipes.pipe1.@minTemp = 0
-        # comp1.heatingpipes.pipe1.@radiationInfluence = [0, 0]
-        [0, 60],  # comp1.setpoints.temp.@heatingTemp
-        [0, 5],  # comp1.setpoints.temp.@ventOffset
-        # comp1.setpoints.temp.@radiationInfluence = [50, 150, 1]
+        [0, 1],  # end (bool); sim_idx: 0; agent_idx: 0  
+        # comp1.heatingpipes.pipe1.@maxTemp = 60; sim_idx: 1
+        # comp1.heatingpipes.pipe1.@minTemp = 0; sim_idx: 2
+        # comp1.heatingpipes.pipe1.@radiationInfluence = [0, 0]; sim_idx: 3,4
+        [0, 60],  # comp1.setpoints.temp.@heatingTemp; sim_idx: 5; agent_idx: 1
+        [0, 5],  # comp1.setpoints.temp.@ventOffset; sim_idx: 6; agent_idx: 2
+        # comp1.setpoints.temp.@radiationInfluence = [50, 150, 1]; sim_idx: 7, 8, 9
         # @PbandVent [1] [3] needs to be descending
-        [-20, 10],  # comp1.setpoints.temp.@PbandVent[0]
-        [0, 30],  # comp1.setpoints.temp.@PbandVent[1]
-        [11, 30],  # comp1.setpoints.temp.@PbandVent[2]
-        [0, 30],  # comp1.setpoints.temp.@PbandVent[3]
-        [0, 50],  # comp1.setpoints.ventilation.@startWnd
-        # comp1.setpoints.ventilation.@winLeeMin = 0
-        # comp1.setpoints.ventilation.@winLeeMax = 100
-        # comp1.setpoints.ventilation.@winWndMin = 0
-        # comp1.setpoints.ventilation.@winWndMax = 100
-        [100, 200],  # common.CO2dosing.@pureCO2cap (unchangeable)
-        [400, 1200],  # comp1.setpoints.CO2.@setpoint
-        [400, 1200],  # comp1.setpoints.CO2.@setpIfLamps
+        [-20, 10],  # comp1.setpoints.temp.@PbandVent[0]; sim_idx: 10; agent_idx: 3
+        [0, 30],  # comp1.setpoints.temp.@PbandVent[1]; sim_idx: 11; agent_idx: 4
+        [11, 30],  # comp1.setpoints.temp.@PbandVent[2]; sim_idx: 12; agent_idx: 5
+        [0, 30],  # comp1.setpoints.temp.@PbandVent[3]; sim_idx: 13; agent_idx: 6
+        [0, 50],  # comp1.setpoints.ventilation.@startWnd; sim_idx: 14; agent_idx: 7
+        # comp1.setpoints.ventilation.@winLeeMin = 0; sim_idx: 15
+        # comp1.setpoints.ventilation.@winLeeMax = 100; sim_idx: 16
+        # comp1.setpoints.ventilation.@winWndMin = 0; sim_idx: 17
+        # comp1.setpoints.ventilation.@winWndMax = 100; sim_idx: 18
+        [100, 200],  # common.CO2dosing.@pureCO2cap (unchangeable); sim_idx: 19; agent_idx: 8
+        [400, 1200],  # comp1.setpoints.CO2.@setpoint; sim_idx: 20; agent_idx: 9
+        [400, 1200],  # comp1.setpoints.CO2.@setpIfLamps; sim_idx: 21; agent_idx: 10
         # @doseCapacity [1] [3] [5] needs to be descending
-        [0, 33],  # comp1.setpoints.CO2.@doseCapacity[0]
-        [0, 100],  # comp1.setpoints.CO2.@doseCapacity[1]
-        [34, 66],  # comp1.setpoints.CO2.@doseCapacity[2]
-        [0, 100],  # comp1.setpoints.CO2.@doseCapacity[3]
-        [67, 100],  # comp1.setpoints.CO2.@doseCapacity[4]
-        [0, 100],  # comp1.setpoints.CO2.@doseCapacity[5]
-        [0, 1],  # comp1.screens.scr1.@enabled (bool, unchangeable)
+        [0, 33],  # comp1.setpoints.CO2.@doseCapacity[0]; sim_idx: 22; agent_idx: 11
+        [0, 100],  # comp1.setpoints.CO2.@doseCapacity[1]; sim_idx: 23; agent_idx: 12
+        [34, 66],  # comp1.setpoints.CO2.@doseCapacity[2]; sim_idx: 24; agent_idx: 13
+        [0, 100],  # comp1.setpoints.CO2.@doseCapacity[3]; sim_idx: 25; agent_idx: 14
+        [67, 100],  # comp1.setpoints.CO2.@doseCapacity[4]; sim_idx: 26; agent_idx: 15
+        [0, 100],  # comp1.setpoints.CO2.@doseCapacity[5]; sim_idx: 27; agent_idx: 16
+        [0, 1],  # comp1.screens.scr1.@enabled (bool, unchangeable); sim_idx: 28; agent_idx: 17
         # choose one material 
-        [0, 1],  # comp1.screens.scr1.@material == scr_Transparent.par (bool, unchangeable)
-        [0, 1],  # comp1.screens.scr1.@material == scr_Shade.par (bool, unchangeable)
-        [0, 1],  # comp1.screens.scr1.@material == scr_Blackout.par (bool, unchangeable)
-        [-20, 30],  # comp1.screens.scr1.@ToutMax
+        [0, 1],  # comp1.screens.scr1.@material == scr_Transparent.par (bool, unchangeable); sim_idx: 29; agent_idx: 18
+        [0, 1],  # comp1.screens.scr1.@material == scr_Shade.par (bool, unchangeable); sim_idx: 30; agent_idx: 19
+        [0, 1],  # comp1.screens.scr1.@material == scr_Blackout.par (bool, unchangeable); sim_idx: 31; agent_idx: 20
+        [-20, 30],  # comp1.screens.scr1.@ToutMax; sim_idx: 32; agent_idx: 21
         # @closeBelow [1] [3] needs to be descending
-        [-20, 10],  # comp1.screens.scr1.@closeBelow[0]
-        [0, 500],  # comp1.screens.scr1.@closeBelow[1]
-        [11, 30],  # comp1.screens.scr1.@closeBelow[2]
-        [0, 500],  # comp1.screens.scr1.@closeBelow[3]
-        [501, 1500],  # comp1.screens.scr1.@closeAbove
-        [0, 1],  # comp1.screens.scr1.@lightPollutionPrevention (bool)
-        [0, 1],  # comp1.screens.scr2.@enabled (bool, unchangeable)
+        [-20, 10],  # comp1.screens.scr1.@closeBelow[0]; sim_idx: 33; agent_idx: 22
+        [0, 500],  # comp1.screens.scr1.@closeBelow[1]; sim_idx: 34; agent_idx: 23
+        [11, 30],  # comp1.screens.scr1.@closeBelow[2]; sim_idx: 35; agent_idx: 24
+        [0, 500],  # comp1.screens.scr1.@closeBelow[3]; sim_idx: 36; agent_idx: 25
+        [501, 1500],  # comp1.screens.scr1.@closeAbove; sim_idx: 37; agent_idx: 26
+        [0, 1],  # comp1.screens.scr1.@lightPollutionPrevention (bool); sim_idx: 38; agent_idx: 27
+        [0, 1],  # comp1.screens.scr2.@enabled (bool, unchangeable); sim_idx: 39; agent_idx: 28
         # choose one material 
-        [0, 1],  # comp1.screens.scr2.@material == scr_Transparent.par (bool, unchangeable)
-        [0, 1],  # comp1.screens.scr2.@material == scr_Shade.par (bool, unchangeable)
-        [0, 1],  # comp1.screens.scr2.@material == scr_Blackout.par (bool, unchangeable)
-        [-20, 30],  # comp1.screens.scr2.@ToutMax
+        [0, 1],  # comp1.screens.scr2.@material == scr_Transparent.par (bool, unchangeable); sim_idx: 40; agent_idx: 29
+        [0, 1],  # comp1.screens.scr2.@material == scr_Shade.par (bool, unchangeable); sim_idx: 41; agent_idx: 30
+        [0, 1],  # comp1.screens.scr2.@material == scr_Blackout.par (bool, unchangeable); sim_idx: 42; agent_idx: 31
+        [-20, 30],  # comp1.screens.scr2.@ToutMax; sim_idx: 43; agent_idx: 32
         # @closeBelow [1] [3] needs to be descending
-        [-20, 10],  # comp1.screens.scr2.@closeBelow[0]
-        [0, 500],  # comp1.screens.scr2.@closeBelow[1]
-        [11, 30],  # comp1.screens.scr2.@closeBelow[2]
-        [0, 500],  # comp1.screens.scr2.@closeBelow[3]
-        [501, 1500],  # comp1.screens.scr2.@closeAbove
-        [0, 1],  # comp1.screens.scr2.@lightPollutionPrevention (bool)
-        [0, 1],  # comp1.illumination.lmp1.@enabled (bool)
-        [0, 200],  # comp1.illumination.lmp1.@intensity (unchangeable)
-        [0, 20],  # comp1.illumination.lmp1.@hoursLight (daily)
-        # comp1.illumination.lmp1.@endTime = 20
-        [100, 400],  # comp1.illumination.lmp1.@maxIglob
-        # comp1.illumination.lmp1.@maxPARsum = 50
-        [0, 100],  # crp_lettuce.Intkam.management.@plantDensity (daily)
+        [-20, 10],  # comp1.screens.scr2.@closeBelow[0]; sim_idx: 44; agent_idx: 33
+        [0, 500],  # comp1.screens.scr2.@closeBelow[1]; sim_idx: 45; agent_idx: 34
+        [11, 30],  # comp1.screens.scr2.@closeBelow[2]; sim_idx: 46; agent_idx: 35
+        [0, 500],  # comp1.screens.scr2.@closeBelow[3]; sim_idx: 47; agent_idx: 36
+        [501, 1500],  # comp1.screens.scr2.@closeAbove; sim_idx: 48; agent_idx: 37
+        [0, 1],  # comp1.screens.scr2.@lightPollutionPrevention (bool); sim_idx: 49; agent_idx: 38
+        [0, 1],  # comp1.illumination.lmp1.@enabled (bool); sim_idx: 50; agent_idx: 39
+        [0, 200],  # comp1.illumination.lmp1.@intensity (unchangeable); sim_idx: 51; agent_idx: 40
+        [0, 20],  # comp1.illumination.lmp1.@hoursLight (daily); sim_idx: 52; agent_idx: 41
+        # comp1.illumination.lmp1.@endTime = 20; sim_idx: 53
+        [100, 400],  # comp1.illumination.lmp1.@maxIglob; sim_idx: 54; agent_idx: 42
+        # comp1.illumination.lmp1.@maxPARsum = 50; sim_idx: 55
+        [0, 100],  # crp_lettuce.Intkam.management.@plantDensity (daily); sim_idx: 56; agent_idx: 43
     ])
     default_action = np.array([0, 60, 0, 0, 0, 0, 0, 50, 150, 1, 0, 0, 0, 0, 0, 0, 100, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0,
                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 50,
@@ -121,20 +121,8 @@ class GreenhouseSim(gym.Env):
         # TODO: normalization data and function (std == 0), keep constantly with model side
         self.norm_data = self.npz2dic(norm_data_path)  # {'op_mean': op_mean, 'op_std':op_std, ...}
 
-    # TODO: prev_action&day_action needs to projection first
-    # TODO: parsed action are not satisfied, e.g. action[17]==100, should be [0/1]
     def parse_action(self, action):
-        # record prev action
-        if self.prev_action is None:
-            self.prev_action = action
-            
-        # record action at the first hour at a certain day
-        if self.iter % 24 == 0:
-            self.day_action = action
-
         action[self.bool_indices] = action[self.bool_indices] > 0.5
-        action[self.unchangeable_indices] = self.prev_action[self.unchangeable_indices]
-        action[self.daily_indices] = self.day_action[self.daily_indices]
         
         # enforce descending order for some of the actions
         for t in self.descending_indices:
@@ -145,10 +133,22 @@ class GreenhouseSim(gym.Env):
             action[t] = 0
             action[np.random.choice(t, 1)] = 1
 
+        # record prev action
+        if self.prev_action is None:
+            self.prev_action = action
+        
+        action[self.unchangeable_indices] = self.prev_action[self.unchangeable_indices]
+
+        # record action at the first hour at a certain day
+        if self.iter % 24 == 0:
+            self.day_action = action
+
+        action[self.daily_indices] = self.day_action[self.daily_indices]
+        
         # add fixed actions
         sim_action = self.default_action
         sim_action[self.action_parse_indices] = action
-
+ 
         # sim_action dim=57, action dim=44
         return sim_action[0], sim_action[1:], action
 
@@ -182,8 +182,7 @@ class GreenhouseSim(gym.Env):
         output_state = np.concatenate([norm_ep_cur, norm_op_cur])
         self.state = denormalize(norm_op_cur, self.norm_data['op_mean'], self.norm_data['op_std'])
 
-        # TODO: caculate reward and cost with denormalize state
-        # compute reward
+        # caculate reward and cost with denormalizd data
         gain_diff = self.gain(self.state) - self.gain(op_pre)
         cost = self.fixed_cost(agent_action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
