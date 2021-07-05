@@ -1,5 +1,6 @@
 import os
 import json
+from random import random
 import requests
 import datetime
 import numpy as np
@@ -183,7 +184,7 @@ def parse_output(output):
     return env_vals, output_vals
 
 
-def preprocess_data(data_dir):
+def preprocess_data(data_dir, save=True):
     control_dir = os.path.join(data_dir, 'controls')
     output_dir = os.path.join(data_dir, 'outputs')
 
@@ -226,8 +227,9 @@ def preprocess_data(data_dir):
     op_pre_array = np.concatenate(op_pre_array, axis=0)
     op_cur_array = np.concatenate(op_cur_array, axis=0)
 
-    np.savez_compressed(f'{data_dir}/processed_data.npz', 
-            cp=cp_array, ep=ep_array, op_pre=op_pre_array, op_cur=op_cur_array)
+    if save:
+        np.savez_compressed(f'{data_dir}/processed_data.npz', 
+                cp=cp_array, ep=ep_array, op_pre=op_pre_array, op_cur=op_cur_array)
 
     return cp_all, ep_all, op_all
 
@@ -245,7 +247,7 @@ def compute_mean_std(data_dirs):
     cp_all, ep_all, op_all = [], [], []
     
     for data_dir in data_dirs:
-        cp, ep, op = preprocess_data(data_dir)
+        cp, ep, op = preprocess_data(data_dir, save=False)
         cp_all.extend(cp)
         ep_all.extend(ep)
         op_all.extend(op)
@@ -274,11 +276,8 @@ class SupervisedModelDataset(Dataset):
         op_pre_arr_list, op_cur_arr_list = [], []
         
         for data_dir in data_dirs:
-            data_path = os.path.join(data_dir, 'processed_data.npz')
-            
-            if not os.path.exists(data_path):
-                preprocess_data(data_dir)
-
+            preprocess_data(data_dir)
+            data_path = f'{data_dir}/processed_data.npz'
             data = np.load(data_path)
 
             cp_arr_list.append(data['cp'])
@@ -377,6 +376,87 @@ def get_ep_ndays(sim_id, num_days=60):
     print('env params shape:', env_vals.shape)
 
     return env_vals
+
+
+def sample_CP_random():
+    CP = ControlParamSimple()
+
+    num_days = random.randint(35, 45)
+    num_hours = num_days * 24
+
+    CP.set_endDate(num_days=num_days)
+    CP.set_value("comp1.heatingpipes.pipe1.@maxTemp", 60)
+    CP.set_value("comp1.heatingpipes.pipe1.@minTemp", 0)
+    CP.set_value("comp1.heatingpipes.pipe1.@radiationInfluence", "0 0")
+
+    def sample_bool():
+        return random.choice([True, False])
+    
+    def sample_int(low, high):
+        return random.randint(low, high)
+
+    def sample_material():
+        return random.choice(['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par'])
+
+    def sample_line(r_x1, r_y1, r_x2, r_y2):
+        x1 = sample_int(*r_x1)
+        x2 = sample_int(*r_x2)
+        y1 = sample_int(*r_y1)
+        y2 = sample_int(*r_y2)
+        return f"{x1} {y1}; {x2} {y2}"
+
+    def sample_doseCap(r_y1, r_y2, r_y3):
+        x1 = sample_int(0, 33)
+        x2 = sample_int(34, 66)
+        x3 = sample_int(67, 100)
+        y1 = sample_int(*r_y1)
+        y2 = sample_int(*r_y2)
+        y3 = sample_int(*r_y3)
+        return f"{x1} {y1}; {x2} {y2}; {x3} {y3}"
+    
+    def val_seq(func, args_val, num_steps):
+        return [func(*args_val) for _ in range(num_steps)]
+
+    def sample_screen(CP, id):
+        key_prefix = f"comp1.screens.scr{id}"
+        CP.set_value(f"{key_prefix}.@enabled", sample_bool())
+        CP.set_value(f"{key_prefix}.@material", sample_material())
+        CP.set_value(f"{key_prefix}.@ToutMax", val_seq(sample_int, (-20, 30), num_hours))
+        CP.set_value(f"{key_prefix}.@closeBelow", val_seq(sample_line, [(0,10), (50,150), (10,30), (0,50)], num_hours))
+        CP.set_value(f"{key_prefix}.@closeAbove", val_seq(sample_int, (800, 1400), num_hours))
+        CP.set_value(f"{key_prefix}.@lightPollutionPrevention", True)
+    
+    # ============== sample temp params ============== 
+    CP.set_value("comp1.setpoints.temp.@heatingTemp", val_seq(sample_int, (5,30), num_hours))
+    CP.set_value("comp1.setpoints.temp.@ventOffset", val_seq(sample_int, (0,5), num_hours))
+    CP.set_value("comp1.setpoints.temp.@radiationInfluence", "0")
+    CP.set_value("comp1.setpoints.temp.@PbandVent", val_seq(sample_line, [(0,5), (10,20), (20,25), (5,10)], num_hours))
+    CP.set_value("comp1.setpoints.temp.@startWnd", val_seq(sample_int, (0,50), num_hours))
+    CP.set_value("comp1.setpoints.temp.@startWnd", val_seq(sample_int, (0,50), num_hours))
+    CP.set_value("comp1.setpoints.temp.@winLeeMin", 0)
+    CP.set_value("comp1.setpoints.temp.@winLeeMax", 100)
+    CP.set_value("comp1.setpoints.temp.@winWndMin", 0)
+    CP.set_value("comp1.setpoints.temp.@winWndMax", 100)
+    
+    # ============== sample CO2 params ============== 
+    CP.set_value("common.CO2dosing.@pureCO2cap", sample_int(100, 200))
+    CP.set_value("comp1.setpoints.CO2.@setpoint", val_seq(sample_int, (400, 1200), num_hours))
+    CP.set_value("comp1.setpoints.CO2.@setpIfLamps", val_seq(sample_int, (400, 1200), num_hours))
+    CP.set_value("comp1.setpoints.CO2.@doseCapacity", val_seq(sample_doseCap, [(70,100), (40,70), (0,40)], num_hours))
+    
+    # ============== sample screen params ============== 
+    sample_screen(CP, 1)
+    sample_screen(CP, 2)
+    
+    # ============== sample illumination params ==============
+    CP.set_value("comp1.illumination.lmp1.@enabled", True)
+    CP.set_value("comp1.illumination.lmp1.@intensity", val_seq(sample_int, (50, 200), num_hours))
+    CP.set_hoursLight(val_seq(sample_int, (0, 20), num_days))
+    CP.set_value("comp1.illumination.lmp1.@endTime", 20)
+    CP.set_maxIglob(val_seq(sample_int, (200, 400), num_days))
+    CP.set_maxPARsum(val_seq(sample_int, (10, 50), num_days))
+
+    return CP
 
 
 if __name__ == '__main__':
