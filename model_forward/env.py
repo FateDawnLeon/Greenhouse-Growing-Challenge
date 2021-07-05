@@ -85,7 +85,7 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, state_dict_path=STATE_DICT_PATH, ep_path=EP_PATH):
+    def __init__(self, state_dict_path=STATE_DICT_PATH, ep_path=EP_PATH, norm_data_path=NORM_DATA_PATH):
         self.rng = np.random.default_rng()
 
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
@@ -107,6 +107,8 @@ class GreenhouseSim(gym.Env):
         self.prev_action = None
         self.day_action = None
         self.num_spacings = 1
+
+        self.norm_data = np.load(norm_data_path) # {'op_mean': op_mean, 'op_std':op_std, ...}
 
         # self.reset()
 
@@ -160,21 +162,12 @@ class GreenhouseSim(gym.Env):
         # print('op:', self.state) # numpy.float32
         cp = action.astype(np.float32)
         ep = self.env_values[self.iter].astype(np.float32)
-        op = self.state.astype(np.float32)
-        self.net.eval()  # sets the module in evaluation mode.
-        self.state = self.net.forward(
-            torch.from_numpy(cp.reshape((1, len(cp)))),
-            torch.from_numpy(ep.reshape((1, len(ep)))),
-            torch.from_numpy(op.reshape((1, len(op))))
-        ).flatten()
-        # cast self.state from tensor to numpy
-        self.state = self.state.detach().numpy()
-        # TODO: check nan
-        self.state[np.where(np.isnan(self.state))[0]] = 0
-        output_state = np.concatenate([self.env_values[self.iter + 1], self.state])
-        # TODO: check nan
-        output_state[np.where(np.isnan(output_state))[0]] = 0
-        # print('output_state:', output_state)
+        op_pre = self.state.astype(np.float32)
+
+        op_cur = self.net.predict_op(cp, ep, op_pre).flatten()
+        ep_cur = self.normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
+        output_state = np.concatenate([ep_cur, op_cur])
+        self.state = op_cur
 
         # compute reward
         gain_diff = self.gain(self.state) - self.gain(prev_state)
@@ -200,15 +193,18 @@ class GreenhouseSim(gym.Env):
             self.start_iter = start * 24
         self.iter = self.start_iter
 
-        # randomly choose a OP1 to start from
-        self.state = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
         self.prev_action = None
         self.day_action = None
         self.num_spacings = 1
 
-        # TODO: check nan
-        output_state = np.concatenate([self.env_values[self.iter], self.state])
-        output_state[np.where(np.isnan(output_state))[0]] = 0
+        # randomly choose a OP1 to start from
+        state = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
+        norm_op1 = self.normalize(state, self.norm_data['op_mean'], self.norm_data['op_std'])
+        norm_ep = self.normalize(self.env_values[self.iter], self.norm_data['ep_mean'], self.norm_data['ep_std'])
+        output_state = np.concatenate([norm_ep, norm_op1])
+
+        self.state = norm_op1
+
         return output_state
 
     def render(self, mode='human'):
@@ -263,3 +259,12 @@ class GreenhouseSim(gym.Env):
         cost += self.state[8] * 3600 * 0.12
 
         return cost
+
+    @staticmethod
+    def normalize(data, mean, std):
+        data = (data - mean) / std
+        return np.nan_to_num(data)
+
+    @staticmethod
+    def denormalize(data, mean, std):
+        return data * std + mean
