@@ -155,10 +155,6 @@ class GreenhouseSim(gym.Env):
         self.rng = np.random.default_rng(seed=seed)
 
     def step(self, action: np.ndarray):
-        # # if exceeds the ep data, end trajectory
-        # if self.iter >= self.max_step:
-        #     return self.state, 0, True, None
-
         # print('action before parse:', action)
         # parse action to model input dim
         end, action, projected_action = self.parse_action(action)
@@ -170,23 +166,23 @@ class GreenhouseSim(gym.Env):
         # use nn to predict next state
         # print('action after parse:', end, action)  # type: numpy.float32 unnormalize
         # print('env', self.env_values[self.iter])  # type: numpy.float64 unnormalize
-        # print('op:', self.state)  # numpy.float32 normalized
-        # inputs should be float32
-        cp = normalize(action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
-        ep = normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
+        # print('op:', self.state)  # type: numpy.float32 unnormalize
+        # inputs should be float32 and normalized
+        norm_cp = normalize(action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
+        norm_ep = normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
                             self.norm_data['ep_std'])
         op_pre = self.state
+        norm_op_pre = normalize(self.state, self.norm_data['op_mean'], self.norm_data['op_std'])
 
-        op_cur = self.net.predict_op(cp, ep, op_pre)
-        op_cur = op_cur.reshape(op_cur.shape[1])
-        ep_cur = normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
-        output_state = np.concatenate([ep_cur, op_cur])
-        self.state = op_cur
+        norm_op_cur = self.net.predict_op(norm_cp, norm_ep, norm_op_pre)
+        norm_op_cur = norm_op_cur.reshape(norm_op_cur.shape[1])
+        norm_ep_cur = normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
+        output_state = np.concatenate([norm_ep_cur, norm_op_cur])
+        self.state = denormalize(norm_op_cur, self.norm_data['op_mean'], self.norm_data['op_std'])
 
         # TODO: caculate reward and cost with denormalize state
         # compute reward
-        gain_diff = self.gain(denormalize(self.state, self.norm_data['op_mean'], self.norm_data['op_std']))\
-             - self.gain(denormalize(op_pre, self.norm_data['op_mean'], self.norm_data['op_std']))
+        gain_diff = self.gain(self.state) - self.gain(op_pre)
         cost = self.fixed_cost(projected_action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
 
@@ -195,7 +191,6 @@ class GreenhouseSim(gym.Env):
         self.prev_action = action
 
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
-        # TODO: sel.state should be denormalize.
         fw = self.state[4]
         done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
         
@@ -216,13 +211,13 @@ class GreenhouseSim(gym.Env):
         self.num_spacings = 1
 
         # randomly choose a OP1 to start from
-        state = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
-        norm_op1 = normalize(state, self.norm_data['op_mean'], self.norm_data['op_std'])
+        op1 = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
+        self.state = op1
+
+        norm_op1 = normalize(op1, self.norm_data['op_mean'], self.norm_data['op_std'])
         norm_ep = normalize(self.env_values[self.iter], self.norm_data['ep_mean'], self.norm_data['ep_std'])
         output_state = np.concatenate([norm_ep, norm_op1])
 
-        self.state = norm_op1
-        
         # TODO: std is 0, normalize to inf
         return output_state
 
@@ -231,7 +226,6 @@ class GreenhouseSim(gym.Env):
 
     @staticmethod
     def gain(state):
-        # TODO: state should be denormalized
         fw, dmc = state[4], state[5]
         # mirror fresh weight
         fw = fw if fw <= 250 else 500 - fw
@@ -270,7 +264,6 @@ class GreenhouseSim(gym.Env):
     def variable_cost(self, ep):
         cost = 0
         # electricity cost
-        # TODO: self.state is normalized
         if ep[-1] > 0.5:
             cost += self.state[6] / 1000 * 0.1
         else:
