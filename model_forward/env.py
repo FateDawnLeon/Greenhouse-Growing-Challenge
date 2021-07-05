@@ -12,7 +12,6 @@ from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS,
 from data import zscore_normalize as normalize
 from data import zscore_denormalize as denormalize
 
-
 class GreenhouseSim(gym.Env):
     min_fw = 210
     num_control_params = 56  # count from CONTROL_KEYS
@@ -291,6 +290,8 @@ class GreenhouseSim(gym.Env):
                     'ep_mean': norm_npz['ep_mean'], 'ep_std': norm_npz['ep_std'],
                     'op_mean': norm_npz['op_mean'], 'op_std': norm_npz['op_std']}
         return norm_data
+
+    # TODO: seperate action to json code in different file
     # map feature index to either default value or action index
     # e.g. CONTROL_KEY[i] -> action_dump_indices[i]
     # or CONTROL_KEY[i] -> actions[:, action_dump_indices[i]]
