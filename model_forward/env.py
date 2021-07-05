@@ -282,13 +282,12 @@ class GreenhouseSim(gym.Env):
 
     @staticmethod
     def normalize(data, mean, std):
-        # TODO: std=0, normaliztion has indf. mean and std should keeep constant with model
+        std[std==0] = 1
         data = (data - mean) / std
         return np.nan_to_num(data)
 
     @staticmethod
     def denormalize(data, mean, std):
-        # TODO: std=0, normaliztion has indf. mean and std should keeep constant with model
         return data * std + mean
 
     @staticmethod

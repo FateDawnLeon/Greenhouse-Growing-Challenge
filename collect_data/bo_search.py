@@ -23,7 +23,7 @@ DIMS = {
         Real(name='CO2_setpoint_day', low=800, high=1200),
         Real(name='CO2_setpoint_lamp', low=800, high=1200),
         Real(name='light_intensity', low=0, high=200),
-        Real(name='light_hours', low=0, high=24),
+        Real(name='light_hours', low=0, high=20),
         Real(name='light_endTime', low=0, high=24),
         Real(name='light_maxIglob', low=100, high=400),
     ],
@@ -116,13 +116,8 @@ DIMS = {
         Integer(name='CO2_setpoint_day', low=800, high=1200),
         Integer(name='CO2_setpoint_lamp', low=800, high=1200),
         Integer(name='light_intensity', low=0, high=200),
-        Integer(name='light_hours', low=0, high=24),
-        Integer(name='light_endTime', low=0, high=24),
+        Integer(name='light_hours', low=0, high=20),
         Integer(name='light_maxIglob', low=200, high=400),
-        # Categorical(name='plant_density', categories=[
-        #     "1 80; 10 40; 20 30; 25 20; 30 10",
-        #     "1 90; 7 60; 14 40; 21 30; 28 20; 34 15",
-        # ])
     ]
 }
 
@@ -256,6 +251,8 @@ class NetProfitOptimizer(object):
 
 
 def get_func_and_callback(args):
+
+    LIGHT_END_TIME = 20
     
     @use_named_args(dimensions=DIMS[args.dimension_spec])
     def netprofit(
@@ -268,7 +265,6 @@ def get_func_and_callback(args):
         CO2_setpoint_lamp,
         light_intensity,
         light_hours,
-        light_endTime,
         light_maxIglob
     ):
         num_days = int(num_days)
@@ -280,8 +276,8 @@ def get_func_and_callback(args):
         CO2_setpoint_lamp = round(float(CO2_setpoint_lamp), args.float_precision)
         light_intensity = round(float(light_intensity), args.float_precision)
         light_hours = round(float(light_hours), args.float_precision)
-        light_endTime = round(float(light_endTime), args.float_precision)
         light_maxIglob = round(float(light_maxIglob), args.float_precision)
+        light_endTime = round(float(LIGHT_END_TIME), args.float_precision)
 
         CP = ControlParamSimple()
         CP.set_endDate(num_days)
@@ -369,12 +365,12 @@ if __name__ == '__main__':
     parser.add_argument('-NC', '--num-calls', type=int, default=5)
     parser.add_argument('-NI', '--num-initial-points', type=int, default=1)
     parser.add_argument('-RS', '--random-seed', type=int, default=None)
-    parser.add_argument('-DS', '--dimension-spec', type=str, default='A')
+    parser.add_argument('-DS', '--dimension-spec', type=str, default=None)
     parser.add_argument('-S', '--simulator', type=str, default='A')
-    parser.add_argument('-D', '--data-dir', type=str, default=None)
     parser.add_argument('-O', '--optimizer', type=str, default='gp')
     parser.add_argument('-L', '--logging', action='store_true')
     parser.add_argument('-P', '--float-precision', type=int, default=0)
+    parser.add_argument('-D', '--data-dir', type=str, default=None)
     args = parser.parse_args()
     print(args)
 

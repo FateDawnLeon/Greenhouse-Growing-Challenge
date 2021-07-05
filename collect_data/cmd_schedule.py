@@ -4,24 +4,24 @@ import pytz
 from datetime import date, datetime
 
 
-def run_simB_bo_1():
+def run_simB_BO():
     simulator = 'B'
     num_calls = 1000
     num_init_points = 100
-    random_state = 42
-    dimension_spec = 'A'
+    dimension_spec = 'BB'
     optimizer = 'gbrt'
     precision = 1
     today = date.today().isoformat()
 
     cmd = f'python bo_search.py \
-            -S {simulator} \
-            -DS {dimension_spec} \
-            -NI {num_init_points} \
             -NC {num_calls} \
-            -RS {random_state} \
+            -NI {num_init_points} \
+            -DS {dimension_spec} \
+            -S {simulator} \
+            -O {optimizer} \
+            -L \
             -P {precision} \
-            -D bo_data_{today}_SIM={simulator}__DS={dimension_spec}_OPT={optimizer}_NI={num_init_points}_NC={num_calls}_RS={random_state}_P={precision}'
+            -D data_sample=BO_date={today}_SIM={simulator}_DS={dimension_spec}_OPT={optimizer}_NI={num_init_points}_NC={num_calls}_P={precision}'
 
     timezone = pytz.timezone('Europe/Amsterdam')
     start_time = datetime(2021, 7, 5, hour=14, tzinfo=timezone)
@@ -32,7 +32,7 @@ def run_simB_bo_1():
     os.system(cmd)
 
 
-def run_simA_bo_1():
+def run_simA_BO():
     simulator = 'A'
     num_calls = 5000
     num_init_points = 500
@@ -54,5 +54,5 @@ def run_simA_bo_1():
 
 
 if __name__ == '__main__':
-    # run_simB_bo_1()
-    run_simA_bo_1()
+    run_simB_BO()
+    # run_simA_BO()
