@@ -103,7 +103,7 @@ CITY = lookup('Amsterdam', database())
 COMMON_DATA_DIR = '../policy'  # TODO: change this to your own directory
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
-NORM_DATA_PATHS = {sim_id: f'{COMMON_DATA_DIR}/NORM-DATA-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
+NORM_DATA_PATHS = {sim_id: f'{COMMON_DATA_DIR}/NORM-DATA-SIM={sim_id}.npz' for sim_id in ['A', 'B', 'C', 'D']}
 
 
 # ====================== runtime related ======================
