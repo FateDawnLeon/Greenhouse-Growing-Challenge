@@ -86,7 +86,7 @@ OUTPUT_KEYS_RANGE = {
     # CP + EP + GEP -> OS
 }
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
-
+MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== simulator related ======================
 KEYS = {

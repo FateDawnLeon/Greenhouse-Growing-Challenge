@@ -1,6 +1,5 @@
 import os
 import json
-from random import random
 import requests
 import datetime
 import numpy as np
@@ -12,32 +11,30 @@ from control_param import ControlParamSimple
 from constant import CITY, COMMON_DATA_DIR, CONTROL_KEYS, ENV_KEYS, KEYS, NORM_DATA_PATHS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS
 
 
+def save_json_data(data, path):
+    with open(path, 'w') as f:
+        json.dump(data, f)
+
+
 def load_json_data(path):
     with open(path, 'r') as f:
         data = json.load(f)
     return data
 
 
-def preprocess_str(param):
-    if '.par' in param:
-        return param == np.array(
-            ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
-        )
-
-    elif ';' in param: # this is a table
-        numbers = [[float(x) for x in y.split()] for y in param.split(';')]
-        return np.asarray(numbers).flatten()
-    else: # this is a number list
-        numbers = [float(x) for x in param.split()]
-        return np.asarray(numbers)
+def preprocess_table(param):
+    numbers = [[float(x) for x in y.split()] for y in param.split(';')]
+    return np.asarray(numbers).flatten()
 
 
-def preprocess_screen_threshold(param, num_hours):
+def preprocess_screen_material(param):
+    return param == np.asarray(['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par'])
+
+
+def preprocess_screen_threshold(param):
     if isinstance(param, str):
-        val = preprocess_str(param)
-    else:
-        val = np.asarray([0, param, 10, param])
-    return np.repeat(val[:, np.newaxis], num_hours, axis=1)
+        return preprocess_table(param)
+    return np.asarray([0, param, 10, param])
 
 
 def preprocess_plant_density(param, num_hours):
@@ -49,93 +46,106 @@ def preprocess_plant_density(param, num_hours):
     return densities[np.newaxis,:]
 
 
-def preprocess_pipe_radinf(param, num_hours):
+def preprocess_pipe_radinf(param):
     numbers = [float(x) for x in param.split()]
     if len(numbers) == 1:
         assert numbers[0] == 0
         numbers *= 2
-    val = np.asarray(numbers)
-    return np.repeat(val[:, np.newaxis], num_hours, axis=1)
+    return np.asarray(numbers)
 
 
-def preprocess_co2_dose_capacity(param, num_hours):
-    val = preprocess_str(param)
-    if len(val) == 1:
-        val = np.array([20, val[0], 40, val[0], 70, val[0]])
-    return np.repeat(val[:, np.newaxis], num_hours, axis=1)
+def preprocess_co2_dose_capacity(param):
+    if ';' in param:
+        return preprocess_table(param)
+    val = float(param)
+    return np.asarray([25, val, 50, val, 75, val])
 
 
 special_preprocess = {
+    'comp1.screens.scr1.@material': preprocess_screen_material,
+    'comp1.screens.scr2.@material': preprocess_screen_material,
     'comp1.screens.scr1.@closeBelow': preprocess_screen_threshold,
     'comp1.screens.scr2.@closeBelow': preprocess_screen_threshold,
-    'crp_lettuce.Intkam.management.@plantDensity': preprocess_plant_density,
-    'comp1.heatingpipes.pipe1.@radiationInfluence': preprocess_pipe_radinf,
     'comp1.setpoints.CO2.@doseCapacity': preprocess_co2_dose_capacity,
+    'comp1.heatingpipes.pipe1.@radiationInfluence': preprocess_pipe_radinf,
 }
 
 
-def parse_static_param(key, param, num_hours):
+def param_to_vec(key, param):
     if key in special_preprocess:
-        return special_preprocess[key](param, num_hours)
-    if type(param) in [int, float, bool]:
-        val = np.array([param])
+        vec = special_preprocess[key](param)
+    elif type(param) in [int, float, bool]:
+        vec = np.asarray([param])
     elif type(param) == str:
-        val = preprocess_str(param)
+        vec = preprocess_table(param)
     else:
         raise ValueError(f'praram {key}:{param} data type not supported!')
-    return np.repeat(val[:, np.newaxis], num_hours, axis=1)
+    return vec
+
+
+def parse_static_param(key, param, num_hours):
+    if key == 'crp_lettuce.Intkam.management.@plantDensity':
+        return preprocess_plant_density(param, num_hours)
+
+    vec = param_to_vec(key, param)
+    return np.repeat(vec[:, np.newaxis], num_hours, axis=1)
 
 
 def parse_dynamic_param(key, param, num_hours):  # sourcery no-metrics
-    value_scheme = []
+    value_scheme = [None] * num_hours
+    valid_data_type = (int, float, str, bool)
+
     for date in param:
         day, month = [int(x) for x in date.split('-')]
         dateinfo = datetime.date(2021, month, day)
+        day_offset = max(0, (dateinfo - START_DATE).days)
+        day_start_hour_offset = day_offset * 24
 
         day_param = param[date]
-        if isinstance(day_param, dict): # this is a 24-hour schedule
+        if type(day_param) in valid_data_type:
+            value_scheme[day_start_hour_offset] = day_param
+        elif isinstance(day_param, dict): # this is a 24-hour schedule
             s = sun(CITY.observer, date=dateinfo, tzinfo=CITY.timezone)
             t_sunrise = s['sunrise'].hour + s['sunrise'].minute / 60
             t_sunset = s['sunset'].hour + s['sunset'].minute / 60
-            time_vals = []
-            for time in day_param:
-                val = day_param[time]
+            
+            for time, value in day_param.items():
+                assert type(time) == str and type(value) in valid_data_type
                 time = time.replace('r', str(round(t_sunrise, 1)))
                 time = time.replace('s', str(round(t_sunset, 1)))
-                time_vals.append((round(eval(time)), val))
-
-            if len(time_vals) == 1:
-                day_values = [time_vals[0][1]] * 24
-            else:
-                day_values = [None] * 24
-                for cur in range(len(time_vals)):
-                    left_time, left_val = time_vals[cur]
-                    right_time, right_val = time_vals[(cur+1) % len(time_vals)]
-
-                    if right_time < left_time:
-                        right_time += 24
-
-                    d_v = right_val - left_val
-                    d_t = right_time - left_time
-                    for i in range(left_time, right_time):
-                        day_values[i%24] = left_val + (i - left_time) * d_v / d_t
-            day_values = np.array(day_values)
-            day_values = day_values[np.newaxis, :]
+                hour_offset = day_start_hour_offset + round(eval(time))
+                value_scheme[hour_offset] = value
         else:
-            day_values = parse_static_param(key, day_param, 24)
+            raise ValueError(f'{day_param}: unexpected control param data type!')
 
-        delta = dateinfo - START_DATE
-        day_offset = max(0, delta.days)
-        value_scheme.append((day_offset, day_values))
+    has_value_idxs = [i for i, value in enumerate(value_scheme) if value is not None]
+    if has_value_idxs[0] > 0:
+        value_scheme[0] = value_scheme[has_value_idxs[0]]
+        has_value_idxs = [0] + has_value_idxs
+    if has_value_idxs[-1] < num_hours-1:
+        value_scheme[-1] = value_scheme[has_value_idxs[-1]]
+        has_value_idxs = has_value_idxs + [num_hours-1]
 
-    n = value_scheme[0][1].shape[0]
-    values = np.zeros((n, num_hours))
-    for day_offset, day_values in value_scheme:
-        t = day_offset * 24
-        day_left = (num_hours - t) // 24
-        values[:, t:] = np.concatenate([day_values]*day_left, axis=1)
+    for i in range(len(has_value_idxs)-1):
+        t_left = has_value_idxs[i]
+        v_left = value_scheme[t_left]
+        t_right = has_value_idxs[i+1]
+        v_right = value_scheme[t_right]
 
-    return values
+        dt = t_right - t_left
+        if type(v_left) in (int, float):  # missing time steps can be interpolated
+            v_left = param_to_vec(key, v_left)
+            v_right = param_to_vec(key, v_right)
+            dv = v_right - v_left
+            for t in range(t_left, t_right):
+                value_scheme[t] = v_left + (t - t_left) * dv / dt
+        else:  # missing time steps are just copied from previous setpoints
+            v_left = param_to_vec(key, v_left)
+            for t in range(t_left, t_right):
+                value_scheme[t] = v_left
+
+    value_scheme[-1] = param_to_vec(key, value_scheme[-1])
+    return np.asarray(value_scheme, dtype=np.float32).T
 
 
 def parse_control(control):
@@ -210,17 +220,18 @@ def preprocess_data(data_dir, save=True):
         ep_all.append(env_vals)
         op_all.append(output_vals)
         
-        cp_vals = control_vals[:-1]
-        ep_vals = env_vals[:-1]
-        op_vals_pre = output_vals[:-1]
-        op_vals_cur = output_vals[1:]
+        # assumption: cp[t] + ep[t-1] + op[t-1] -> op[t]
+        cp_vals_t = control_vals[1:]
+        ep_vals_t_minus_1 = env_vals[:-1]
+        op_vals_t_minus_1 = output_vals[:-1]
+        op_vals_t = output_vals[1:]
 
-        assert cp_vals.shape[0] == ep_vals.shape[0] == op_vals_pre.shape[0] == op_vals_cur.shape[0]
+        assert cp_vals_t.shape[0] == ep_vals_t_minus_1.shape[0] == op_vals_t_minus_1.shape[0] == op_vals_t.shape[0]
 
-        cp_array.append(cp_vals)
-        ep_array.append(ep_vals)
-        op_pre_array.append(op_vals_pre)
-        op_cur_array.append(op_vals_cur)
+        cp_array.append(cp_vals_t)
+        ep_array.append(ep_vals_t_minus_1)
+        op_pre_array.append(op_vals_t_minus_1)
+        op_cur_array.append(op_vals_t)
     
     cp_array = np.concatenate(cp_array, axis=0)
     ep_array = np.concatenate(ep_array, axis=0)
@@ -228,8 +239,11 @@ def preprocess_data(data_dir, save=True):
     op_cur_array = np.concatenate(op_cur_array, axis=0)
 
     if save:
-        np.savez_compressed(f'{data_dir}/processed_data.npz', 
-                cp=cp_array, ep=ep_array, op_pre=op_pre_array, op_cur=op_cur_array)
+        np.savez_compressed(
+            f'{data_dir}/processed_data.npz', 
+            cp=cp_array, ep=ep_array, 
+            op_pre=op_pre_array, op_cur=op_cur_array
+        )
 
     return cp_all, ep_all, op_all
 
@@ -329,7 +343,7 @@ def get_output(control, sim_id):
     while True:
         response = requests.post(URL, data=data, headers=headers, timeout=300)
         output = response.json()
-        print(response, output['responsemsg'])
+        # print(response, output['responsemsg'])
 
         if output['responsemsg'] == 'ok':
             break
@@ -378,87 +392,6 @@ def get_ep_ndays(sim_id, num_days=60):
     return env_vals
 
 
-def sample_CP_random():
-    CP = ControlParamSimple()
-
-    num_days = random.randint(35, 45)
-    num_hours = num_days * 24
-
-    CP.set_endDate(num_days=num_days)
-    CP.set_value("comp1.heatingpipes.pipe1.@maxTemp", 60)
-    CP.set_value("comp1.heatingpipes.pipe1.@minTemp", 0)
-    CP.set_value("comp1.heatingpipes.pipe1.@radiationInfluence", "0 0")
-
-    def sample_bool():
-        return random.choice([True, False])
-    
-    def sample_int(low, high):
-        return random.randint(low, high)
-
-    def sample_material():
-        return random.choice(['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par'])
-
-    def sample_line(r_x1, r_y1, r_x2, r_y2):
-        x1 = sample_int(*r_x1)
-        x2 = sample_int(*r_x2)
-        y1 = sample_int(*r_y1)
-        y2 = sample_int(*r_y2)
-        return f"{x1} {y1}; {x2} {y2}"
-
-    def sample_doseCap(r_y1, r_y2, r_y3):
-        x1 = sample_int(0, 33)
-        x2 = sample_int(34, 66)
-        x3 = sample_int(67, 100)
-        y1 = sample_int(*r_y1)
-        y2 = sample_int(*r_y2)
-        y3 = sample_int(*r_y3)
-        return f"{x1} {y1}; {x2} {y2}; {x3} {y3}"
-    
-    def val_seq(func, args_val, num_steps):
-        return [func(*args_val) for _ in range(num_steps)]
-
-    def sample_screen(CP, id):
-        key_prefix = f"comp1.screens.scr{id}"
-        CP.set_value(f"{key_prefix}.@enabled", sample_bool())
-        CP.set_value(f"{key_prefix}.@material", sample_material())
-        CP.set_value(f"{key_prefix}.@ToutMax", val_seq(sample_int, (-20, 30), num_hours))
-        CP.set_value(f"{key_prefix}.@closeBelow", val_seq(sample_line, [(0,10), (50,150), (10,30), (0,50)], num_hours))
-        CP.set_value(f"{key_prefix}.@closeAbove", val_seq(sample_int, (800, 1400), num_hours))
-        CP.set_value(f"{key_prefix}.@lightPollutionPrevention", True)
-    
-    # ============== sample temp params ============== 
-    CP.set_value("comp1.setpoints.temp.@heatingTemp", val_seq(sample_int, (5,30), num_hours))
-    CP.set_value("comp1.setpoints.temp.@ventOffset", val_seq(sample_int, (0,5), num_hours))
-    CP.set_value("comp1.setpoints.temp.@radiationInfluence", "0")
-    CP.set_value("comp1.setpoints.temp.@PbandVent", val_seq(sample_line, [(0,5), (10,20), (20,25), (5,10)], num_hours))
-    CP.set_value("comp1.setpoints.temp.@startWnd", val_seq(sample_int, (0,50), num_hours))
-    CP.set_value("comp1.setpoints.temp.@startWnd", val_seq(sample_int, (0,50), num_hours))
-    CP.set_value("comp1.setpoints.temp.@winLeeMin", 0)
-    CP.set_value("comp1.setpoints.temp.@winLeeMax", 100)
-    CP.set_value("comp1.setpoints.temp.@winWndMin", 0)
-    CP.set_value("comp1.setpoints.temp.@winWndMax", 100)
-    
-    # ============== sample CO2 params ============== 
-    CP.set_value("common.CO2dosing.@pureCO2cap", sample_int(100, 200))
-    CP.set_value("comp1.setpoints.CO2.@setpoint", val_seq(sample_int, (400, 1200), num_hours))
-    CP.set_value("comp1.setpoints.CO2.@setpIfLamps", val_seq(sample_int, (400, 1200), num_hours))
-    CP.set_value("comp1.setpoints.CO2.@doseCapacity", val_seq(sample_doseCap, [(70,100), (40,70), (0,40)], num_hours))
-    
-    # ============== sample screen params ============== 
-    sample_screen(CP, 1)
-    sample_screen(CP, 2)
-    
-    # ============== sample illumination params ==============
-    CP.set_value("comp1.illumination.lmp1.@enabled", True)
-    CP.set_value("comp1.illumination.lmp1.@intensity", val_seq(sample_int, (50, 200), num_hours))
-    CP.set_hoursLight(val_seq(sample_int, (0, 20), num_days))
-    CP.set_value("comp1.illumination.lmp1.@endTime", 20)
-    CP.set_maxIglob(val_seq(sample_int, (200, 400), num_days))
-    CP.set_maxPARsum(val_seq(sample_int, (10, 50), num_days))
-
-    return CP
-
-
 if __name__ == '__main__':
     import argparse
 
@@ -487,4 +420,4 @@ if __name__ == '__main__':
     if args.get_norm_data:
         (cp_mean, cp_std), (ep_mean, ep_std), (op_mean, op_std) = compute_mean_std(args.data_dirs)
         np.savez_compressed(NORM_DATA_PATHS[args.simulator], cp_mean=cp_mean, cp_std=cp_std, ep_mean=ep_mean, ep_std=ep_std, op_mean=op_mean, op_std=op_std)
-        
+    
