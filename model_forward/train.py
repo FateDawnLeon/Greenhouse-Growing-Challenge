@@ -2,7 +2,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import torch
 from model import Model
-from data import SupervisedModelDataset, zscore_normalize, compute_mean_std
+from data import SupervisedModelDataset
 from torch.utils.data import DataLoader
 from torch.optim import Adam, lr_scheduler
 from torch import nn
