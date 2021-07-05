@@ -1,9 +1,14 @@
+from collections import defaultdict
+import datetime
+import json
+
 import gym
-import torch
 import numpy as np
 import torch
+
 from model import Model
-from constant import ENV_KEYS, EP_PATH, INIT_STATE_PATH, OUTPUT_KEYS, STATE_DICT_PATH, NORM_DATA_PATH
+from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS, \
+    EP_PATH, INIT_STATE_PATH, STATE_DICT_PATH, NORM_DATA_PATH
 
 
 class GreenhouseSim(gym.Env):
@@ -267,3 +272,144 @@ class GreenhouseSim(gym.Env):
     @staticmethod
     def denormalize(data, mean, std):
         return data * std + mean
+
+    # map feature index to either default value or action index
+    # e.g. CONTROL_KEY[i] -> action_dump_indices[i]
+    # or CONTROL_KEY[i] -> actions[:, action_dump_indices[i]]
+    action_dump_indices = [
+        None,  # endDate
+        60,
+        0,
+        "0 0",
+        (1,),
+        (2,),
+        "50 150 1",
+        (3, 4, 5, 6),
+        (7,),
+        0,
+        100,
+        0,
+        100,
+        (8,),
+        (9,),
+        (10,),
+        (11, 12, 13, 14, 15, 16),
+        (17,),
+        None,  # scr1.@material, need special handling, indices are (18, 19, 20)
+        (21,),
+        (22, 24, 24, 25),
+        (26,),
+        (27,),
+        (28,),
+        None,  # scr2.@material, need special handling, indices are (29, 30, 31)
+        (32,),
+        (33, 34, 35, 36),
+        (37,),
+        (28,),
+        (39,),
+        (40,),
+        (41,),
+        20,
+        (42,),
+        50,
+        (43,)
+    ]
+
+    @staticmethod
+    def __day2str(day):
+        return (START_DATE + datetime.timedelta(days=day)).strftime('%d-%m')
+
+    @staticmethod
+    def __get_nested_defaultdict():
+        def factory():
+            return defaultdict(factory)
+
+        return defaultdict(factory)
+
+    @staticmethod
+    def __store_to_nested_dict(d, key, val):
+        tokens = key.split('.')
+        for token in tokens[:-1]:
+            d = d[token]
+        d[tokens[-1]] = val
+
+    @staticmethod
+    def dump_actions(actions: np.ndarray):
+        """
+        Dumps a history of actions into appropriate control json format.
+        Parameters
+        ----------
+        actions : ndarray, shape (T, 44)
+        The actions in one trajectory. T is the number of hours.
+        Returns
+        -------
+        output_json : str
+        The control json.
+        """
+        assert len(actions.shape) == 2
+        assert actions.shape[1] == 44
+
+        # add the control for the first hour
+        actions = np.vstack((actions[np.newaxis, 0], actions))
+
+        num_days = actions.shape[0] // 24
+
+        # cut to integer days
+        actions = actions[:num_days * 24]
+
+        output = GreenhouseSim.__get_nested_defaultdict()
+        for i, (key, target) in enumerate(zip(CONTROL_KEYS, GreenhouseSim.action_dump_indices)):
+            # if from actions, TARGET is a tuple of column indices
+            if isinstance(target, tuple):
+                val = actions[:, target]
+
+                # actions that needs to be casted to lower-case bool
+                if target[0] in GreenhouseSim.bool_indices:
+                    val = np.array([[str(bool(x)).lower() for x in lst] for lst in val])
+
+                # type 1: unchangeable
+                if target[0] in GreenhouseSim.unchangeable_indices:
+                    assert val.shape[1] == 1
+                    val = val[0][0]
+                # type 2: daily
+                elif target[0] in GreenhouseSim.daily_indices:
+                    assert val.shape[1] == 1
+                    # get action at the first hour of each day
+                    val = val[::24, 0]
+                    val = {GreenhouseSim.__day2str(day): val[day] for day in range(num_days)}
+                # type 3: hourly, single value
+                elif len(target) == 1:
+                    val = np.reshape(val, (num_days, 24))
+                    val = {
+                        GreenhouseSim.__day2str(day): {
+                            str(hour): val[day][hour] for hour in range(24)
+                        }
+                        for day in range(num_days)
+                    }
+                else:
+                    assert len(target) % 2 == 0
+                    val = np.reshape(val, (num_days, 24, len(target) // 2, 2))
+                    val = {
+                        GreenhouseSim.__day2str(day): {
+                            str(hour): '; '.join([' '.join(map(str, x)) for x in val[day][hour]]) for hour in range(24)
+                        }
+                        for day in range(num_days)
+                    }
+
+            # otherwise, TARGET is the constant value that needs to be set to
+            else:
+                val = target
+
+            GreenhouseSim.__store_to_nested_dict(output, key, val)
+
+        # end date
+        end_date = START_DATE + datetime.timedelta(days=num_days)
+        GreenhouseSim.__store_to_nested_dict(output, 'simset.@endDate', end_date.strftime('%d-%m-%Y'))
+
+        # materials
+        GreenhouseSim.__store_to_nested_dict(output, 'comp1.screens.scr1.@material',
+                                             MATERIALS[np.where(actions[0, (18, 19, 20)] == 1)[0][0]])
+        GreenhouseSim.__store_to_nested_dict(output, 'comp1.screens.scr2.@material',
+                                             MATERIALS[np.where(actions[0, (29, 30, 31)] == 1)[0][0]])
+
+        return json.dumps(output, indent=4)

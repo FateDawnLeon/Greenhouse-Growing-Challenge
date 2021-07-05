@@ -88,6 +88,8 @@ OUTPUT_KEYS_RANGE = {
 
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
 
+MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
+
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
     'B': 'C48B-PTmQ-89Kx-jqV5-3zRL'
