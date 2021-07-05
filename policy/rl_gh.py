@@ -14,7 +14,7 @@ from garage.envs import GymEnv, normalize
 from garage.experiment.deterministic import set_seed
 from garage.np.baselines import LinearFeatureBaseline
 from garage.tf.baselines import GaussianMLPBaseline
-from garage.sampler import LocalSampler, RaySampler
+from garage.sampler import LocalSampler, RaySampler, DefaultWorker, VecWorker
 from garage.tf.algos import TRPO, PPO
 from garage.tf.policies import GaussianMLPPolicy
 from garage.trainer import TFTrainer
@@ -57,7 +57,12 @@ def rl_greenhouse(ctxt, seed, n_epochs, batch_size, plot):
         sampler = LocalSampler(agents=policy,
                                envs=env,
                                max_episode_length=env.spec.max_episode_length,
-                               is_tf_worker=True)
+                               is_tf_worker=True,
+                               worker_class=DefaultWorker,
+                            #    worker_class=VecWorker,
+                            #    worker_args=dict(n_envs=12),
+                               n_workers=1
+                               )
         # sampler = RaySampler(agents=policy,
         #                      envs=env,
         #                      max_episode_length=env.spec.max_episode_length,
