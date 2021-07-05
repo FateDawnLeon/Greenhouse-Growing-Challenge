@@ -8,7 +8,7 @@ from astral.sun import sun
 from torch.utils.data import Dataset
 
 from control_param import ControlParamSimple
-from constant import CITY, COMMON_DATA_DIR, CONTROL_KEYS, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS
+from constant import CITY, COMMON_DATA_DIR, CONTROL_KEYS, ENV_KEYS, KEYS, NORM_DATA_PATHS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS
 
 
 def load_json_data(path):
@@ -384,10 +384,11 @@ if __name__ == '__main__':
 
     # to prepare EP_PATH and INIT_STATE_PATH
     # (1) change COMMON_DATA_DIR in constant.py
-    # (2) $ python --get-op1-pool --get-ep-ndays 60 --data-dirs DIR_TO_DATA{1,2,3,...} --simulator [A|B|C|D]
+    # (2) $ python --get-op1-pool --get-norm-data --get-ep-ndays 60 --data-dirs DIR_TO_DATA{1,2,3,...} --simulator [A|B|C|D]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--get-op1-pool', action='store_true')
+    parser.add_argument('--get-norm-data', action='store_true')
     parser.add_argument('--get-ep-ndays', type=int, default=60)
     parser.add_argument('--data-dirs', type=str, nargs='+', default=None)
     parser.add_argument('--simulator', type=str, default='A')
@@ -402,3 +403,8 @@ if __name__ == '__main__':
     if args.get_ep_ndays:
         ep = get_ep_ndays(args.simulator, num_days=args.get_ep_ndays)
         np.save(EP_PATHS[args.simulator], ep)
+
+    if args.get_norm_data:
+        (cp_mean, cp_std), (ep_mean, ep_std), (op_mean, op_std) = compute_mean_std(args.data_dirs)
+        np.savez_compressed(NORM_DATA_PATHS[args.simulator], cp_mean=cp_mean, cp_std=cp_std, ep_mean=ep_mean, ep_std=ep_std, op_mean=op_mean, op_std=op_std)
+        

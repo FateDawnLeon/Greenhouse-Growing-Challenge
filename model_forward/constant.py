@@ -1,6 +1,8 @@
 import datetime
 from astral.geocoder import lookup, database
 
+
+# ====================== control param related ======================
 CONTROL_KEYS = [
     "simset.@endDate",  # "yyyy-mm-dd" -> fixed
     "comp1.heatingpipes.pipe1.@maxTemp",  # float -> variable
@@ -39,7 +41,6 @@ CONTROL_KEYS = [
     "comp1.illumination.lmp1.@maxPARsum",  # float -> variable (day-wise)
     "crp_lettuce.Intkam.management.@plantDensity",  # float -> variable (day-wise)
 ]
-
 ENV_KEYS = [
     'common.Iglob.Value',
     'common.TOut.Value',
@@ -47,7 +48,6 @@ ENV_KEYS = [
     'common.Windsp.Value',
     'common.Economics.PeakHour',  # related to variable cost
 ]
-
 OUTPUT_KEYS_RANGE = {
     # ================= no need to predict =================
     # Greenhouse Env Param: directly related to FW and DMC
@@ -85,33 +85,29 @@ OUTPUT_KEYS_RANGE = {
     # CP -> PD
     # CP + EP + GEP -> OS
 }
-
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
 
+
+# ====================== simulator related ======================
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
     'B': 'C48B-PTmQ-89Kx-jqV5-3zRL'
 }
-
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
-
 SAMPLE_CONTROL_JSON_PATH = '../collect_data/ClimateControlSample.json'
-
 START_DATE = datetime.date(2021, 3, 4)
-
 CITY = lookup('Amsterdam', database())
 
+
+# ====================== data related ======================
 COMMON_DATA_DIR = '../policy'  # TODO: change this to your own directory
-
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
-
 INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
+NORM_DATA_PATHS = {sim_id: f'{COMMON_DATA_DIR}/NORM-DATA-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 
+
+# ====================== runtime related ======================
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
-
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
-
-STATE_DICT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=6000.pth'  # TODO: new model path may be used
-
-# TODO: add
-NORM_DATA_PATH = 'TODO'
+NORM_DATA_PATH = NORM_DATA_PATHS['A']  # TODO: change the simulator id as your will
+STATE_DICT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=6000.pth'  # TODO: new model weights may be applied
