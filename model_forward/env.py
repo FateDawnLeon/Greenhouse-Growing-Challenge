@@ -9,6 +9,8 @@ import torch
 from model import Model
 from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS, \
     EP_PATH, INIT_STATE_PATH, STATE_DICT_PATH, NORM_DATA_PATH
+from data import zscore_normalize as normalize
+from data import zscore_denormalize as denormalize
 
 
 class GreenhouseSim(gym.Env):
@@ -102,6 +104,7 @@ class GreenhouseSim(gym.Env):
 
         self.net = Model(56 + 5 + 20, 20)
         # TODO: model is incorrect, map model outputs with OUTPUT_KEYS
+        # TODO: load model and normaliztion mean/std together
         self.net.load_state_dict(torch.load(state_dict_path))
 
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
@@ -170,21 +173,21 @@ class GreenhouseSim(gym.Env):
         # print('env', self.env_values[self.iter])  # type: numpy.float64 unnormalize
         # print('op:', self.state)  # numpy.float32 normalized
         # inputs should be float32
-        cp = self.normalize(action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
-        ep = self.normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
+        cp = normalize(action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
+        ep = normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
                             self.norm_data['ep_std'])
         op_pre = self.state
 
         op_cur = self.net.predict_op(cp, ep, op_pre)
         op_cur = op_cur.reshape(op_cur.shape[1])
-        ep_cur = self.normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
+        ep_cur = normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
         output_state = np.concatenate([ep_cur, op_cur])
         self.state = op_cur
 
         # TODO: caculate reward and cost with denormalize state
         # compute reward
-        gain_diff = self.gain(self.denormalize(self.state, self.norm_data['op_mean'], self.norm_data['op_std']))\
-             - self.gain(self.denormalize(op_pre, self.norm_data['op_mean'], self.norm_data['op_std']))
+        gain_diff = self.gain(denormalize(self.state, self.norm_data['op_mean'], self.norm_data['op_std']))\
+             - self.gain(denormalize(op_pre, self.norm_data['op_mean'], self.norm_data['op_std']))
         cost = self.fixed_cost(projected_action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
 
@@ -215,8 +218,8 @@ class GreenhouseSim(gym.Env):
 
         # randomly choose a OP1 to start from
         state = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
-        norm_op1 = self.normalize(state, self.norm_data['op_mean'], self.norm_data['op_std'])
-        norm_ep = self.normalize(self.env_values[self.iter], self.norm_data['ep_mean'], self.norm_data['ep_std'])
+        norm_op1 = normalize(state, self.norm_data['op_mean'], self.norm_data['op_std'])
+        norm_ep = normalize(self.env_values[self.iter], self.norm_data['ep_mean'], self.norm_data['ep_std'])
         output_state = np.concatenate([norm_ep, norm_op1])
 
         self.state = norm_op1
@@ -280,15 +283,6 @@ class GreenhouseSim(gym.Env):
 
         return cost
 
-    @staticmethod
-    def normalize(data, mean, std):
-        std[std==0] = 1
-        data = (data - mean) / std
-        return np.nan_to_num(data)
-
-    @staticmethod
-    def denormalize(data, mean, std):
-        return data * std + mean
 
     @staticmethod
     def npz2dic(file):

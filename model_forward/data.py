@@ -249,6 +249,7 @@ def preprocess_data(data_dir, save=True):
 
 
 def zscore_normalize(data_arr, mean_arr, std_arr):
+    # TODO: consider std=0
     norm_arr = (data_arr - mean_arr) / std_arr
     return np.nan_to_num(norm_arr)
 

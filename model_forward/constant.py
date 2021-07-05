@@ -100,7 +100,7 @@ CITY = lookup('Amsterdam', database())
 
 
 # ====================== data related ======================
-COMMON_DATA_DIR = '/home/leondawn/Greenhouse-Growing-Challenge/policy'  # TODO: change this to your own directory
+COMMON_DATA_DIR = '/home/liuys/Greenhouse-Growing-Challenge/policy'  # TODO: change this to your own directory
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 NORM_DATA_PATHS = {sim_id: f'{COMMON_DATA_DIR}/NORM-DATA-SIM={sim_id}.npz' for sim_id in ['A', 'B', 'C', 'D']}
@@ -110,4 +110,4 @@ NORM_DATA_PATHS = {sim_id: f'{COMMON_DATA_DIR}/NORM-DATA-SIM={sim_id}.npz' for s
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
 NORM_DATA_PATH = NORM_DATA_PATHS['A']  # TODO: change the simulator id as your will
-STATE_DICT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=3500.pth'  # TODO: new model weights may be applied
+STATE_DICT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=6000.pth'  # TODO: new model weights may be applied
