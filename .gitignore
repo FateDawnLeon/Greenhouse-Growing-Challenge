@@ -253,3 +253,4 @@ collect_data/output_jsons*/
 *.npy
 *.ipynb
 *.pth
+policy/data/
