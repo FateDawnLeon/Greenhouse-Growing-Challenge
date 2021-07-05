@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import numpy as np
 
 
 def get_spacing_scheme(plant_density):
@@ -157,6 +158,32 @@ class Model(nn.Module):
     def forward(self, cp, ep, op_pre):
         x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
         return self.net(x)
+
+    def predict_op(self, cp, ep, op_pre):
+        if type(cp) == np.ndarray:
+            cp = torch.from_numpy(cp)
+        if type(ep) == np.ndarray:
+            ep = torch.from_numpy(ep)
+        if type(op_pre) == np.ndarray:
+            op_pre = torch.from_numpy(op_pre)
+
+        assert type(cp) == torch.Tensor
+        assert type(ep) == torch.Tensor
+        assert type(op_pre) == torch.Tensor
+        
+        if len(cp.shape) == 1:
+            cp = cp.unsqueeze(0)
+        if len(ep.shape) == 1:
+            ep = ep.unsqueeze(0)
+        if len(op_pre.shape) == 1:
+            op_pre = op_pre.unsqueeze(0)
+
+        self.eval()
+        with torch.no_grad():
+            x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
+            op_cur = self.net(x).detach().cpu().numpy()
+
+        return op_cur
     
     def inference_output_episode(self, cp, ep, op_0):
         self.eval()
