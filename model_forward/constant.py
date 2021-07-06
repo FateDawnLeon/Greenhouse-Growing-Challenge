@@ -88,6 +88,7 @@ OUTPUT_KEYS_RANGE = {
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
 MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
+
 # ====================== simulator related ======================
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
@@ -103,11 +104,9 @@ CITY = lookup('Amsterdam', database())
 COMMON_DATA_DIR = '/home/liuys/Greenhouse-Growing-Challenge/policy'  # TODO: change this to your own directory
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
-NORM_DATA_PATHS = {sim_id: f'{COMMON_DATA_DIR}/NORM-DATA-SIM={sim_id}.npz' for sim_id in ['A', 'B', 'C', 'D']}
 
 
 # ====================== runtime related ======================
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
-NORM_DATA_PATH = NORM_DATA_PATHS['A']  # TODO: change the simulator id as your will
-STATE_DICT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=6000.pth'  # TODO: new model weights may be applied
+CKPT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=6000.pth'  # TODO: new model weights may be applied

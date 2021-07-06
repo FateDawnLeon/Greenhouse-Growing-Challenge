@@ -158,6 +158,20 @@ class Model(nn.Module):
     def forward(self, cp, ep, op_pre):
         x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
         return self.net(x)
+    
+    # def forward(self, cp, ep, op_pre):
+    #     op_dim = op_pre.shape[1]
+
+    #     x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
+    #     diff = self.net(x)
+
+    #     incre_op_idx = [4, 19]
+
+    #     positive_diff = diff[:, incre_op_idx]
+    #     other_diff = diff[:, [i for i in range(op_dim) if i not in incre_op_idx]]
+    #     diff = torch.cat([torch.relu(positive_diff), other_diff])
+        
+    #     return diff + op_pre
 
     def predict_op(self, cp, ep, op_pre):
         if type(cp) == np.ndarray:
@@ -180,8 +194,7 @@ class Model(nn.Module):
 
         self.eval()
         with torch.no_grad():
-            x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
-            op_cur = self.net(x).detach().cpu().numpy()
+            op_cur = self.forward(cp, ep, op_pre).detach().cpu().numpy()
 
         return op_cur
     
@@ -205,3 +218,11 @@ class Model(nn.Module):
                 op_episode.append(op_i)
 
         return torch.cat(op_episode, dim=0).cpu().numpy() # T x num_op_params
+
+
+class ModelPlant(nn.Module):
+    def __init__(self):
+        super(ModelPlant, self).__init__()
+
+    def forward(self, x):
+        pass

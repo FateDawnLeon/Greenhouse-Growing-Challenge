@@ -45,6 +45,17 @@ def train_step(model, iterloader, criterion, optimizer):
     return loss
 
 
+def get_norm_data(dataset):
+    return {
+        'cp_mean': dataset.cp_mean,
+        'cp_std': dataset.cp_std,
+        'ep_mean': dataset.ep_mean,
+        'ep_std': dataset.ep_std,
+        'op_mean': dataset.op_mean,
+        'op_std': dataset.op_std
+    }
+
+
 if __name__ == '__main__':
     import os
     import argparse
@@ -64,6 +75,7 @@ if __name__ == '__main__':
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
 
     dataset = SupervisedModelDataset(args.data_dirs, normalize=True)
+    norm_data = get_norm_data(dataset)
     dataloader = DataLoader(dataset,
                             batch_size=args.batch_size,
                             num_workers=8,
@@ -91,7 +103,10 @@ if __name__ == '__main__':
             plot_running_stats_step(repr(criterion), loss_stats, f'{args.root_dir}/loss-curve.png')
 
         if num_step % args.save_interval == 0:
-            torch.save(model.state_dict(), f'{args.root_dir}/checkpoints/model_step={num_step}.pth')
+            torch.save(
+                {'state_dict': model.state_dict(), 'norm_data': norm_data}, 
+                f'{args.root_dir}/checkpoints/step={num_step}.pth'
+            )
 
         if num_step % args.scheduler_interval == 0:
             scheduler.step(min(loss_stats))

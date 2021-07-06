@@ -8,7 +8,14 @@ from astral.sun import sun
 from torch.utils.data import Dataset
 
 from control_param import ControlParamSimple
-from constant import CITY, COMMON_DATA_DIR, CONTROL_KEYS, ENV_KEYS, KEYS, NORM_DATA_PATHS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS
+from constant import CITY, COMMON_DATA_DIR, CONTROL_KEYS, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS
+
+
+# import inspect
+
+def print_current_function_name():
+    # print(inspect.stack()[1][3], end=', ')
+    pass
 
 
 def save_json_data(data, path):
@@ -20,6 +27,332 @@ def load_json_data(path):
     with open(path, 'r') as f:
         data = json.load(f)
     return data
+
+
+class ParseControl(object):
+    def __init__(self, control, start_date=START_DATE):
+        super().__init__()
+        self.start_date = start_date
+        self.end_date = datetime.date.fromisoformat(control['simset']['@endDate'])
+        assert self.end_date > self.start_date
+        self.num_days = (self.end_date - self.start_date).days
+        self.num_hours = self.num_days * 24
+
+    def parse(self, control):
+        cp_list = [
+            self.parse_pipe_maxTemp(control),
+            self.parse_pipe_minTemp(control),
+            self.parse_pipe_radInf(control),
+            self.parse_temp_heatingTemp(control),
+            self.parse_temp_ventOffset(control),
+            self.parse_temp_radInf(control),
+            self.parse_temp_PbandVent(control),
+            self.parse_vent_startWnd(control),
+            self.parse_vent_winLeeMin(control),
+            self.parse_vent_winLeeMax(control),
+            self.parse_vent_winWndMin(control),
+            self.parse_vent_winWndMax(control),
+            self.parse_co2_pureCap(control),
+            self.parse_co2_setpoint(control),
+            self.parse_co2_setpIfLamps(control),
+            self.parse_co2_doseCap(control),
+            self.parse_scr_enabled(control, 1),
+            self.parse_scr_material(control, 1),
+            self.parse_scr_ToutMax(control, 1),
+            self.parse_scr_closeBelow(control, 1),
+            self.parse_scr_closeAbove(control, 1),
+            self.parse_scr_LPP(control, 1),
+            self.parse_scr_enabled(control, 2),
+            self.parse_scr_material(control, 2),
+            self.parse_scr_ToutMax(control, 2),
+            self.parse_scr_closeBelow(control, 2),
+            self.parse_scr_closeAbove(control, 2),
+            self.parse_scr_LPP(control, 2),
+            self.parse_lmp1_enabled(control),
+            self.parse_lmp1_intensity(control),
+            self.parse_lmp1_hoursLight(control),
+            self.parse_lmp1_endTime(control),
+            self.parse_lmp1_maxIglob(control),
+            self.parse_lmp1_maxPARsum(control),
+            self.parse_plant_density(control),
+        ]
+        cp_arr = np.concatenate(cp_list, axis=0).T
+        # print(cp_arr.shape)
+        assert cp_arr.shape[1] == 56
+        return cp_arr
+
+    @staticmethod
+    def get_value(control, key_path):
+        value = control        
+        for key in key_path.split('.'):
+            value = value[key]
+        return value
+
+    @staticmethod
+    def flatten(t):
+        return [item for sublist in t for item in sublist]
+
+    def value2arr(self, value, preprocess, valid_dtype):
+        if type(value) in valid_dtype:
+            cp_arr = [value] * self.num_hours # 1 x num_hours
+        elif type(value) == dict:
+            cp_arr = []
+            for day_value in value.values():
+                if type(day_value) in valid_dtype:
+                    cp_arr.extend([day_value] * 24)
+                elif type(day_value) == dict:
+                    cp_arr.extend(list(day_value.values()))
+        assert len(cp_arr) == self.num_hours
+        cp_arr = np.asarray(list(map(preprocess, cp_arr))).T  # N x num_hours
+        # print(cp_arr.shape)
+        return cp_arr
+    
+    def parse_pipe_maxTemp(self, control):
+        value = self.get_value(control, "comp1.heatingpipes.pipe1.@maxTemp")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_pipe_minTemp(self, control):
+        value = self.get_value(control, "comp1.heatingpipes.pipe1.@minTemp")
+        preprocess = lambda x: [x]
+        valid_dtype = [int, float]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_pipe_radInf(self, control):
+        value = self.get_value(control, "comp1.heatingpipes.pipe1.@radiationInfluence")
+        valid_dtype = [str]
+        
+        def preprocess(s):
+            numbers = [float(x) for x in s.split()]
+            if len(numbers) == 1:
+                numbers *= 2
+            return numbers
+        
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_temp_heatingTemp(self, control):
+        value = self.get_value(control, "comp1.setpoints.temp.@heatingTemp")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_temp_ventOffset(self, control):
+        value = self.get_value(control, "comp1.setpoints.temp.@ventOffset")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_temp_radInf(self, control):
+        value = self.get_value(control, "comp1.setpoints.temp.@radiationInfluence")
+        valid_dtype = [str]
+        
+        def preprocess(s):
+            numbers = [float(x) for x in s.split()]
+            if len(numbers) == 1:
+                assert numbers[0] == 0
+                numbers *= 3
+            return numbers
+        
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_temp_PbandVent(self, control):
+        value = self.get_value(control, "comp1.setpoints.temp.@PbandVent")
+        valid_dtype = [str]
+        
+        def preprocess(s):
+            numbers = [[float(x) for x in y.split()] for y in s.split(';')]
+            return self.flatten(numbers)
+
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+
+    def parse_vent_startWnd(self, control):
+        value = self.get_value(control, "comp1.setpoints.ventilation.@startWnd")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_vent_winLeeMin(self, control):
+        value = self.get_value(control, "comp1.setpoints.ventilation.@winLeeMin")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_vent_winLeeMax(self, control):
+        value = self.get_value(control, "comp1.setpoints.ventilation.@winLeeMax")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_vent_winWndMin(self, control):
+        value = self.get_value(control, "comp1.setpoints.ventilation.@winWndMin")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_vent_winWndMax(self, control):
+        value = self.get_value(control, "comp1.setpoints.ventilation.@winWndMax")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_co2_pureCap(self, control):
+        value = self.get_value(control, "common.CO2dosing.@pureCO2cap")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_co2_setpoint(self, control):
+        value = self.get_value(control, "comp1.setpoints.CO2.@setpoint")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_co2_setpIfLamps(self, control):
+        value = self.get_value(control, "comp1.setpoints.CO2.@setpIfLamps")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_co2_doseCap(self, control):
+        value = self.get_value(control, "comp1.setpoints.CO2.@doseCapacity")
+        valid_dtype = [str]
+        
+        def preprocess(s):
+            if ';' in s:
+                numbers = [[float(x) for x in y.split()] for y in s.split(';')]
+            else:
+                val = float(s)
+                numbers = [[25, val], [50, val], [75, val]]
+            return self.flatten(numbers)
+
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+
+    def parse_scr_enabled(self, control, scr_id):
+        value = self.get_value(control, f"comp1.screens.scr{scr_id}.@enabled")
+        valid_dtype = [bool]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_scr_material(self, control, scr_id):
+        value = self.get_value(control, f"comp1.screens.scr{scr_id}.@material")
+        valid_dtype = [str]
+
+        def preprocess(s):
+            choices = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
+            return [float(s==c) for c in choices]
+        
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_scr_ToutMax(self, control, scr_id):
+        value = self.get_value(control, f"comp1.screens.scr{scr_id}.@ToutMax")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_scr_closeBelow(self, control, scr_id):
+        value = self.get_value(control, f"comp1.screens.scr{scr_id}.@closeBelow")
+        valid_dtype = [int, float, str]
+        
+        def preprocess(s):
+            if type(s) == str:
+                numbers = [[float(x) for x in y.split()] for y in s.split(';')]
+            else:
+                val = float(s)
+                numbers = [[0, val], [10, val]]
+            return self.flatten(numbers)
+        
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+
+    def parse_scr_closeAbove(self, control, scr_id):
+        value = self.get_value(control, f"comp1.screens.scr{scr_id}.@closeAbove")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_scr_LPP(self, control, scr_id):
+        value = self.get_value(control, f"comp1.screens.scr{scr_id}.@lightPollutionPrevention")
+        valid_dtype = [bool]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_lmp1_enabled(self, control):
+        value = self.get_value(control, "comp1.illumination.lmp1.@enabled")
+        valid_dtype = [bool]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+
+    def parse_lmp1_intensity(self, control):
+        value = self.get_value(control, "comp1.illumination.lmp1.@intensity")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_lmp1_hoursLight(self, control):
+        value = self.get_value(control, "comp1.illumination.lmp1.@hoursLight")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_lmp1_endTime(self, control):
+        value = self.get_value(control, "comp1.illumination.lmp1.@endTime")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_lmp1_maxIglob(self, control):
+        value = self.get_value(control, "comp1.illumination.lmp1.@maxIglob")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_lmp1_maxPARsum(self, control):
+        value = self.get_value(control, "comp1.illumination.lmp1.@maxPARsum")
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
+        print_current_function_name()
+        return self.value2arr(value, preprocess, valid_dtype)
+    
+    def parse_plant_density(self, control):
+        value = self.get_value(control, "crp_lettuce.Intkam.management.@plantDensity")
+        assert type(value) == str and ';' in value
+
+        arr = np.zeros((1, self.num_hours))
+        for s in value.split(';'):
+            day, density = s.split()
+            hour_offset = (int(day) - 1) * 24
+            arr[0,hour_offset:] = float(density)
+
+        print_current_function_name()
+        # print(arr.shape)
+        return arr
 
 
 def preprocess_table(param):
@@ -148,31 +481,35 @@ def parse_dynamic_param(key, param, num_hours):  # sourcery no-metrics
     return np.asarray(value_scheme, dtype=np.float32).T
 
 
-def parse_control(control):
-    end_date = datetime.date.fromisoformat(control['simset']['@endDate'])
-    num_days = (end_date - START_DATE).days
-    num_hours = num_days * 24
+# def parse_control(control):
+#     end_date = datetime.date.fromisoformat(control['simset']['@endDate'])
+#     num_days = (end_date - START_DATE).days
+#     num_hours = num_days * 24
 
-    control_vals = []
-    for key in CONTROL_KEYS[1:]:
-        key_path = key.split('.')
-        param = control
-        for path in key_path:
-            param = param[path]
+#     control_vals = []
+#     for key in CONTROL_KEYS[1:]:
+#         key_path = key.split('.')
+#         param = control
+#         for path in key_path:
+#             param = param[path]
 
-        if isinstance(param, dict):
-            values = parse_dynamic_param(key, param, num_hours)
-        else:
-            values = parse_static_param(key, param, num_hours)
+#         if isinstance(param, dict):
+#             values = parse_dynamic_param(key, param, num_hours)
+#         else:
+#             values = parse_static_param(key, param, num_hours)
 
-        # print(key, values.shape)
-        assert values.shape[1] == num_hours
-        control_vals.append(values)
+#         # print(key, values.shape)
+#         assert values.shape[1] == num_hours
+#         control_vals.append(values)
     
-    control_vals = np.concatenate(control_vals, axis=0) # M x T
-    control_vals = control_vals.T # T x M
+#     control_vals = np.concatenate(control_vals, axis=0) # M x T
+#     control_vals = control_vals.T # T x M
 
-    return control_vals
+#     return control_vals
+
+
+def parse_control(control):
+    return ParseControl(control).parse(control)
 
 
 def parse_output(output):
@@ -249,7 +586,7 @@ def preprocess_data(data_dir, save=True):
 
 
 def zscore_normalize(data_arr, mean_arr, std_arr):
-    # TODO: consider std=0
+    std_arr[std_arr==0] = 1
     norm_arr = (data_arr - mean_arr) / std_arr
     return np.nan_to_num(norm_arr)
 
@@ -291,8 +628,9 @@ class SupervisedModelDataset(Dataset):
         op_pre_arr_list, op_cur_arr_list = [], []
         
         for data_dir in data_dirs:
-            preprocess_data(data_dir)
             data_path = f'{data_dir}/processed_data.npz'
+            if not os.path.exists(data_path):
+                preprocess_data(data_dir)
             data = np.load(data_path)
 
             cp_arr_list.append(data['cp'])

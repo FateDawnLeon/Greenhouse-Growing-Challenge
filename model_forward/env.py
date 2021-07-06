@@ -8,7 +8,7 @@ import torch
 
 from model import Model
 from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS, \
-    EP_PATH, INIT_STATE_PATH, STATE_DICT_PATH, NORM_DATA_PATH
+    EP_PATH, INIT_STATE_PATH, CKPT_PATH, 
 from data import zscore_normalize as normalize
 from data import zscore_denormalize as denormalize
 
@@ -94,7 +94,7 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, state_dict_path=STATE_DICT_PATH, ep_path=EP_PATH, norm_data_path=NORM_DATA_PATH):
+    def __init__(self, checkpoint_path=CKPT_PATH, ep_path=EP_PATH):
         self.rng = np.random.default_rng()
 
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
@@ -102,9 +102,10 @@ class GreenhouseSim(gym.Env):
                                                 shape=(self.num_env_params + self.num_output_params,))
 
         self.net = Model(56 + 5 + 20, 20)
-        # TODO: model is incorrect, map model outputs with OUTPUT_KEYS
-        # TODO: load model and normaliztion mean/std together
-        self.net.load_state_dict(torch.load(state_dict_path))
+        
+        checkpoint = torch.load(checkpoint_path)
+        self.net.load_state_dict(checkpoint['state_dict'])
+        self.norm_data = checkpoint['norm_data']  # {'op_mean': op_mean, 'op_std':op_std, ...}
 
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
 
@@ -117,9 +118,6 @@ class GreenhouseSim(gym.Env):
         self.prev_action = None
         self.day_action = None
         self.num_spacings = 1
-
-        # TODO: normalization data and function (std == 0), keep constantly with model side
-        self.norm_data = self.npz2dic(norm_data_path)  # {'op_mean': op_mean, 'op_std':op_std, ...}
 
     def parse_action(self, action):
         action[self.bool_indices] = action[self.bool_indices] > 0.5
