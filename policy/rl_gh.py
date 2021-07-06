@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """This is a script to train a greenhouse sim with RL algorithm.
 """
+# disable GPU
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import sys
 # insert at 1, 0 is the script path (or '' in REPL)
 sys.path.insert(1, '../model_forward/')
@@ -19,13 +23,24 @@ from garage.tf.algos import TRPO, PPO
 from garage.tf.policies import GaussianMLPPolicy
 from garage.trainer import TFTrainer
 
+
+hyper = {
+    'seed': 1,
+    'hidden_sizes': (32, 32),
+    'max_kl': 0.01,
+    'gae_lambda': 0.97,
+    'discount': 1,
+    'n_epochs': 100,
+    'batch_size': 1024,
+}
+
 @click.command()
-@click.option('--seed', default=1)
-@click.option('--n_epochs', default=100)
-@click.option('--batch_size', default=4000)
-@click.option('--plot', default=False)
-@wrap_experiment
-def rl_greenhouse(ctxt, seed, n_epochs, batch_size, plot):
+@click.option('--seed', default=hyper['seed'])
+@click.option('--n_epochs', default=hyper['n_epochs'])
+@click.option('--batch_size', default=hyper['batch_size'])
+# @wrap_experiment
+@wrap_experiment(snapshot_mode='all')
+def rl_greenhouse(ctxt, seed, n_epochs, batch_size):
     """Train RL with greenhouse sim.
 
     Args:
@@ -97,7 +112,7 @@ def rl_greenhouse(ctxt, seed, n_epochs, batch_size, plot):
         # )
 
         trainer.setup(algo, env)
-        trainer.train(n_epochs=n_epochs, batch_size=batch_size, plot=plot)
+        trainer.train(n_epochs=n_epochs, batch_size=batch_size)
 
 
 rl_greenhouse()

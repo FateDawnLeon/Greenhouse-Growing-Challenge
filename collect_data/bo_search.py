@@ -120,6 +120,8 @@ DIMS = {
         Integer(name='light_maxIglob', low=200, high=400),
     ],
     'BB2': [
+        # Best Parameters on B: [42, 5, 20, 184, 488, 955, 990, 64, 6, 267]
+        # Best NetProfit on B: 4.714
         Integer(name='num_days', low=38, high=42),
         Integer(name='heatingTemp_night', low=5, high=10),
         Integer(name='heatingTemp_day', low=15, high=20),
@@ -318,6 +320,7 @@ def get_func_and_callback(args):
         CP.set_value("comp1.illumination.lmp1.@hoursLight", light_hours)
         CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
         CP.set_value("comp1.illumination.lmp1.@maxIglob", light_maxIglob)
+        # important need to search
         CP.set_value("crp_lettuce.Intkam.management.@plantDensity", "1 90; 7 60; 14 40; 21 30; 28 20; 34 15")
 
 

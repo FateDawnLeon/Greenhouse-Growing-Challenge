@@ -257,7 +257,6 @@ class GreenhouseSim(gym.Env):
         # screen usage
         cost += (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
-        # TODO: spacing changes cost counted two times?
         if action[-1] != self.prev_action[-1]:
             cost += (self.iter - self.start_iter) * 1.5 / 365 / 24
         cost += self.num_spacings * 1.5 / 365 / 24
@@ -286,7 +285,6 @@ class GreenhouseSim(gym.Env):
                     'op_mean': norm_npz['op_mean'], 'op_std': norm_npz['op_std']}
         return norm_data
 
-    # TODO: seperate action to json code in different file
     # map feature index to either default value or action index
     # e.g. CONTROL_KEY[i] -> action_dump_indices[i]
     # or CONTROL_KEY[i] -> actions[:, action_dump_indices[i]]
