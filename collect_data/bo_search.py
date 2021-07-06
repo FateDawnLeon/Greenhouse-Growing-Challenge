@@ -118,6 +118,18 @@ DIMS = {
         Integer(name='light_intensity', low=0, high=200),
         Integer(name='light_hours', low=0, high=20),
         Integer(name='light_maxIglob', low=200, high=400),
+    ],
+    'BB2': [
+        Integer(name='num_days', low=38, high=42),
+        Integer(name='heatingTemp_night', low=5, high=10),
+        Integer(name='heatingTemp_day', low=15, high=20),
+        Integer(name='CO2_pureCap', low=150, high=250),
+        Integer(name='CO2_setpoint_night', low=400, high=500),
+        Integer(name='CO2_setpoint_day', low=800, high=1000),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1000),
+        Integer(name='light_intensity', low=0, high=100),
+        Integer(name='light_hours', low=4, high=6),
+        Integer(name='light_maxIglob', low=100, high=300),
     ]
 }
 
@@ -306,6 +318,8 @@ def get_func_and_callback(args):
         CP.set_value("comp1.illumination.lmp1.@hoursLight", light_hours)
         CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
         CP.set_value("comp1.illumination.lmp1.@maxIglob", light_maxIglob)
+        CP.set_value("crp_lettuce.Intkam.management.@plantDensity", "1 90; 7 60; 14 40; 21 30; 28 20; 34 15")
+
 
         control_name = f'D={num_days}_TN={heatingTemp_night}_TD={heatingTemp_day}_CO2Cap={CO2_pureCap}_CO2N={CO2_setpoint_night}_CO2D={CO2_setpoint_day}_CO2L={CO2_setpoint_lamp}_LI={light_intensity}_LH={light_hours}_LET={light_endTime}_LMI={light_maxIglob}.json'
         control_dir = f'{args.data_dir}/controls'
