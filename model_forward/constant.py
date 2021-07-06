@@ -109,4 +109,4 @@ INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for s
 # ====================== runtime related ======================
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
-CKPT_PATH = '/home/leondawn/AGC-Model-Weights/basic_mlp_step=6000.pth'  # TODO: new model weights may be applied
+CKPT_PATH = '/home/leondawn/AGC-Model-Weights/base_model_step=7000.pth'  # TODO: new model weights may be applied

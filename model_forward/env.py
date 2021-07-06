@@ -8,7 +8,7 @@ import torch
 
 from model import Model
 from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS, \
-    EP_PATH, INIT_STATE_PATH, CKPT_PATH, 
+    EP_PATH, INIT_STATE_PATH, CKPT_PATH
 from data import zscore_normalize as normalize
 from data import zscore_denormalize as denormalize
 
@@ -110,7 +110,7 @@ class GreenhouseSim(gym.Env):
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
 
         self.env_values = np.load(ep_path)  # shape (day*24, 5); e.g. (1680,5) 1680=70*24
-        self._max_episode_steps = self.env_values.shape[0]
+        self._max_episode_steps = self.env_values.shape[0] - 1  # the last step need to output ep
 
         self.start_iter = 0
         self.iter = 0
