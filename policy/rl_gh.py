@@ -24,23 +24,36 @@ from garage.tf.policies import GaussianMLPPolicy
 from garage.trainer import TFTrainer
 
 
+
 hyper = {
-    'seed': 1,
-    'hidden_sizes': (32, 32),
-    'max_kl': 0.01,
-    'gae_lambda': 0.97,
-    'discount': 1,
-    'n_epochs': 100,
-    'batch_size': 1024,
+    'alg': 'TRPO',  # PPO
+    'bl': 'Gaussian',  # baseline: Linear
+    'bls': (32, 32),  # baseline hidden size
+    'pls': (32, 32),  # policy hidden size
+    'n_epochs': 500,
+    'batch_size': 3000,
+    'seed': 1
 }
+hyper['clip'] = 0.01 if hyper['alg'] == 'TRPO' else 0.2  # TRPO default = 0.01; PPO default = 0.2
+
+
+log_folder = hyper['alg']+str(hyper['clip'])+'_'+hyper['bl']+str(hyper['bls'][0])+'_'+str(hyper['bls'][1])\
+            +'_pls'+str(hyper['pls'][0])+'_'+str(hyper['pls'][1])\
+            +'_itr'+str(hyper['n_epochs'])+'_bs'+str(hyper['batch_size'])+'_sd'+str(hyper['seed'])
 
 @click.command()
-@click.option('--seed', default=hyper['seed'])
+@click.option('--alg', default=hyper['alg'])
+@click.option('--clip', default=hyper['clip'])  # TRPO default = 0.01; PPO default = 0.2
+@click.option('--bl', default=hyper['bl'])
+@click.option('--bls0', default=hyper['bls'][0])
+@click.option('--bls1', default=hyper['bls'][1])
+@click.option('--pls0', default=hyper['pls'][0])
+@click.option('--pls1', default=hyper['pls'][1])
 @click.option('--n_epochs', default=hyper['n_epochs'])
 @click.option('--batch_size', default=hyper['batch_size'])
-# @wrap_experiment
-@wrap_experiment(snapshot_mode='all')
-def rl_greenhouse(ctxt, seed, n_epochs, batch_size):
+@click.option('--seed', default=hyper['seed'])
+@wrap_experiment(name=log_folder, snapshot_mode='all')  # snapshot_mode='last'
+def rl_greenhouse(ctxt, alg, clip, bl, bls0, bls1, pls0, pls1, n_epochs, batch_size, seed):
     """Train RL with greenhouse sim.
 
     Args:
@@ -57,62 +70,68 @@ def rl_greenhouse(ctxt, seed, n_epochs, batch_size):
 
         policy = GaussianMLPPolicy(
             env_spec=env.spec,
-            hidden_sizes=(32, 32),
+            hidden_sizes=(pls0, pls1),
             hidden_nonlinearity=tf.nn.tanh,
             output_nonlinearity=None,
         )
 
-        # baseline = LinearFeatureBaseline(env_spec=env.spec)
-        baseline = GaussianMLPBaseline(
+        if bl == 'Gaussian':
+            baseline = GaussianMLPBaseline(
             env_spec=env.spec,
-            hidden_sizes=(32, 32),
-            use_trust_region=True,
-        )
+            hidden_sizes=(bls0, bls1),
+            use_trust_region=True)
+        elif bl == 'Linear':
+            baseline = LinearFeatureBaseline(env_spec=env.spec)
+        
 
+        # sampler = RaySampler(agents=policy,
+        #                      envs=env,
+        #                      max_episode_length=env.spec.max_episode_length,
+        #                      is_tf_worker=True,
+        #                      worker_class=VecWorker,
+        #                      worker_args=dict(n_envs=12),
+        #                     #  n_workers=1
+        #                      )
         sampler = LocalSampler(agents=policy,
                                envs=env,
                                max_episode_length=env.spec.max_episode_length,
                                is_tf_worker=True,
-                               worker_class=DefaultWorker,
-                            #    worker_class=VecWorker,
-                            #    worker_args=dict(n_envs=12),
-                               n_workers=1
+                               worker_class=VecWorker,  # DefaultWorker
+                               worker_args=dict(n_envs=16),
+                            #    n_workers=1
                                )
-        # sampler = RaySampler(agents=policy,
-        #                      envs=env,
-        #                      max_episode_length=env.spec.max_episode_length,
-        #                      is_tf_worker=True)
         
-        algo = TRPO(env_spec=env.spec,
-                    policy=policy,
-                    baseline=baseline,
-                    sampler=sampler,
-                    discount=1,
-                    max_kl_step=0.01)
-
-        # # NOTE: make sure when setting entropy_method to 'max', set
-        # # center_adv to False and turn off policy gradient. See
-        # # tf.algos.NPO for detailed documentation.
-        # algo = PPO(
-        #     env_spec=env.spec,
-        #     policy=policy,
-        #     baseline=baseline,
-        #     sampler=sampler,
-        #     discount=1,
-        #     gae_lambda=0.95,
-        #     lr_clip_range=0.2,
-        #     optimizer_args=dict(
-        #         batch_size=32,
-        #         max_optimization_epochs=10,
-        #     ),
-        #     stop_entropy_gradient=True,
-        #     entropy_method='max',
-        #     policy_ent_coeff=0.02,
-        #     center_adv=False,
-        # )
+        if alg == 'TRPO':
+            algo = TRPO(env_spec=env.spec,
+                        policy=policy,
+                        baseline=baseline,
+                        sampler=sampler,
+                        discount=1,
+                        max_kl_step=clip)
+        elif alg == 'PPO':
+            # NOTE: make sure when setting entropy_method to 'max', set
+            # center_adv to False and turn off policy gradient. See
+            # tf.algos.NPO for detailed documentation.
+            algo = PPO(
+                env_spec=env.spec,
+                policy=policy,
+                baseline=baseline,
+                sampler=sampler,
+                discount=1,
+                gae_lambda=0.95,
+                lr_clip_range=clip,
+                optimizer_args=dict(
+                    batch_size=32,
+                    max_optimization_epochs=10,
+                ),
+                stop_entropy_gradient=True,
+                entropy_method='max',
+                policy_ent_coeff=0.02,
+                center_adv=False,
+            )
 
         trainer.setup(algo, env)
-        trainer.train(n_epochs=n_epochs, batch_size=batch_size)
+        trainer.train(n_epochs=n_epochs, batch_size=batch_size, store_episodes=False)
 
 
 rl_greenhouse()
