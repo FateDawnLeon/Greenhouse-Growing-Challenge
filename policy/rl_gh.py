@@ -21,39 +21,24 @@ from garage.np.baselines import LinearFeatureBaseline
 from garage.tf.baselines import GaussianMLPBaseline
 from garage.sampler import LocalSampler, RaySampler, DefaultWorker, VecWorker
 from garage.tf.algos import TRPO, PPO
-from garage.tf.policies import GaussianMLPPolicy
+from garage.tf.policies import GaussianMLPPolicy, GaussianLSTMPolicy
 from garage.trainer import TFTrainer
-
-
-hyper = {
-    'alg': 'TRPO',  # PPO
-    'bl': 'Gaussian',  # baseline: Linear
-    'bls': (32, 32),  # baseline hidden size
-    'pls': (32, 32),  # policy hidden size
-    'n_epochs': 500,
-    'batch_size': 3000,
-    'seed': 1
-}
-hyper['clip'] = 0.01 if hyper['alg'] == 'TRPO' else 0.2  # TRPO default = 0.01; PPO default = 0.2
-
-
-log_folder = hyper['alg']+str(hyper['clip'])+'_'+hyper['bl']+str(hyper['bls'][0])+'_'+str(hyper['bls'][1])\
-            +'_pls'+str(hyper['pls'][0])+'_'+str(hyper['pls'][1])\
-            +'_itr'+str(hyper['n_epochs'])+'_bs'+str(hyper['batch_size'])+'_sd'+str(hyper['seed'])
+from parameters import hyper, log_folder
 
 @click.command()
 @click.option('--alg', default=hyper['alg'])
 @click.option('--clip', default=hyper['clip'])  # TRPO default = 0.01; PPO default = 0.2
+@click.option('--pl', default=hyper['pl'])
+@click.option('--pls0', default=hyper['pls'][0])
+@click.option('--pls1', default=hyper['pls'][1])
 @click.option('--bl', default=hyper['bl'])
 @click.option('--bls0', default=hyper['bls'][0])
 @click.option('--bls1', default=hyper['bls'][1])
-@click.option('--pls0', default=hyper['pls'][0])
-@click.option('--pls1', default=hyper['pls'][1])
 @click.option('--n_epochs', default=hyper['n_epochs'])
 @click.option('--batch_size', default=hyper['batch_size'])
 @click.option('--seed', default=hyper['seed'])
 @wrap_experiment(name=log_folder, snapshot_mode='all')  # snapshot_mode='last'
-def rl_greenhouse(ctxt, alg, clip, bl, bls0, bls1, pls0, pls1, n_epochs, batch_size, seed):
+def rl_greenhouse(ctxt, alg, clip, pl,  pls0, pls1, bl, bls0, bls1, n_epochs, batch_size, seed):
     """Train RL with greenhouse sim.
 
     Args:
@@ -68,12 +53,16 @@ def rl_greenhouse(ctxt, alg, clip, bl, bls0, bls1, pls0, pls1, n_epochs, batch_s
         gh_env = GreenhouseSim()
         env = normalize(GymEnv(gh_env))
 
-        policy = GaussianMLPPolicy(
-            env_spec=env.spec,
-            hidden_sizes=(pls0, pls1),
-            hidden_nonlinearity=tf.nn.tanh,
-            output_nonlinearity=None,
-        )
+        if pl == 'mlp':
+            policy = GaussianMLPPolicy(
+                env_spec=env.spec,
+                hidden_sizes=(pls0, pls1),
+            )
+        elif pl == 'lstm':
+            policy = GaussianLSTMPolicy(
+                env_spec=env.spec,
+                hidden_dim=pls0,
+            )
 
         if bl == 'Gaussian':
             baseline = GaussianMLPBaseline(
@@ -88,8 +77,8 @@ def rl_greenhouse(ctxt, alg, clip, bl, bls0, bls1, pls0, pls1, n_epochs, batch_s
                              max_episode_length=env.spec.max_episode_length,
                              is_tf_worker=True,
                              worker_class=VecWorker,
-                             worker_args=dict(n_envs=12),
-                             n_workers=96
+                             worker_args=dict(n_envs=6),
+                            #  n_workers=96
                              )
 
         #  LocalSample debug
