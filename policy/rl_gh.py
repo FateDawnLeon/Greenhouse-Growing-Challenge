@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """This is a script to train a greenhouse sim with RL algorithm.
+
+To use it add follwing to .bashrc
+export PYTHONPATH="${PYTHONPATH}:/your-path-to-Greenhouse-Growing-Challenge/model_forward"
+e.g. export PYTHONPATH="${PYTHONPATH}:/home/liuys/Greenhouse-Growing-Challenge/model_forward"
 """
 # disable GPU
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-import sys
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '../model_forward/')
 from env import GreenhouseSim
 
 import click
@@ -22,7 +23,6 @@ from garage.sampler import LocalSampler, RaySampler, DefaultWorker, VecWorker
 from garage.tf.algos import TRPO, PPO
 from garage.tf.policies import GaussianMLPPolicy
 from garage.trainer import TFTrainer
-
 
 
 hyper = {
@@ -83,23 +83,21 @@ def rl_greenhouse(ctxt, alg, clip, bl, bls0, bls1, pls0, pls1, n_epochs, batch_s
         elif bl == 'Linear':
             baseline = LinearFeatureBaseline(env_spec=env.spec)
         
+        sampler = RaySampler(agents=policy,
+                             envs=env,
+                             max_episode_length=env.spec.max_episode_length,
+                             is_tf_worker=True,
+                             worker_class=VecWorker,
+                             worker_args=dict(n_envs=12),
+                             n_workers=96
+                             )
 
-        # sampler = RaySampler(agents=policy,
-        #                      envs=env,
-        #                      max_episode_length=env.spec.max_episode_length,
-        #                      is_tf_worker=True,
-        #                      worker_class=VecWorker,
-        #                      worker_args=dict(n_envs=12),
-        #                     #  n_workers=1
-        #                      )
-        sampler = LocalSampler(agents=policy,
-                               envs=env,
-                               max_episode_length=env.spec.max_episode_length,
-                               is_tf_worker=True,
-                               worker_class=VecWorker,  # DefaultWorker
-                               worker_args=dict(n_envs=16),
-                            #    n_workers=1
-                               )
+        #  LocalSample debug
+        # sampler = LocalSampler(agents=policy,
+        #                        envs=env,
+        #                        max_episode_length=env.spec.max_episode_length,
+        #                        is_tf_worker=True
+        #                        )
         
         if alg == 'TRPO':
             algo = TRPO(env_spec=env.spec,
