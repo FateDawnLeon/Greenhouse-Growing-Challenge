@@ -28,9 +28,9 @@ class GreenhouseSim(gym.Env):
         # comp1.setpoints.temp.@radiationInfluence = [50, 150, 1]; sim_idx: 7, 8, 9
         # @PbandVent [1] [3] needs to be descending
         [-20, 10],  # comp1.setpoints.temp.@PbandVent[0]; sim_idx: 10; agent_idx: 3
-        [0, 30],  # comp1.setpoints.temp.@PbandVent[1]; sim_idx: 11; agent_idx: 4
+        [1, 30],  # comp1.setpoints.temp.@PbandVent[1]; sim_idx: 11; agent_idx: 4
         [11, 30],  # comp1.setpoints.temp.@PbandVent[2]; sim_idx: 12; agent_idx: 5
-        [0, 30],  # comp1.setpoints.temp.@PbandVent[3]; sim_idx: 13; agent_idx: 6
+        [1, 30],  # comp1.setpoints.temp.@PbandVent[3]; sim_idx: 13; agent_idx: 6
         [0, 50],  # comp1.setpoints.ventilation.@startWnd; sim_idx: 14; agent_idx: 7
         # comp1.setpoints.ventilation.@winLeeMin = 0; sim_idx: 15
         # comp1.setpoints.ventilation.@winLeeMax = 100; sim_idx: 16
@@ -78,7 +78,7 @@ class GreenhouseSim(gym.Env):
         # comp1.illumination.lmp1.@endTime = 20; sim_idx: 53
         [100, 400],  # comp1.illumination.lmp1.@maxIglob; sim_idx: 54; agent_idx: 42
         # comp1.illumination.lmp1.@maxPARsum = 50; sim_idx: 55
-        [0, 100],  # crp_lettuce.Intkam.management.@plantDensity (daily); sim_idx: 56; agent_idx: 43
+        [1, 90],  # crp_lettuce.Intkam.management.@plantDensity (daily); sim_idx: 56; agent_idx: 43
     ])
     default_action = np.array([0, 60, 0, 0, 0, 0, 0, 50, 150, 1, 0, 0, 0, 0, 0, 0, 100, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0,
                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 50,
@@ -185,6 +185,20 @@ class GreenhouseSim(gym.Env):
         cost = self.fixed_cost(agent_action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
 
+        # save env info for debug
+        env_op_pre = op_pre
+        env_ep_pre = self.env_values[self.iter]
+        env_action = agent_action
+        env_op_cur = self.state
+        env_ep_cur = self.env_values[self.iter + 1]
+        env_reward = reward
+        env_gain_diff = gain_diff
+        env_gain_cur = self.gain(self.state)
+        env_gain_pre = self.gain(op_pre)
+        env_cost = cost
+        env_cost_fix = self.fixed_cost(agent_action)
+        env_cost_variable = self.variable_cost(self.env_values[self.iter])
+
         # update step and prev_action
         self.iter += 1
         self.prev_action = agent_action
@@ -194,7 +208,10 @@ class GreenhouseSim(gym.Env):
         done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
         
         # TODO: std is 0, normalize to inf
-        return output_state, reward, done, {'step_action': agent_action}
+        return output_state, reward, done, {'env_op_pre': env_op_pre, 'env_ep_pre': env_ep_pre, 'env_action': env_action,\
+                'env_op_cur': env_op_cur, 'env_ep_cur': env_ep_cur, 'env_reward': env_reward, 'env_gain_diff': env_gain_diff,\
+                'env_gain_cur': env_gain_cur, 'env_gain_pre': env_gain_pre, 'env_cost': env_cost, 'env_cost_fix': env_cost_fix,\
+                'env_cost_variable': env_cost_variable}
 
     def reset(self, start=None):
         # if START is none, randomly choose a start date
