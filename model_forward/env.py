@@ -6,17 +6,20 @@ import gym
 import numpy as np
 import torch
 
-from model import Model
-from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS, \
-    EP_PATH, INIT_STATE_PATH, CKPT_PATH
+from model import Model, ModelPlant
+from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_IN_KEYS, OUTPUT_PL_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS, \
+    CONTROL_KEYS_TO_INDEX, ENV_KEYS_TO_INDEX, OUTPUT_KEYS_TO_INDEX, OUTPUT_IN_KEYS_TO_INDEX, OUTPUT_PL_KEYS_TO_INDEX, \
+    EP_PATH, INIT_STATE_PATH, MODEL_IN_PATH, MODEL_PL_PATH
 from data import zscore_normalize as normalize
 from data import zscore_denormalize as denormalize
+
 
 class GreenhouseSim(gym.Env):
     min_fw = 210
     num_control_params = 56  # count from CONTROL_KEYS
     num_env_params = len(ENV_KEYS)
-    num_output_params = len(OUTPUT_KEYS)
+    num_output_in = len(OUTPUT_IN_KEYS)
+    num_output_pl = len(OUTPUT_PL_KEYS)
 
     action_range = np.array([
         [0, 1],  # end (bool); sim_idx: 0; agent_idx: 0  
@@ -94,59 +97,69 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, checkpoint_path=CKPT_PATH, ep_path=EP_PATH):
+    def __init__(self, model_in_path=MODEL_IN_PATH, model_pl_path=MODEL_PL_PATH, ep_path=EP_PATH):
         self.rng = np.random.default_rng()
 
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
-                                                shape=(self.num_env_params + self.num_output_params,))
+                                                shape=(self.num_env_params + self.num_output_in + self.num_output_pl,))
 
-        self.net = Model(56 + 5 + 20, 20)
-        
-        checkpoint = torch.load(checkpoint_path)
-        self.net.load_state_dict(checkpoint['state_dict'])
-        self.norm_data = checkpoint['norm_data']  # {'op_mean': op_mean, 'op_std':op_std, ...}
+        # model to predict weather inside the greenhouse, per hour
+        self.net_in = Model()
+        # model to predict plant properties, per day
+        self.net_pl = ModelPlant()
 
+        # loading checkpoint for model_in
+        checkpoint_in = torch.load(model_in_path)
+        self.net_in.load_state_dict(checkpoint_in['state_dict'])
+        self.norm_data_in = checkpoint_in['norm_data']  # {'op_mean': op_mean, 'op_std':op_std, ...}
+
+        # loading checkpoint for model_pl
+        checkpoint_pl = torch.load(model_pl_path)
+        self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
+        self.norm_data_pl = checkpoint_pl['norm_data']  # {'op_mean': op_mean, 'op_std':op_std, ...}
+
+        # loading initial state distribution
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
 
+        # loading environmental values
         self.env_values = np.load(ep_path)  # shape (day*24, 5); e.g. (1680,5) 1680=70*24
         self._max_episode_steps = self.env_values.shape[0] - 1  # the last step need to output ep
 
+        # state features definition
         self.start_iter = 0
         self.iter = 0
-        self.state = None
-        self.prev_action = None
-        self.day_action = None
+        self.op_in = None
+        self.op_in_day = None
+        self.op_pl = None
+        self.cp_day = None
+        self.cp_prev = None
         self.num_spacings = 1
+        self.cum_head_m2 = 0
 
     def parse_action(self, action):
         action[self.bool_indices] = action[self.bool_indices] > 0.5
-        
+
         # enforce descending order for some of the actions
         for t in self.descending_indices:
             action[t] = -np.sort(-action[t])
 
-        # only pick one screen matarial
+        # only pick one screen material
         for t in self.pick_one_indices:
             action[t] = 0
             action[np.random.choice(t, 1)] = 1
 
         # record prev action
-        if self.prev_action is None:
-            self.prev_action = action
-        
-        action[self.unchangeable_indices] = self.prev_action[self.unchangeable_indices]
+        if self.cp_prev is None:
+            self.cp_prev = action
 
-        # record action at the first hour at a certain day
-        if self.iter % 24 == 0:
-            self.day_action = action
+        action[self.unchangeable_indices] = self.cp_prev[self.unchangeable_indices]
+        action[self.daily_indices] = self.op_in_day[0, self.daily_indices]
 
-        action[self.daily_indices] = self.day_action[self.daily_indices]
-        
         # add fixed actions
         sim_action = self.default_action
         sim_action[self.action_parse_indices] = action
- 
+
         # sim_action dim=57, action dim=44
         return sim_action[0], sim_action[1:], action
 
@@ -159,59 +172,99 @@ class GreenhouseSim(gym.Env):
         # end dim=1, model_action dim=56, agent_action dim=44
         end, model_action, agent_action = self.parse_action(action)
 
+        # store cp into daily history
+        self.cp_day[(self.iter - self.start_iter) % 24] = model_action
+        # if this is the first action query, also copy it as action[0] and update CUM_HEAD_M2
+        if self.iter - self.start_iter == 1:
+            self.cp_day[0] = model_action
+            self.cum_head_m2 += 1 / model_action[-1]
+
         # update spacing info
-        if agent_action[-1] != self.prev_action[-1]:
+        if agent_action[-1] != self.cp_prev[-1]:
             self.num_spacings += 1
 
-        # use nn to predict next state
-        # print('action after parse:', end, action)  # type: numpy.float32 unnormalize
-        # print('env', self.env_values[self.iter])  # type: numpy.float64 unnormalize
-        # print('op:', self.state)  # type: numpy.float32 unnormalize
-        # inputs should be float32 and normalized
-        norm_cp = normalize(model_action, self.norm_data['cp_mean'], self.norm_data['cp_std'])
-        norm_ep = normalize(self.env_values[self.iter].astype(np.float32), self.norm_data['ep_mean'],
-                            self.norm_data['ep_std'])
-        op_pre = self.state
-        norm_op_pre = normalize(self.state, self.norm_data['op_mean'], self.norm_data['op_std'])
+        # update CUM_HEAD_M2 at the start of the day
+        if (self.iter - self.start_iter) % 24 == 0:
+            self.cum_head_m2 += 1 / model_action[-1]
 
-        norm_op_cur = self.net.predict_op(norm_cp, norm_ep, norm_op_pre)
-        norm_op_cur = norm_op_cur.reshape(norm_op_cur.shape[1])
-        norm_ep_cur = normalize(self.env_values[self.iter + 1], self.norm_data['ep_mean'], self.norm_data['ep_std'])
-        output_state = np.concatenate([norm_ep_cur, norm_op_cur])
-        self.state = denormalize(norm_op_cur, self.norm_data['op_mean'], self.norm_data['op_std'])
+        # predict op_in every hour
+        #    normalize input
+        norm_cp = normalize(model_action,
+                            self.norm_data_in['cp_mean'], self.norm_data_in['cp_std'])
+        norm_ep_prev = normalize(self.env_values[self.iter - 1],
+                                 self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
+        norm_op_in_prev = normalize(self.op_in,
+                                    self.norm_data_in['op_other_mean'], self.norm_data_in['op_other_std'])
 
-        # caculate reward and cost with denormalizd data
-        gain_diff = self.gain(self.state) - self.gain(op_pre)
+        #    store env info
+        env_ep_pre = self.env_values[self.iter - 1]
+        env_op_in_pre = self.op_in
+        env_op_pl_pre = self.op_pl
+
+        #    run net
+        norm_op_in_curr = self.net_in.predict_op(cp=norm_cp, ep_prev=norm_ep_prev, op_pre=norm_op_in_prev)
+        self.op_in = denormalize(norm_op_in_curr,
+                                 self.norm_data_in['op_other_mean'], self.norm_data_in['op_other_std'])
+        #    store op_in in op_in_day
+        self.op_in_day[(self.iter - self.start_iter) % 24] = self.op_in
+
+        # predict op_pl at the end of the day
+        op_pl_prev = self.op_pl
+        norm_op_pl_prev = normalize(self.op_pl,
+                                    self.norm_data_pl['op_plant_mean'], self.norm_data_pl['op_plant_std'])
+        if (self.iter - self.start_iter) % 24 == 23:
+            norm_cp_day = normalize(self.cp_day,
+                                    self.norm_data_pl['cp_mean'], self.norm_data_pl['cp_std'])
+            norm_ep_day = normalize(self.env_values[self.iter - 23:self.iter + 1],
+                                    self.norm_data_pl['ep_mean'], self.norm_data_pl['ep_std'])
+            norm_op_in_day = normalize(self.op_in_day,
+                                       self.norm_data_pl['op_other_mean'], self.norm_data_pl['op_other_std'])
+            norm_op_pl_curr = self.net_pl.predict_op(norm_cp_day, norm_ep_day, norm_op_in_day, norm_op_pl_prev)
+            self.op_pl = denormalize(norm_op_pl_curr,
+                                     self.norm_data_pl['op_plant_mean'], self.norm_data_pl['op_plant_std'])
+
+        # gather state into agent format
+        norm_ep = normalize(self.env_values[self.iter],
+                            self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
+        output_state = np.concatenate([norm_ep, norm_op_in_curr, norm_op_pl_prev])
+
+        # calculate reward and cost with denormalized data
+        if (self.iter - self.start_iter) % 24 == 23:
+            gain_diff = self.gain(self.op_pl) - self.gain(op_pl_prev)
+        else:
+            gain_diff = 0
         cost = self.fixed_cost(agent_action) + self.variable_cost(self.env_values[self.iter])
         reward = gain_diff - cost
 
         # save env info for debug
-        env_op_pre = op_pre
-        env_ep_pre = self.env_values[self.iter]
         env_action = agent_action
-        env_op_cur = self.state
-        env_ep_cur = self.env_values[self.iter + 1]
+
+        env_ep_curr = self.env_values[self.iter]
+        env_op_in_curr = self.op_in
+        env_op_pl_curr = op_pl_prev
+        
         env_reward = reward
         env_gain_diff = gain_diff
-        env_gain_cur = self.gain(self.state)
-        env_gain_pre = self.gain(op_pre)
+        env_gain_curr = self.gain(self.op_pl)
+        env_gain_pre = self.gain(op_pl_prev)
+
         env_cost = cost
         env_cost_fix = self.fixed_cost(agent_action)
         env_cost_variable = self.variable_cost(self.env_values[self.iter])
 
         # update step and prev_action
         self.iter += 1
-        self.prev_action = agent_action
+        self.cp_prev = agent_action
 
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
-        fw = self.state[4]
+        fw = self.op_pl[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.headFW"]]
         done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
-        
+
         # TODO: std is 0, normalize to inf
-        return output_state, reward, done, {'env_op_pre': env_op_pre, 'env_ep_pre': env_ep_pre, 'env_action': env_action,\
-                'env_op_cur': env_op_cur, 'env_ep_cur': env_ep_cur, 'env_reward': env_reward, 'env_gain_diff': env_gain_diff,\
-                'env_gain_cur': env_gain_cur, 'env_gain_pre': env_gain_pre, 'env_cost': env_cost, 'env_cost_fix': env_cost_fix,\
-                'env_cost_variable': env_cost_variable}
+        return output_state, reward, done, {'env_ep_pre': env_ep_pre, 'env_op_in_pre': env_op_in_pre,  'env_op_pl_pre': env_op_pl_pre,\
+                'env_action': env_action, 'env_ep_curr': env_ep_curr, 'env_op_in_curr': env_op_in_curr, 'env_op_pl_curr': env_op_pl_curr,\
+                'env_reward': env_reward, 'env_gain_diff': env_gain_diff, 'env_gain_curr': env_gain_curr, 'env_gain_pre': env_gain_pre,\
+                'env_cost': env_cost, 'env_cost_fix': env_cost_fix, 'env_cost_variable': env_cost_variable}
 
     def reset(self, start=None):
         # if START is none, randomly choose a start date
@@ -222,17 +275,27 @@ class GreenhouseSim(gym.Env):
             self.start_iter = start * 24
         self.iter = self.start_iter
 
-        self.prev_action = None
-        self.day_action = None
-        self.num_spacings = 1
-
-        # randomly choose a OP1 to start from
+        # state and state history definition
+        # randomly choose an OP1 to start from
         op1 = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
-        self.state = op1
+        self.op_in = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_IN_KEYS]]
+        self.op_in_day = np.zeros((24, self.num_output_in))
+        self.op_in_day[0] = self.op_in
+        self.op_pl = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_PL_KEYS]]
+        self.cp_day = np.zeros((24, self.num_output_pl))
+        self.cp_prev = None
 
-        norm_op1 = normalize(op1, self.norm_data['op_mean'], self.norm_data['op_std'])
-        norm_ep = normalize(self.env_values[self.iter], self.norm_data['ep_mean'], self.norm_data['ep_std'])
-        output_state = np.concatenate([norm_ep, norm_op1])
+        # spacing info
+        self.num_spacings = 0
+        self.cum_head_m2 = 0
+
+        norm_op_in = normalize(self.op_in, self.norm_data_in['op_other_mean'], self.norm_data_in['op_other_std'])
+        norm_op_pl = normalize(self.op_pl, self.norm_data_in['op_plant_mean'], self.norm_data_in['op_plant_std'])
+        norm_ep = normalize(self.env_values[self.iter], self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
+        # state order is EP, OP_IN, OP_PL
+        output_state = np.concatenate([norm_ep, norm_op_in, norm_op_pl])
+
+        self.iter += 1
 
         # TODO: std is 0, normalize to inf
         return output_state
@@ -240,9 +303,9 @@ class GreenhouseSim(gym.Env):
     def render(self, mode='human'):
         raise NotImplementedError
 
-    @staticmethod
-    def gain(state):
-        fw, dmc = state[4], state[5]
+    def gain(self, op_plant):
+        fw = op_plant[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.headFW"]]
+        dmc = op_plant[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.shootDryMatterContent"]]
         # mirror fresh weight
         fw = fw if fw <= 250 else 500 - fw
         if fw <= 210:
@@ -258,6 +321,10 @@ class GreenhouseSim(gym.Env):
             price *= 0.9
         elif dmc > 0.05:
             price *= 1.1
+        # adjust for density
+        num_days = (self.iter + 1 - self.start_iter) // 24
+        avg_head_m2 = num_days / self.cum_head_m2
+        price *= avg_head_m2
         return price
 
     def fixed_cost(self, action):
@@ -272,7 +339,7 @@ class GreenhouseSim(gym.Env):
         # screen usage
         cost += (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
-        if action[-1] != self.prev_action[-1]:
+        if action[-1] != self.cp_prev[-1]:
             cost += (self.iter - self.start_iter) * 1.5 / 365 / 24
         cost += self.num_spacings * 1.5 / 365 / 24
         return cost
@@ -280,25 +347,19 @@ class GreenhouseSim(gym.Env):
     def variable_cost(self, ep):
         cost = 0
         # electricity cost
-        if ep[-1] > 0.5:
-            cost += self.state[6] / 1000 * 0.1
+        peak_hour = ep[ENV_KEYS_TO_INDEX['common.Economics.PeakHour']]
+        electricity = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.Lmp1.ElecUse']]
+        if peak_hour > 0.5:
+            cost += electricity / 1000 * 0.1
         else:
-            cost += self.state[6] / 1000 * 0.06
+            cost += electricity / 1000 * 0.06
         # heating cost
-        cost += self.state[7] / 1000 * 0.03
+        pipe_value = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.PConPipe1.Value']]
+        cost += pipe_value / 1000 * 0.03
         # CO2 cost
-        cost += self.state[8] * 3600 * 0.12
-
+        pure_air_value = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.McPureAir.Value']]
+        cost += pure_air_value * 3600 * 0.12
         return cost
-
-
-    @staticmethod
-    def npz2dic(file):
-        norm_npz = np.load(file)
-        norm_data = {'cp_mean': norm_npz['cp_mean'], 'cp_std': norm_npz['cp_std'],
-                    'ep_mean': norm_npz['ep_mean'], 'ep_std': norm_npz['ep_std'],
-                    'op_mean': norm_npz['op_mean'], 'op_std': norm_npz['op_std']}
-        return norm_data
 
     # map feature index to either default value or action index
     # e.g. CONTROL_KEY[i] -> action_dump_indices[i]
@@ -375,6 +436,9 @@ class GreenhouseSim(gym.Env):
         """
         assert len(actions.shape) == 2
         assert actions.shape[1] == 44
+
+        # cast to vanilla float to enforce json serializable
+        actions = actions.astype(float)
 
         # add the control for the first hour
         actions = np.vstack((actions[np.newaxis, 0], actions))

@@ -1,7 +1,6 @@
 import datetime
 from astral.geocoder import lookup, database
 
-
 # ====================== control param related ======================
 CONTROL_KEYS = [
     "simset.@endDate",  # "yyyy-mm-dd" -> fixed
@@ -48,6 +47,29 @@ ENV_KEYS = [
     'common.Windsp.Value',
     'common.Economics.PeakHour',  # related to variable cost
 ]
+OUTPUT_IN_KEYS = [
+    "comp1.Air.T",
+    "comp1.Air.RH",
+    "comp1.Air.ppm",
+    "comp1.PARsensor.Above",
+    "comp1.Lmp1.ElecUse",
+    "comp1.PConPipe1.Value",
+    "comp1.McPureAir.Value",
+    "comp1.TPipe1.Value",
+    "comp1.ConPipes.TSupPipe1",
+    "comp1.ConWin.WinLee",
+    "comp1.ConWin.WinWnd",
+    "comp1.Setpoints.SpHeat",
+    "comp1.Setpoints.SpVent",
+    "comp1.Scr1.Pos",
+    "comp1.Scr2.Pos",
+]
+OUTPUT_PL_KEYS = [
+    "comp1.Plant.headFW",
+    "comp1.Plant.shootDryMatterContent",
+    "comp1.Plant.fractionGroundCover",
+    "comp1.Plant.plantProjection",
+]
 OUTPUT_KEYS_RANGE = {
     # ================= no need to predict =================
     # Greenhouse Env Param: directly related to FW and DMC
@@ -86,10 +108,11 @@ OUTPUT_KEYS_RANGE = {
     # CP + EP + GEP -> OS
 }
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
-CONTROL_KEYS_TO_INDEX = {key:i for i, key in enumerate(CONTROL_KEYS)}
-ENV_KEYS_TO_INDEX = {key:i for i, key in enumerate(ENV_KEYS)}
-OUTPUT_KEYS_TO_INDEX = {key:i for i, key in enumerate(OUTPUT_KEYS)}
-
+CONTROL_KEYS_TO_INDEX = {key: i for i, key in enumerate(CONTROL_KEYS)}
+ENV_KEYS_TO_INDEX = {key: i for i, key in enumerate(ENV_KEYS)}
+OUTPUT_KEYS_TO_INDEX = {key: i for i, key in enumerate(OUTPUT_KEYS)}
+OUTPUT_IN_KEYS_TO_INDEX = {key: i for i, key in enumerate(OUTPUT_IN_KEYS)}
+OUTPUT_PL_KEYS_TO_INDEX = {key: i for i, key in enumerate(OUTPUT_PL_KEYS)}
 
 # ====================== simulator related ======================
 KEYS = {
@@ -102,14 +125,14 @@ START_DATE = datetime.date(2021, 3, 4)
 CITY = lookup('Amsterdam', database())
 MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
-
 # ====================== data related ======================
 COMMON_DATA_DIR = '/home/liuys/Greenhouse-Growing-Challenge/policy'  # TODO: change this to your own directory
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 
-
 # ====================== runtime related ======================
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
-CKPT_PATH = '/home/leondawn/AGC-Model-Weights/base_model_step=7000.pth'  # TODO: new model weights may be applied
+# TODO: change model checkpoint paths
+MODEL_IN_PATH = '/home/liuys/Greenhouse-Growing-Challenge/policy/model_nonplant-epoch=92.pth'
+MODEL_PL_PATH = '/home/liuys/Greenhouse-Growing-Challenge/policy/model_plant-epoch=83.pth'

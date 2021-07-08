@@ -172,36 +172,36 @@ class Model(nn.Module):
             nn.Linear(128, self.out_features),
         )
 
-    def forward(self, cp, ep, op_pre):
-        x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
+    def forward(self, cp, ep_prev, op_pre):
+        x = torch.cat([cp, ep_prev, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
         return self.net(x)
 
-    def predict_op(self, cp, ep, op_pre):
+    def predict_op(self, cp, ep_prev, op_pre):
         if type(cp) == np.ndarray:
             cp = torch.from_numpy(cp)
-        if type(ep) == np.ndarray:
-            ep = torch.from_numpy(ep)
+        if type(ep_prev) == np.ndarray:
+            ep_prev = torch.from_numpy(ep_prev)
         if type(op_pre) == np.ndarray:
             op_pre = torch.from_numpy(op_pre)
 
         assert type(cp) == torch.Tensor
-        assert type(ep) == torch.Tensor
+        assert type(ep_prev) == torch.Tensor
         assert type(op_pre) == torch.Tensor
         
         if len(cp.shape) == 1:
             cp = cp.unsqueeze(0)
-        if len(ep.shape) == 1:
-            ep = ep.unsqueeze(0)
+        if len(ep_prev.shape) == 1:
+            ep_prev = ep_prev.unsqueeze(0)
         if len(op_pre.shape) == 1:
             op_pre = op_pre.unsqueeze(0)
 
         self.eval()
         with torch.no_grad():
-            op_cur = self.forward(cp, ep, op_pre).detach().cpu().numpy()
+            op_cur = self.forward(cp, ep_prev, op_pre).detach().cpu().numpy().flatten()
 
         return op_cur
     
-    def rollout(self, cp, ep, op_1):
+    def rollout(self, cp, ep_prev, op_1):
         self.net.eval()
 
         # cp: np.ndarray -> T x num_cp_params 
@@ -210,12 +210,12 @@ class Model(nn.Module):
 
         op_pre = torch.from_numpy(op_1).unsqueeze(0)
         cp = torch.from_numpy(cp)
-        ep = torch.from_numpy(ep)
+        ep_prev = torch.from_numpy(ep_prev)
 
         op_all = []
         for i in range(cp.shape[0]):
             cp_cur = cp[i].unsqueeze(0)    
-            ep_pre = ep[i].unsqueeze(0)    
+            ep_pre = ep_prev[i].unsqueeze(0)
             with torch.no_grad():
                 op_pre = self(cp_cur, ep_pre, op_pre)
             op_all.append(op_pre)
@@ -271,6 +271,45 @@ class ModelPlant(nn.Module):
         assert x.shape[1] == self.in_features
 
         return self.net(x)
+
+    def predict_op(self, cp_last_24h, ep_last_24h, op_other_last_24h, op_plant_last_day):
+        if isinstance(cp_last_24h, np.ndarray):
+            cp_last_24h = torch.from_numpy(cp_last_24h)
+        if isinstance(ep_last_24h, np.ndarray):
+            ep_last_24h = torch.from_numpy(ep_last_24h)
+        if isinstance(op_other_last_24h, np.ndarray):
+            op_other_last_24h = torch.from_numpy(op_other_last_24h)
+        if isinstance(op_plant_last_day, np.ndarray):
+            op_plant_last_day = torch.from_numpy(op_plant_last_day)
+
+        assert type(cp_last_24h) == torch.Tensor
+        assert type(ep_last_24h) == torch.Tensor
+        assert type(op_other_last_24h) == torch.Tensor
+        assert type(op_plant_last_day) == torch.Tensor
+
+        assert len(cp_last_24h.shape) == 2
+        assert cp_last_24h.shape[0] == 24
+        assert cp_last_24h.shape[1] == self.CP_DIM
+        assert len(ep_last_24h.shape) == 2
+        assert ep_last_24h.shape[0] == 24
+        assert ep_last_24h.shape[1] == self.EP_DIM
+        assert len(op_other_last_24h.shape) == 2
+        assert op_other_last_24h.shape[0] == 24
+        assert op_other_last_24h.shape[1] == self.OP_OTHER_DIM
+        assert len(op_plant_last_day.shape) == 1
+        assert op_plant_last_day.shape[0] == self.OP_PLANT_DIM
+
+        cp_last_24h = cp_last_24h.unsqueeze(0)
+        ep_last_24h = ep_last_24h.unsqueeze(0)
+        op_other_last_24h = op_other_last_24h.unsqueeze(0)
+        op_plant_last_day = op_plant_last_day.unsqueeze(0)
+
+        self.eval()
+        with torch.no_grad():
+            op_cur = self.forward(cp_last_24h, ep_last_24h, op_other_last_24h, op_plant_last_day)
+            op_cur = op_cur.detach().cpu().numpy().flatten()
+
+        return op_cur
 
     def rollout(self, cp, ep, op_other, op_plant_1):
         self.net.eval()
