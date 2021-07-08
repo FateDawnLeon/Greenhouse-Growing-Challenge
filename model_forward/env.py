@@ -12,6 +12,7 @@ from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, START_DATE, MATERIALS,
 from data import zscore_normalize as normalize
 from data import zscore_denormalize as denormalize
 
+
 class GreenhouseSim(gym.Env):
     min_fw = 210
     num_control_params = 56  # count from CONTROL_KEYS
@@ -79,7 +80,7 @@ class GreenhouseSim(gym.Env):
         [100, 400],  # comp1.illumination.lmp1.@maxIglob; sim_idx: 54; agent_idx: 42
         # comp1.illumination.lmp1.@maxPARsum = 50; sim_idx: 55
         [0, 100],  # crp_lettuce.Intkam.management.@plantDensity (daily); sim_idx: 56; agent_idx: 43
-    ])
+    ], dtype=np.float32)
     default_action = np.array([0, 60, 0, 0, 0, 0, 0, 50, 150, 1, 0, 0, 0, 0, 0, 0, 100, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0,
                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 50,
                                0], dtype=np.float32)
@@ -102,7 +103,7 @@ class GreenhouseSim(gym.Env):
                                                 shape=(self.num_env_params + self.num_output_params,))
 
         self.net = Model(56 + 5 + 20, 20)
-        
+
         checkpoint = torch.load(checkpoint_path)
         self.net.load_state_dict(checkpoint['state_dict'])
         self.norm_data = checkpoint['norm_data']  # {'op_mean': op_mean, 'op_std':op_std, ...}
@@ -121,7 +122,7 @@ class GreenhouseSim(gym.Env):
 
     def parse_action(self, action):
         action[self.bool_indices] = action[self.bool_indices] > 0.5
-        
+
         # enforce descending order for some of the actions
         for t in self.descending_indices:
             action[t] = -np.sort(-action[t])
@@ -134,7 +135,7 @@ class GreenhouseSim(gym.Env):
         # record prev action
         if self.prev_action is None:
             self.prev_action = action
-        
+
         action[self.unchangeable_indices] = self.prev_action[self.unchangeable_indices]
 
         # record action at the first hour at a certain day
@@ -142,11 +143,11 @@ class GreenhouseSim(gym.Env):
             self.day_action = action
 
         action[self.daily_indices] = self.day_action[self.daily_indices]
-        
+
         # add fixed actions
         sim_action = self.default_action
         sim_action[self.action_parse_indices] = action
- 
+
         # sim_action dim=57, action dim=44
         return sim_action[0], sim_action[1:], action
 
@@ -192,7 +193,7 @@ class GreenhouseSim(gym.Env):
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
         fw = self.state[4]
         done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
-        
+
         # TODO: std is 0, normalize to inf
         return output_state, reward, done, {'step_action': agent_action}
 
@@ -274,13 +275,12 @@ class GreenhouseSim(gym.Env):
 
         return cost
 
-
     @staticmethod
     def npz2dic(file):
         norm_npz = np.load(file)
         norm_data = {'cp_mean': norm_npz['cp_mean'], 'cp_std': norm_npz['cp_std'],
-                    'ep_mean': norm_npz['ep_mean'], 'ep_std': norm_npz['ep_std'],
-                    'op_mean': norm_npz['op_mean'], 'op_std': norm_npz['op_std']}
+                     'ep_mean': norm_npz['ep_mean'], 'ep_std': norm_npz['ep_std'],
+                     'op_mean': norm_npz['op_mean'], 'op_std': norm_npz['op_std']}
         return norm_data
 
     # map feature index to either default value or action index
@@ -358,6 +358,9 @@ class GreenhouseSim(gym.Env):
         """
         assert len(actions.shape) == 2
         assert actions.shape[1] == 44
+
+        # cast to vanilla float to enforce json serializable
+        actions = actions.astype(float)
 
         # add the control for the first hour
         actions = np.vstack((actions[np.newaxis, 0], actions))
