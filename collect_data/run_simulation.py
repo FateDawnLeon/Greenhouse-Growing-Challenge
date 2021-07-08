@@ -69,7 +69,7 @@ def try_on_simulator(json_name, control_json_dir, output_json_dir, sim_id):
 
     os.makedirs(output_json_dir, exist_ok=True)
     with open(f'{output_json_dir}/{json_name}', 'w') as f:
-        json.dump(output, f)
+        json.dump(output, f, indent=4)
     
     print(json_name, 'finished')
 
