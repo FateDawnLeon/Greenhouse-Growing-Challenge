@@ -1,21 +1,27 @@
 import os
 import json
+import inspect
 import requests
 import datetime
 import numpy as np
-
-from astral.sun import sun
+from tqdm import tqdm
 from torch.utils.data import Dataset
 
 from control_param import ControlParamSimple
-from constant import CITY, COMMON_DATA_DIR, CONTROL_KEYS, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS
+from constant import COMMON_DATA_DIR, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS, OUTPUT_KEYS_TO_INDEX
 
 
-# import inspect
+DEBUG = False
+
 
 def print_current_function_name():
-    # print(inspect.stack()[1][3], end=', ')
-    pass
+    if DEBUG:
+        print(inspect.stack()[1][3], end=', ')
+
+
+def print_arr_shape(arr):
+    if DEBUG:
+        print(arr.shape)
 
 
 def save_json_data(data, path):
@@ -77,7 +83,7 @@ class ParseControl(object):
             self.parse_plant_density(control),
         ]
         cp_arr = np.concatenate(cp_list, axis=0).T
-        # print(cp_arr.shape)
+        print_arr_shape(cp_arr)
         assert cp_arr.shape[1] == 56
         return cp_arr
 
@@ -104,7 +110,7 @@ class ParseControl(object):
                     cp_arr.extend(list(day_value.values()))
         assert len(cp_arr) == self.num_hours
         cp_arr = np.asarray(list(map(preprocess, cp_arr))).T  # N x num_hours
-        # print(cp_arr.shape)
+        print_arr_shape(cp_arr)
         return cp_arr
     
     def parse_pipe_maxTemp(self, control):
@@ -351,161 +357,8 @@ class ParseControl(object):
             arr[0,hour_offset:] = float(density)
 
         print_current_function_name()
-        # print(arr.shape)
+        print_arr_shape(arr)
         return arr
-
-
-def preprocess_table(param):
-    numbers = [[float(x) for x in y.split()] for y in param.split(';')]
-    return np.asarray(numbers).flatten()
-
-
-def preprocess_screen_material(param):
-    return param == np.asarray(['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par'])
-
-
-def preprocess_screen_threshold(param):
-    if isinstance(param, str):
-        return preprocess_table(param)
-    return np.asarray([0, param, 10, param])
-
-
-def preprocess_plant_density(param, num_hours):
-    spacing_scheme = [[int(x) for x in y.split()] for y in param.split(';')]
-    densities = np.zeros(num_hours, dtype=np.int)
-    for day, density in spacing_scheme:
-        t = (day - 1) * 24
-        densities[t:] = density
-    return densities[np.newaxis,:]
-
-
-def preprocess_pipe_radinf(param):
-    numbers = [float(x) for x in param.split()]
-    if len(numbers) == 1:
-        assert numbers[0] == 0
-        numbers *= 2
-    return np.asarray(numbers)
-
-
-def preprocess_co2_dose_capacity(param):
-    if ';' in param:
-        return preprocess_table(param)
-    val = float(param)
-    return np.asarray([25, val, 50, val, 75, val])
-
-
-special_preprocess = {
-    'comp1.screens.scr1.@material': preprocess_screen_material,
-    'comp1.screens.scr2.@material': preprocess_screen_material,
-    'comp1.screens.scr1.@closeBelow': preprocess_screen_threshold,
-    'comp1.screens.scr2.@closeBelow': preprocess_screen_threshold,
-    'comp1.setpoints.CO2.@doseCapacity': preprocess_co2_dose_capacity,
-    'comp1.heatingpipes.pipe1.@radiationInfluence': preprocess_pipe_radinf,
-}
-
-
-def param_to_vec(key, param):
-    if key in special_preprocess:
-        vec = special_preprocess[key](param)
-    elif type(param) in [int, float, bool]:
-        vec = np.asarray([param])
-    elif type(param) == str:
-        vec = preprocess_table(param)
-    else:
-        raise ValueError(f'praram {key}:{param} data type not supported!')
-    return vec
-
-
-def parse_static_param(key, param, num_hours):
-    if key == 'crp_lettuce.Intkam.management.@plantDensity':
-        return preprocess_plant_density(param, num_hours)
-
-    vec = param_to_vec(key, param)
-    return np.repeat(vec[:, np.newaxis], num_hours, axis=1)
-
-
-def parse_dynamic_param(key, param, num_hours):  # sourcery no-metrics
-    value_scheme = [None] * num_hours
-    valid_data_type = (int, float, str, bool)
-
-    for date in param:
-        day, month = [int(x) for x in date.split('-')]
-        dateinfo = datetime.date(2021, month, day)
-        day_offset = max(0, (dateinfo - START_DATE).days)
-        day_start_hour_offset = day_offset * 24
-
-        day_param = param[date]
-        if type(day_param) in valid_data_type:
-            value_scheme[day_start_hour_offset] = day_param
-        elif isinstance(day_param, dict): # this is a 24-hour schedule
-            s = sun(CITY.observer, date=dateinfo, tzinfo=CITY.timezone)
-            t_sunrise = s['sunrise'].hour + s['sunrise'].minute / 60
-            t_sunset = s['sunset'].hour + s['sunset'].minute / 60
-            
-            for time, value in day_param.items():
-                assert type(time) == str and type(value) in valid_data_type
-                time = time.replace('r', str(round(t_sunrise, 1)))
-                time = time.replace('s', str(round(t_sunset, 1)))
-                hour_offset = day_start_hour_offset + round(eval(time))
-                value_scheme[hour_offset] = value
-        else:
-            raise ValueError(f'{day_param}: unexpected control param data type!')
-
-    has_value_idxs = [i for i, value in enumerate(value_scheme) if value is not None]
-    if has_value_idxs[0] > 0:
-        value_scheme[0] = value_scheme[has_value_idxs[0]]
-        has_value_idxs = [0] + has_value_idxs
-    if has_value_idxs[-1] < num_hours-1:
-        value_scheme[-1] = value_scheme[has_value_idxs[-1]]
-        has_value_idxs = has_value_idxs + [num_hours-1]
-
-    for i in range(len(has_value_idxs)-1):
-        t_left = has_value_idxs[i]
-        v_left = value_scheme[t_left]
-        t_right = has_value_idxs[i+1]
-        v_right = value_scheme[t_right]
-
-        dt = t_right - t_left
-        if type(v_left) in (int, float):  # missing time steps can be interpolated
-            v_left = param_to_vec(key, v_left)
-            v_right = param_to_vec(key, v_right)
-            dv = v_right - v_left
-            for t in range(t_left, t_right):
-                value_scheme[t] = v_left + (t - t_left) * dv / dt
-        else:  # missing time steps are just copied from previous setpoints
-            v_left = param_to_vec(key, v_left)
-            for t in range(t_left, t_right):
-                value_scheme[t] = v_left
-
-    value_scheme[-1] = param_to_vec(key, value_scheme[-1])
-    return np.asarray(value_scheme, dtype=np.float32).T
-
-
-# def parse_control(control):
-#     end_date = datetime.date.fromisoformat(control['simset']['@endDate'])
-#     num_days = (end_date - START_DATE).days
-#     num_hours = num_days * 24
-
-#     control_vals = []
-#     for key in CONTROL_KEYS[1:]:
-#         key_path = key.split('.')
-#         param = control
-#         for path in key_path:
-#             param = param[path]
-
-#         if isinstance(param, dict):
-#             values = parse_dynamic_param(key, param, num_hours)
-#         else:
-#             values = parse_static_param(key, param, num_hours)
-
-#         # print(key, values.shape)
-#         assert values.shape[1] == num_hours
-#         control_vals.append(values)
-    
-#     control_vals = np.concatenate(control_vals, axis=0) # M x T
-#     control_vals = control_vals.T # T x M
-
-#     return control_vals
 
 
 def parse_control(control):
@@ -531,7 +384,7 @@ def parse_output(output):
     return env_vals, output_vals
 
 
-def preprocess_data(data_dir, save=True):
+def preprocess_data(data_dir):
     control_dir = os.path.join(data_dir, 'controls')
     output_dir = os.path.join(data_dir, 'outputs')
 
@@ -542,9 +395,30 @@ def preprocess_data(data_dir, save=True):
     op_names = os.listdir(output_dir)
     names = list(set(cp_names).intersection(set(op_names)))
 
-    cp_all, ep_all, op_all = [], [], []
-    cp_array, ep_array, op_pre_array, op_cur_array = [], [], [], []
-    for name in names:
+    print(f'preprocessing data @ {data_dir} ...')
+
+
+    OP_NON_PLANT_KEYS = [
+        'comp1.Air.T',
+        'comp1.Air.RH',
+        'comp1.Air.ppm',
+        'comp1.PARsensor.Above',
+        'comp1.Lmp1.ElecUse',
+        'comp1.PConPipe1.Value',
+        'comp1.McPureAir.Value',
+        'comp1.TPipe1.Value',
+        'comp1.ConPipes.TSupPipe1',
+        'comp1.ConWin.WinLee',
+        'comp1.ConWin.WinWnd',
+        'comp1.Setpoints.SpHeat',
+        'comp1.Setpoints.SpVent',
+        'comp1.Scr1.Pos',
+        'comp1.Scr2.Pos',
+    ]
+    OP_NON_PLANT_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OP_NON_PLANT_KEYS]
+
+    cp_arr, ep_arr, op_pre_arr, op_cur_arr = [], [], [], []
+    for name in tqdm(names):
         control = load_json_data(os.path.join(control_dir, name))
         output = load_json_data(os.path.join(output_dir, name))
 
@@ -553,36 +427,93 @@ def preprocess_data(data_dir, save=True):
         control_vals = parse_control(control) # control_vals: T x M
         env_vals, output_vals = parse_output(output) # env_vals: T x N1, output_vals: T x N2
 
-        cp_all.append(control_vals)
-        ep_all.append(env_vals)
-        op_all.append(output_vals)
-        
         # assumption: cp[t] + ep[t-1] + op[t-1] -> op[t]
         cp_vals_t = control_vals[1:]
         ep_vals_t_minus_1 = env_vals[:-1]
-        op_vals_t_minus_1 = output_vals[:-1]
-        op_vals_t = output_vals[1:]
+        op_vals_t_minus_1 = output_vals[:-1, OP_NON_PLANT_INDEX]
+        op_vals_t = output_vals[1:, OP_NON_PLANT_INDEX]
 
         assert cp_vals_t.shape[0] == ep_vals_t_minus_1.shape[0] == op_vals_t_minus_1.shape[0] == op_vals_t.shape[0]
 
-        cp_array.append(cp_vals_t)
-        ep_array.append(ep_vals_t_minus_1)
-        op_pre_array.append(op_vals_t_minus_1)
-        op_cur_array.append(op_vals_t)
+        cp_arr.append(cp_vals_t)
+        ep_arr.append(ep_vals_t_minus_1)
+        op_pre_arr.append(op_vals_t_minus_1)
+        op_cur_arr.append(op_vals_t)
     
-    cp_array = np.concatenate(cp_array, axis=0)
-    ep_array = np.concatenate(ep_array, axis=0)
-    op_pre_array = np.concatenate(op_pre_array, axis=0)
-    op_cur_array = np.concatenate(op_cur_array, axis=0)
+    cp_arr = np.concatenate(cp_arr, axis=0)
+    ep_arr = np.concatenate(ep_arr, axis=0)
+    op_pre_arr = np.concatenate(op_pre_arr, axis=0)
+    op_cur_arr = np.concatenate(op_cur_arr, axis=0)
 
-    if save:
-        np.savez_compressed(
-            f'{data_dir}/processed_data.npz', 
-            cp=cp_array, ep=ep_array, 
-            op_pre=op_pre_array, op_cur=op_cur_array
-        )
+    np.savez_compressed(f'{data_dir}/processed_data.npz', 
+        cp=cp_arr, ep=ep_arr, op_pre=op_pre_arr, op_cur=op_cur_arr)
 
-    return cp_all, ep_all, op_all
+
+def preprocess_data_plant(data_dir):
+    control_dir = os.path.join(data_dir, 'controls')
+    output_dir = os.path.join(data_dir, 'outputs')
+
+    assert os.path.exists(control_dir)
+    assert os.path.exists(output_dir)
+
+    cp_names = os.listdir(control_dir)
+    op_names = os.listdir(output_dir)
+    names = list(set(cp_names).intersection(set(op_names)))
+
+    print(f'preprocessing data @ {data_dir} ...')
+
+    OP_PLANT_KEYS = [
+        'comp1.Plant.headFW',
+        'comp1.Plant.shootDryMatterContent',
+        'comp1.Plant.fractionGroundCover',
+        'comp1.Plant.plantProjection',
+    ]
+    OP_OTHER_KEYS = [
+        'comp1.Air.T',
+        'comp1.Air.RH',
+        'comp1.Air.ppm',
+        'comp1.PARsensor.Above',
+    ]
+    OP_PLANT_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OP_PLANT_KEYS]
+    OP_OTHER_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OP_OTHER_KEYS]
+
+    cp_arr, ep_arr, op_other_arr, op_plant_pre_arr, op_plant_cur_arr = [], [], [], [], []
+    for name in tqdm(names):
+        control = load_json_data(os.path.join(control_dir, name))
+        output = load_json_data(os.path.join(output_dir, name))
+
+        assert output['responsemsg'] == 'ok'
+
+        control_vals = parse_control(control) # control_vals: T x M
+        env_vals, output_vals = parse_output(output) # env_vals: T x N1, output_vals: T x N2
+
+        # assumption: cp[d-1] + ep[d-1] + op_other[d-1] + op_plant[d-1] -> op_plant[d]
+        cp_vals = control_vals.reshape(-1, 24, control_vals.shape[1])
+        ep_vals = env_vals.reshape(-1, 24, env_vals.shape[1])
+        op_other_vals = output_vals[:, OP_OTHER_INDEX].reshape(-1, 24, len(OP_OTHER_INDEX))
+        op_plant_vals = output_vals[:, OP_PLANT_INDEX].reshape(-1, 24, len(OP_PLANT_INDEX))
+        op_plant_vals = np.mean(op_plant_vals, axis=1)
+        
+        cp_vals = cp_vals[:-1]
+        ep_vals = ep_vals[:-1]
+        op_other_vals = op_other_vals[:-1]
+        op_plant_pre_vals = op_plant_vals[:-1]
+        op_plant_cur_vals = op_plant_vals[1:]
+
+        cp_arr.append(cp_vals)
+        ep_arr.append(ep_vals)
+        op_other_arr.append(op_other_vals)
+        op_plant_pre_arr.append(op_plant_pre_vals)
+        op_plant_cur_arr.append(op_plant_cur_vals)
+    
+    cp_arr = np.concatenate(cp_arr, axis=0)
+    ep_arr = np.concatenate(ep_arr, axis=0)
+    op_other_arr = np.concatenate(op_other_arr, axis=0)
+    op_plant_pre_arr = np.concatenate(op_plant_pre_arr, axis=0)
+    op_plant_cur_arr = np.concatenate(op_plant_cur_arr, axis=0)
+
+    np.savez_compressed(f'{data_dir}/processed_data_plant.npz', 
+        cp=cp_arr, ep=ep_arr, op_other=op_other_arr, op_plant_pre=op_plant_pre_arr, op_plant_cur=op_plant_cur_arr)
 
 
 def zscore_normalize(data_arr, mean_arr, std_arr):
@@ -599,65 +530,89 @@ def compute_mean_std(data_dirs):
     cp_all, ep_all, op_all = [], [], []
     
     for data_dir in data_dirs:
-        cp, ep, op = preprocess_data(data_dir, save=False)
-        cp_all.extend(cp)
-        ep_all.extend(ep)
-        op_all.extend(op)
+        proc_data = np.load(f'{data_dir}/processed_data.npz')
+        cp_all.append(proc_data['cp'])
+        ep_all.append(proc_data['ep'])
+        op_all.append(proc_data['op_pre'])
     
     cp_all = np.concatenate(cp_all, axis=0)
     ep_all = np.concatenate(ep_all, axis=0)
     op_all = np.concatenate(op_all, axis=0)
 
-    cp_mean, cp_std = np.mean(cp_all, axis=0, dtype=np.float32), np.std(cp_all, axis=0, dtype=np.float32)
-    ep_mean, ep_std = np.mean(ep_all, axis=0, dtype=np.float32), np.std(ep_all, axis=0, dtype=np.float32)
-    op_mean, op_std = np.mean(op_all, axis=0, dtype=np.float32), np.std(op_all, axis=0, dtype=np.float32)
+    def get_mean_std(arr):
+        return np.mean(arr, axis=0, dtype=np.float32), np.std(arr, axis=0, dtype=np.float32)
 
-    return (cp_mean, cp_std), (ep_mean, ep_std), (op_mean, op_std)
+    cp_mean, cp_std = get_mean_std(cp_all)
+    ep_mean, ep_std = get_mean_std(ep_all)
+    op_mean, op_std = get_mean_std(op_all)
+
+    return {
+        'cp_mean': cp_mean, 'cp_std': cp_std,
+        'ep_mean': ep_mean, 'ep_std': ep_std,
+        'op_mean': op_mean, 'op_std': op_std,
+    }
 
 
-class SupervisedModelDataset(Dataset):
-    def __init__(self, data_dirs, normalize=False):
-        super(SupervisedModelDataset, self).__init__()
+def compute_mean_std_plant(data_dirs):
+    cp_all, ep_all, op_other_all, op_plant_all = [], [], [], []
+    
+    for data_dir in data_dirs:
+        proc_data = np.load(f'{data_dir}/processed_data_plant.npz')
+        cp_all.append(proc_data['cp'])
+        ep_all.append(proc_data['ep'])
+        op_other_all.append(proc_data['op_other'])
+        op_plant_all.append(proc_data['op_plant_pre'])
+    
+    cp_all = np.concatenate(cp_all, axis=0)
+    ep_all = np.concatenate(ep_all, axis=0)
+    op_other_all = np.concatenate(op_other_all, axis=0)
+    op_plant_all = np.concatenate(op_plant_all, axis=0)
 
-        if normalize:
-            (self.cp_mean, self.cp_std), (self.ep_mean, self.ep_std), (self.op_mean, self.op_std) = compute_mean_std(data_dirs)
+    def get_mean_std(arr):
+        return np.mean(arr, axis=0, dtype=np.float32), np.std(arr, axis=0, dtype=np.float32)
 
-        self.normalize = normalize
+    cp_mean, cp_std = get_mean_std(cp_all)
+    ep_mean, ep_std = get_mean_std(ep_all)
+    op_other_mean, op_other_std = get_mean_std(op_other_all)
+    op_plant_mean, op_plant_std = get_mean_std(op_plant_all)
 
-        cp_arr_list, ep_arr_list = [], []
-        op_pre_arr_list, op_cur_arr_list = [], []
+    return {
+        'cp_mean': cp_mean, 'cp_std': cp_std,
+        'ep_mean': ep_mean, 'ep_std': ep_std,
+        'op_other_mean': op_other_mean, 'op_other_std': op_other_std,
+        'op_plant_mean': op_plant_mean, 'op_plant_std': op_plant_std,
+    }
+
+
+class AGCDataset(Dataset):
+    def __init__(self, data_dirs, norm_data=None):
+        super(AGCDataset, self).__init__()
+
+        cp, ep, op_pre, op_cur = [], [], [], []
         
         for data_dir in data_dirs:
             data_path = f'{data_dir}/processed_data.npz'
-            if not os.path.exists(data_path):
-                preprocess_data(data_dir)
+            assert os.path.exists(data_path)
             data = np.load(data_path)
 
-            cp_arr_list.append(data['cp'])
-            ep_arr_list.append(data['ep'])
-            op_pre_arr_list.append(data['op_pre'])
-            op_cur_arr_list.append(data['op_cur'])
+            cp.append(data['cp'])
+            ep.append(data['ep'])
+            op_pre.append(data['op_pre'])
+            op_cur.append(data['op_cur'])
 
-        self.cp = np.concatenate(cp_arr_list, axis=0, dtype=np.float32)
-        self.ep = np.concatenate(ep_arr_list, axis=0, dtype=np.float32)
-        self.op_pre = np.concatenate(op_pre_arr_list, axis=0, dtype=np.float32)
-        self.op_cur = np.concatenate(op_cur_arr_list, axis=0, dtype=np.float32)
+        self.cp = np.concatenate(cp, axis=0, dtype=np.float32)
+        self.ep = np.concatenate(ep, axis=0, dtype=np.float32)
+        self.op_pre = np.concatenate(op_pre, axis=0, dtype=np.float32)
+        self.op_cur = np.concatenate(op_cur, axis=0, dtype=np.float32)
 
-        assert self.cp.shape[0] == self.ep.shape[0] == self.op_pre.shape[0]
-        assert self.op_pre.shape == self.op_cur.shape
-
-        if self.normalize:
-            self.cp = zscore_normalize(self.cp, self.cp_mean, self.cp_std)
-            self.ep = zscore_normalize(self.ep, self.ep_mean, self.ep_std)
-            self.op_pre = zscore_normalize(self.op_pre, self.op_mean, self.op_std)
-            self.op_cur = zscore_normalize(self.op_cur, self.op_mean, self.op_std)
+        if norm_data:
+            self.cp = zscore_normalize(self.cp, norm_data['cp_mean'], norm_data['cp_std'])
+            self.ep = zscore_normalize(self.ep, norm_data['ep_mean'], norm_data['ep_std'])
+            self.op_pre = zscore_normalize(self.op_pre, norm_data['op_mean'], norm_data['op_std'])
+            self.op_cur = zscore_normalize(self.op_cur, norm_data['op_mean'], norm_data['op_std'])
 
     def __getitem__(self, index):
-        cp_vec = self.cp[index]
-        ep_vec = self.ep[index]
-        op_pre_vec = self.op_pre[index]
-        op_cur_vec = self.op_cur[index]
-        return cp_vec, ep_vec, op_pre_vec, op_cur_vec
+        return self.cp[index], self.ep[index], self.op_pre[index], self.op_cur[index]
 
     def __len__(self):
         return self.cp.shape[0]
@@ -673,6 +628,59 @@ class SupervisedModelDataset(Dataset):
     @property
     def op_dim(self):
         return self.op_pre.shape[1]
+
+
+class AGCDatasetPlant(Dataset):
+    def __init__(self, data_dirs, norm_data=None):
+        super(AGCDatasetPlant, self).__init__()
+
+        cp, ep, op_other, op_plant_pre, op_plant_cur = [], [], [], [], []
+        
+        for data_dir in data_dirs:
+            data_path = f'{data_dir}/processed_data_plant.npz'
+            assert os.path.exists(data_path)
+            data = np.load(data_path)
+
+            cp.append(data['cp'])
+            ep.append(data['ep'])
+            op_other.append(data['op_other'])
+            op_plant_pre.append(data['op_plant_pre'])
+            op_plant_cur.append(data['op_plant_cur'])
+
+        self.cp = np.concatenate(cp, axis=0, dtype=np.float32)
+        self.ep = np.concatenate(ep, axis=0, dtype=np.float32)
+        self.op_other = np.concatenate(op_other, axis=0, dtype=np.float32)
+        self.op_plant_pre = np.concatenate(op_plant_pre, axis=0, dtype=np.float32)
+        self.op_plant_cur = np.concatenate(op_plant_cur, axis=0, dtype=np.float32)
+
+        if norm_data:
+            self.cp = zscore_normalize(self.cp, norm_data['cp_mean'], norm_data['cp_std'])
+            self.ep = zscore_normalize(self.ep, norm_data['ep_mean'], norm_data['ep_std'])
+            self.op_other = zscore_normalize(self.op_other, norm_data['op_other_mean'], norm_data['op_other_std'])
+            self.op_plant_pre = zscore_normalize(self.op_plant_pre, norm_data['op_plant_mean'], norm_data['op_plant_std'])
+            self.op_plant_cur = zscore_normalize(self.op_plant_cur, norm_data['op_plant_mean'], norm_data['op_plant_std'])
+
+    def __getitem__(self, index):
+        return self.cp[index], self.ep[index], self.op_other[index], self.op_plant_pre[index], self.op_plant_cur[index]
+
+    def __len__(self):
+        return self.cp.shape[0]
+
+    @property
+    def cp_dim(self):
+        return self.cp.shape[2]
+    
+    @property
+    def ep_dim(self):
+        return self.ep.shape[2]
+    
+    @property
+    def op_other_dim(self):
+        return self.op_other.shape[2]
+    
+    @property
+    def op_plant_dim(self):
+        return self.op_plant_pre.shape[2]
 
 
 def get_output(control, sim_id):
@@ -736,11 +744,10 @@ if __name__ == '__main__':
 
     # to prepare EP_PATH and INIT_STATE_PATH
     # (1) change COMMON_DATA_DIR in constant.py
-    # (2) $ python --get-op1-pool --get-norm-data --get-ep-ndays 60 --data-dirs DIR_TO_DATA{1,2,3,...} --simulator [A|B|C|D]
+    # (2) $ python --get-op1-pool --get-ep-ndays 60 --data-dirs DIR_TO_DATA{1,2,3,...} --simulator [A|B|C|D]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--get-op1-pool', action='store_true')
-    parser.add_argument('--get-norm-data', action='store_true')
     parser.add_argument('--get-ep-ndays', type=int, default=60)
     parser.add_argument('--data-dirs', type=str, nargs='+', default=None)
     parser.add_argument('--simulator', type=str, default='A')
@@ -755,8 +762,4 @@ if __name__ == '__main__':
     if args.get_ep_ndays:
         ep = get_ep_ndays(args.simulator, num_days=args.get_ep_ndays)
         np.save(EP_PATHS[args.simulator], ep)
-
-    if args.get_norm_data:
-        (cp_mean, cp_std), (ep_mean, ep_std), (op_mean, op_std) = compute_mean_std(args.data_dirs)
-        np.savez_compressed(NORM_DATA_PATHS[args.simulator], cp_mean=cp_mean, cp_std=cp_std, ep_mean=ep_mean, ep_std=ep_std, op_mean=op_mean, op_std=op_std)
     

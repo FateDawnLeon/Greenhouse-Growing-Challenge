@@ -86,7 +86,9 @@ OUTPUT_KEYS_RANGE = {
     # CP + EP + GEP -> OS
 }
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
-MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
+CONTROL_KEYS_TO_INDEX = {key:i for i, key in enumerate(CONTROL_KEYS)}
+ENV_KEYS_TO_INDEX = {key:i for i, key in enumerate(ENV_KEYS)}
+OUTPUT_KEYS_TO_INDEX = {key:i for i, key in enumerate(OUTPUT_KEYS)}
 
 
 # ====================== simulator related ======================
@@ -98,6 +100,7 @@ URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 SAMPLE_CONTROL_JSON_PATH = '../collect_data/ClimateControlSample.json'
 START_DATE = datetime.date(2021, 3, 4)
 CITY = lookup('Amsterdam', database())
+MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 
 # ====================== data related ======================

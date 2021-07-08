@@ -3,8 +3,8 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.optim import SGD, Adam, optimizer, lr_scheduler
 
-from model import Model
-from data import AGCDataset, preprocess_data, compute_mean_std
+from model import ModelPlant
+from data import AGCDatasetPlant, preprocess_data_plant, compute_mean_std_plant
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -64,8 +64,8 @@ def train_step(model, iterloader, criterion, optimizer):
 
 
 def get_dataloaders(args, norm_data):
-    train_dataset = AGCDataset(args.train_dirs, norm_data=norm_data)
-    val_dataset = AGCDataset(args.val_dirs, norm_data=norm_data)
+    train_dataset = AGCDatasetPlant(args.train_dirs, norm_data=norm_data)
+    val_dataset = AGCDatasetPlant(args.val_dirs, norm_data=norm_data)
 
     train_loader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
@@ -95,9 +95,9 @@ def get_optimizer(model, args):
 def train_epoch(model, train_loader, criterion, optimizer, logger):
     model.train()
     running_loss = []
-    for cp, ep, op_pre, op_cur in train_loader:
-        pred_op_cur = model(cp, ep, op_pre)
-        loss = criterion(pred_op_cur, op_cur)
+    for cp, ep, op_other, op_plant_pre, op_plant_cur in train_loader:
+        prediction = model(cp, ep, op_other, op_plant_pre)
+        loss = criterion(prediction, op_plant_cur)
 
         optimizer.zero_grad()
         loss.backward()
@@ -112,10 +112,10 @@ def train_epoch(model, train_loader, criterion, optimizer, logger):
 def validate(model, val_loader, criterion):
     model.eval()
     running_loss = 0
-    for cp, ep, op_pre, op_cur in val_loader:
+    for cp, ep, op_other, op_plant_pre, op_plant_cur in val_loader:
         with torch.no_grad():
-            pred_op_cur = model(cp, ep, op_pre)
-            loss = criterion(pred_op_cur, op_cur)
+            prediction = model(cp, ep, op_other, op_plant_pre)
+            loss = criterion(prediction, op_plant_cur)
         running_loss += loss.item() * cp.size(0)
     return running_loss / len(val_loader.dataset)
 
@@ -127,8 +127,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--wd', type=float, default=1e-5)
-    parser.add_argument('--max-epochs', type=int, default=1)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--max-epochs', type=int, default=100)
+    parser.add_argument('--lr-milestones', type=int, nargs='+', default=[50, 75])
+    parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--train-dirs', nargs='+', required=True)
     parser.add_argument('--val-dirs', nargs='+', required=True)
     parser.add_argument('--root-dir', type=str, required=True)
@@ -140,15 +141,15 @@ if __name__ == '__main__':
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
 
     for data_dir in args.train_dirs + args.val_dirs:
-        if not os.path.exists(f'{data_dir}/processed_data.npz') or args.force_preprocess:
-            preprocess_data(data_dir)
+        if not os.path.exists(f'{data_dir}/processed_data_plant.npz') or args.force_preprocess:
+            preprocess_data_plant(data_dir)
 
-    norm_data = compute_mean_std(args.train_dirs + args.val_dirs)
+    norm_data = compute_mean_std_plant(args.train_dirs + args.val_dirs)
     train_loader, val_loader = get_dataloaders(args, norm_data)
-    model = Model(op_dim=train_loader.dataset.op_dim)
+    model = ModelPlant(op_other_dim=train_loader.dataset.op_other_dim, op_plant_dim=train_loader.dataset.op_plant_dim)
 
     optimizer = get_optimizer(model, args)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[50, 75], gamma=0.1)
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_milestones, gamma=0.1)
     criterion = nn.MSELoss()
 
     logger = Logger(args.print_interval, len(train_loader))

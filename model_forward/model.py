@@ -1,6 +1,11 @@
+from numpy.core.fromnumeric import ndim
+from numpy.core.numeric import outer
+from numpy.lib.function_base import select
 import torch
 from torch import nn
 import numpy as np
+from torch._C import set_flush_denormal
+from torch.functional import atleast_1d
 
 
 def get_spacing_scheme(plant_density):
@@ -142,36 +147,34 @@ def compute_netprofit(control_param, output_param):
 
 
 class Model(nn.Module):
-    def __init__(self, in_features, out_features):
+
+    CP_DIM = 56
+    EP_DIM = 5
+    OP_NON_PLANT_DIM = 15
+
+    def __init__(self, cp_dim=None, ep_dim=None, op_dim=None):
         super(Model, self).__init__()
 
+        self.CP_DIM = cp_dim if cp_dim is not None else self.CP_DIM
+        self.EP_DIM = ep_dim if ep_dim is not None else self.EP_DIM
+        self.OP_NON_PLANT_DIM = op_dim if op_dim is not None else self.OP_NON_PLANT_DIM
+
+        self.in_features = self.CP_DIM + self.EP_DIM + self.OP_NON_PLANT_DIM
+        self.out_features = self.OP_NON_PLANT_DIM
+
         self.net = nn.Sequential(
-            nn.Linear(in_features, 128),
+            nn.Linear(self.in_features, 128),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(inplace=True),
             nn.Linear(128, 128),
             nn.BatchNorm1d(128),
             nn.LeakyReLU(inplace=True),
-            nn.Linear(128, out_features),
+            nn.Linear(128, self.out_features),
         )
 
     def forward(self, cp, ep, op_pre):
         x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
         return self.net(x)
-    
-    # def forward(self, cp, ep, op_pre):
-    #     op_dim = op_pre.shape[1]
-
-    #     x = torch.cat([cp, ep, op_pre], dim=1) # B x (cp_dim + ep_dim + op_dim)
-    #     diff = self.net(x)
-
-    #     incre_op_idx = [4, 19]
-
-    #     positive_diff = diff[:, incre_op_idx]
-    #     other_diff = diff[:, [i for i in range(op_dim) if i not in incre_op_idx]]
-    #     diff = torch.cat([torch.relu(positive_diff), other_diff])
-        
-    #     return diff + op_pre
 
     def predict_op(self, cp, ep, op_pre):
         if type(cp) == np.ndarray:
@@ -198,31 +201,109 @@ class Model(nn.Module):
 
         return op_cur
     
-    def inference_output_episode(self, cp, ep, op_0):
-        self.eval()
+    def rollout(self, cp, ep, op_1):
+        self.net.eval()
 
         # cp: np.ndarray -> T x num_cp_params 
         # ep: np.ndarray -> T x num_ep_params
-        # op_0: np.ndarray -> num_op_params
+        # op_1: np.ndarray -> num_op_params
 
-        op_i = torch.from_numpy(op_0).unsqueeze(0)
+        op_pre = torch.from_numpy(op_1).unsqueeze(0)
         cp = torch.from_numpy(cp)
         ep = torch.from_numpy(ep)
 
-        with torch.no_grad():
-            op_episode = []
-            for cp_i, ep_i in zip(cp, ep):
-                cp_i = cp_i.unsqueeze(0)    
-                ep_i = ep_i.unsqueeze(0)    
-                op_i = self(cp_i, ep_i, op_i)
-                op_episode.append(op_i)
+        op_all = []
+        for i in range(cp.shape[0]):
+            cp_cur = cp[i].unsqueeze(0)    
+            ep_pre = ep[i].unsqueeze(0)    
+            with torch.no_grad():
+                op_pre = self(cp_cur, ep_pre, op_pre)
+            op_all.append(op_pre)
 
-        return torch.cat(op_episode, dim=0).cpu().numpy() # T x num_op_params
+        return torch.cat(op_all, dim=0).cpu().numpy() # T x num_op_params
 
 
 class ModelPlant(nn.Module):
-    def __init__(self):
+
+    CP_DIM = 56
+    EP_DIM = 5
+    OP_OTHER_DIM = 15
+    OP_PLANT_DIM = 4
+
+    def __init__(self, cp_dim=None, ep_dim=None, op_other_dim=None, op_plant_dim=None):
         super(ModelPlant, self).__init__()
 
-    def forward(self, x):
-        pass
+        self.CP_DIM = cp_dim if cp_dim is not None else self.CP_DIM
+        self.EP_DIM = ep_dim if ep_dim is not None else self.EP_DIM
+        self.OP_OTHER_DIM = op_other_dim if op_other_dim is not None else self.OP_OTHER_DIM
+        self.OP_PLANT_DIM = op_plant_dim if op_plant_dim is not None else self.OP_PLANT_DIM
+        
+        self.in_features = (self.CP_DIM + self.EP_DIM + self.OP_OTHER_DIM) * 24 + self.OP_PLANT_DIM
+        self.out_features = self.OP_PLANT_DIM
+
+        self.net = nn.Sequential(
+            nn.Linear(self.in_features, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(128, self.out_features),
+        )
+
+    def forward(self, cp_last_24h, ep_last_24h, op_other_last_24h, op_plant_last_day):
+        _, hour_cp, ndim_cp = cp_last_24h.shape
+        _, hour_ep, ndim_ep = ep_last_24h.shape
+        _, hour_op_other, ndim_op_other = op_other_last_24h.shape
+        _, ndim_op_plant = op_plant_last_day.shape
+
+        assert hour_cp == hour_ep == hour_op_other == 24
+        assert ndim_cp == self.CP_DIM and ndim_ep == self.EP_DIM and \
+            ndim_op_other == self.OP_OTHER_DIM and ndim_op_plant == self.OP_PLANT_DIM
+
+        x = torch.cat([cp_last_24h, ep_last_24h, op_other_last_24h], dim=2)
+        x = x.flatten(1)
+        x = torch.cat([x, op_plant_last_day], dim=1)
+
+        assert x.shape[1] == self.in_features
+
+        return self.net(x)
+
+    def rollout(self, cp, ep, op_other, op_plant_1):
+        self.net.eval()
+
+        # cp, ep, op_other -> T_days x 24 x ndim_{cp,ep,op_other}
+        # op_plant_1 -> ndim_op_plant_1
+
+        for arr in [cp, ep, op_other, op_plant_1]:
+            assert isinstance(arr, np.ndarray)
+
+        cp = torch.from_numpy(cp).float()
+        ep = torch.from_numpy(ep).float()
+        op_other = torch.from_numpy(op_other).float()
+        op_plant_1 = torch.from_numpy(op_plant_1).float()
+        
+        days_cp, hour_cp, ndim_cp = cp.shape
+        days_ep, hour_ep, ndim_ep = ep.shape
+        days_op_other, hour_op_other, ndim_op_other = op_other.shape
+        ndim_op_plant = len(op_plant_1)
+
+        assert days_cp == days_ep == days_op_other
+        assert hour_cp == hour_ep == hour_op_other
+        assert ndim_cp == self.CP_DIM and ndim_ep == self.EP_DIM and \
+            ndim_op_other == self.OP_OTHER_DIM and ndim_op_plant == self.OP_PLANT_DIM
+
+        op_plant_all = []
+        op_plant_last_day = op_plant_1.unsqueeze(0)
+        for i in range(days_cp):
+            cp_last_24h = cp[i:i+1]
+            ep_last_24h = ep[i:i+1]
+            op_other_last_24h = op_other[i:i+1]
+            with torch.no_grad():        
+                op_plant_last_day = self.forward(cp_last_24h, ep_last_24h, op_other_last_24h, op_plant_last_day)
+            op_plant_all.append(op_plant_last_day)
+
+        return torch.cat(op_plant_all, dim=0).cpu().numpy()
