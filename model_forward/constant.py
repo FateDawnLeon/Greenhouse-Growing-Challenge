@@ -1,5 +1,6 @@
 import datetime
 from astral.geocoder import lookup, database
+import os
 
 # ====================== control param related ======================
 CONTROL_KEYS = [
@@ -126,7 +127,7 @@ CITY = lookup('Amsterdam', database())
 MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== data related ======================
-COMMON_DATA_DIR = './'  # TODO: change this to your own directory
+COMMON_DATA_DIR = os.path.dirname(os.path.abspath(__file__))  # TODO: change this to your own directory
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 
@@ -134,5 +135,5 @@ INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for s
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
 # TODO: change model checkpoint paths
-MODEL_IN_PATH = './model_nonplant-epoch=92.pth'
-MODEL_PL_PATH = './model_plant-epoch=83.pth'
+MODEL_IN_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_nonplant-epoch=92.pth'
+MODEL_PL_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_plant-epoch=83.pth'
