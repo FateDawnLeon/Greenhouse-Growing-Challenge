@@ -8,6 +8,8 @@ from skopt.space import Integer, Real, Categorical
 from pprint import pprint
 from utils import ControlParams, ControlParamSimple
 from run_simulation import try_on_simulator
+import numpy as np
+import random
 
 
 DIMS = {
@@ -67,6 +69,32 @@ DIMS = {
         Integer(name='light_hours', low=10, high=20),
         Integer(name='light_endTime', low=18, high=24),
         Integer(name='light_maxIglob', low=299, high=300),
+    ],
+    'DPD': [
+        Integer(name='num_days', low=38, high=42),
+        Integer(name='heatingTemp_night', low=10, high=15),
+        Integer(name='heatingTemp_day', low=15, high=30),
+        Integer(name='CO2_pureCap', low=150, high=200),
+        Integer(name='CO2_setpoint_night', low=400, high=800),
+        Integer(name='CO2_setpoint_day', low=1199, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
+        Integer(name='light_intensity', low=0, high=200),
+        Integer(name='light_hours', low=10, high=20),
+        Integer(name='light_endTime', low=18, high=24),
+        Integer(name='light_maxIglob', low=299, high=300),
+    ],
+    'BSTPD': [
+        Categorical([38], name='num_days'),
+        Categorical([10], name='heatingTemp_night'),
+        Categorical([26], name='heatingTemp_day'),
+        Categorical([182], name='CO2_pureCap'),
+        Categorical([694], name='CO2_setpoint_night'),
+        Categorical([1200], name='CO2_setpoint_day'),
+        Categorical([912], name='CO2_setpoint_lamp'),
+        Categorical([0], name='light_intensity'),
+        Categorical([12], name='light_hours'),
+        Categorical([24], name='light_endTime'),
+        Categorical([300], name='light_maxIglob')
     ],
     'E': [
         # Best Parameters: [38, 9.5, 26.1, 184, 603, 1199, 857, 4, 4.2, 6.0, 300]
@@ -135,6 +163,40 @@ DIMS = {
     ]
 }
 
+def add_plantDensity(dims):
+    start_density_range = np.arange(80, 91, 5)  # 80,85,90
+    end_density_range = np.arange(5, 16, 5)  # 5,10,15
+    skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
+    change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
+
+    max_days = 38
+    control_densitys = []
+
+    for i in range(10000):
+        # "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
+        start_density = random.choice(start_density_range)
+        end_density = random.choice(end_density_range)
+            
+        days = 1
+        density = start_density
+        control_density =  f'{days} {start_density}'
+        while True:
+            skip_day = random.choice(skip_day_range)
+            change_density = random.choice(change_density_range)
+            days = days+skip_day
+            if days>max_days: break
+            density = density - change_density
+            if density<end_density: break
+            control_density = f'{control_density}; {days} {density}'
+        control_densitys.append(control_density)
+        unique_densitys = set(control_densitys)
+        control_densitys = list(unique_densitys)
+
+    dims.append(Categorical(control_densitys, name='plantDensity'))
+    return dims
+
+DIMS['DPD'] = add_plantDensity(DIMS['DPD'])
+DIMS['BSTPD'] = add_plantDensity(DIMS['BSTPD'])
 
 class NetProfitOptimizer(object):
     # deprecated: dont use this one
@@ -279,7 +341,9 @@ def get_func_and_callback(args):
         CO2_setpoint_lamp,
         light_intensity,
         light_hours,
-        light_maxIglob
+        light_endTime,
+        light_maxIglob,
+        plantDensity
     ):
         num_days = int(num_days)
         heatingTemp_night = round(float(heatingTemp_night), args.float_precision)
@@ -291,7 +355,7 @@ def get_func_and_callback(args):
         light_intensity = round(float(light_intensity), args.float_precision)
         light_hours = round(float(light_hours), args.float_precision)
         light_maxIglob = round(float(light_maxIglob), args.float_precision)
-        light_endTime = round(float(LIGHT_END_TIME), args.float_precision)
+        light_endTime = round(float(light_endTime), args.float_precision)
 
         CP = ControlParamSimple()
         CP.set_endDate(num_days)
@@ -321,10 +385,11 @@ def get_func_and_callback(args):
         CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
         CP.set_value("comp1.illumination.lmp1.@maxIglob", light_maxIglob)
         # important need to search
-        CP.set_value("crp_lettuce.Intkam.management.@plantDensity", "1 90; 7 60; 14 40; 21 30; 28 20; 34 15")
+        # CP.set_value("crp_lettuce.Intkam.management.@plantDensity", "1 90; 7 60; 14 40; 21 30; 28 20; 34 15")
+        CP.set_value("crp_lettuce.Intkam.management.@plantDensity", str(plantDensity))
 
 
-        control_name = f'D={num_days}_TN={heatingTemp_night}_TD={heatingTemp_day}_CO2Cap={CO2_pureCap}_CO2N={CO2_setpoint_night}_CO2D={CO2_setpoint_day}_CO2L={CO2_setpoint_lamp}_LI={light_intensity}_LH={light_hours}_LET={light_endTime}_LMI={light_maxIglob}.json'
+        control_name = f'D={num_days}_TN={heatingTemp_night}_TD={heatingTemp_day}_CO2Cap={CO2_pureCap}_CO2N={CO2_setpoint_night}_CO2D={CO2_setpoint_day}_CO2L={CO2_setpoint_lamp}_LI={light_intensity}_LH={light_hours}_LET={light_endTime}_LMI={light_maxIglob}_PD={plantDensity}.json'
         control_dir = f'{args.data_dir}/controls'
         output_dir = f'{args.data_dir}/outputs'
         CP.dump_json(control_dir, control_name)
