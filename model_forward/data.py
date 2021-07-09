@@ -1,14 +1,18 @@
+import enum
 import os
 import json
 import inspect
 import requests
 import datetime
 import numpy as np
+from scipy import interpolate
 from tqdm import tqdm
 from torch.utils.data import Dataset
+from astral.sun import sun
+from scipy.interpolate import interp1d
 
 from control_param import ControlParamSimple
-from constant import COMMON_DATA_DIR, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS, OUTPUT_KEYS_TO_INDEX, OUTPUT_IN_KEYS, OUTPUT_PL_KEYS
+from constant import COMMON_DATA_DIR, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS, OUTPUT_KEYS_TO_INDEX, OUTPUT_IN_KEYS, OUTPUT_PL_KEYS, CITY
 
 
 DEBUG = False
@@ -98,34 +102,74 @@ class ParseControl(object):
     def flatten(t):
         return [item for sublist in t for item in sublist]
 
-    def value2arr(self, value, preprocess, valid_dtype):
+    @staticmethod
+    def get_sun_rise_and_set(dateinfo, cityinfo):
+        s = sun(cityinfo.observer, date=dateinfo, tzinfo=cityinfo.timezone)
+        h_r = s['sunrise'].hour + s['sunrise'].minute / 60
+        h_s = s['sunset'].hour + s['sunset'].minute / 60
+        return h_r, h_s
+
+    def value2arr(self, value, preprocess, valid_dtype, interpolate='previous'):
         if type(value) in valid_dtype:
-            cp_arr = [value] * self.num_hours # 1 x num_hours
+            cp_arr = [preprocess(value)] * self.num_hours # 1 x num_hours
         elif type(value) == dict:
-            cp_arr = []
-            for day_value in value.values():
-                if type(day_value) in valid_dtype:
-                    cp_arr.extend([day_value] * 24)
-                elif type(day_value) == dict:
-                    cp_arr.extend(list(day_value.values()))
-        assert len(cp_arr) == self.num_hours
-        cp_arr = np.asarray(list(map(preprocess, cp_arr))).T  # N x num_hours
+            cp_arr = self.dict_value2arr(value, valid_dtype, preprocess, interpolate)
+
+        cp_arr = np.asarray(cp_arr).T  # N x num_hours
         print_arr_shape(cp_arr)
         return cp_arr
+
+    def dict_value2arr(self, value, valid_dtype, preprocess, interpolate):
+        result = [None] * self.num_hours
+        for date, day_value in value.items():
+                
+            day, month = date.split('-')
+            day, month = int(day), int(month)
+            dateinfo = datetime.date(2021, month, day)
+            day_offset = (dateinfo - self.start_date).days
+            h_start = day_offset * 24
+
+            r, s = self.get_sun_rise_and_set(dateinfo, CITY)
+
+            if type(day_value) in valid_dtype:
+                result[h_start:h_start+24] = [preprocess(day_value)] * 24
+            elif type(day_value) == dict:
+                cp_arr_day = [None] * 24
+                for hour, hour_value in day_value.items():
+                    h_cur = round(eval(hour, {'r': r, 's': s}))
+                    cp_arr_day[h_cur] = preprocess(hour_value)
+                result[h_start:h_start+24] = cp_arr_day
+
+        # interpolate missing time hours
+        points = [(i,v) for i, v in enumerate(result) if v is not None]
+        x = [p[0] for p in points]
+        y = [p[1] for p in points]
+
+        if x[0] > 0:
+            x.insert(0, 0)
+            y.insert(0, y[0])
+        
+        if x[-1] < self.num_hours-1:
+            x.append(self.num_hours-1)
+            y.append(y[-1])
+
+        f = interp1d(x, y, kind=interpolate, axis=0)
+
+        return f(range(self.num_hours))
     
     def parse_pipe_maxTemp(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@maxTemp")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         print_current_function_name()
-        return self.value2arr(value, preprocess, valid_dtype)
+        return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
     
     def parse_pipe_minTemp(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@minTemp")
         preprocess = lambda x: [x]
         valid_dtype = [int, float]
         print_current_function_name()
-        return self.value2arr(value, preprocess, valid_dtype)
+        return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
     
     def parse_pipe_radInf(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@radiationInfluence")
@@ -145,14 +189,14 @@ class ParseControl(object):
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         print_current_function_name()
-        return self.value2arr(value, preprocess, valid_dtype)
+        return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
     
     def parse_temp_ventOffset(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@ventOffset")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         print_current_function_name()
-        return self.value2arr(value, preprocess, valid_dtype)
+        return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
     
     def parse_temp_radInf(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@radiationInfluence")
@@ -376,7 +420,7 @@ def parse_output(output):
     output_vals = []
     for key in OUTPUT_KEYS:
         val = output['data'][key]['data']
-        val = [-1.0 if x == 'NaN' else x for x in val]
+        val = [0 if x == 'NaN' else x for x in val]
         output_vals.append(val)
     output_vals = np.array(output_vals)
     output_vals = output_vals.T # T x N2
@@ -397,7 +441,6 @@ def preprocess_data(data_dir):
 
     print(f'preprocessing data @ {data_dir} ...')
 
-
     OP_NON_PLANT_KEYS = [
         'comp1.Air.T',
         'comp1.Air.RH',
@@ -412,7 +455,7 @@ def preprocess_data(data_dir):
         'comp1.ConWin.WinWnd',
         'comp1.Setpoints.SpHeat',
         'comp1.Setpoints.SpVent',
-        'comp1.Scr1.Pos',
+        'comp1.Scr1.Pos', 
         'comp1.Scr2.Pos',
     ]
     OP_NON_PLANT_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OP_NON_PLANT_KEYS]
@@ -505,13 +548,19 @@ def preprocess_data_plant(data_dir):
 
 
 def zscore_normalize(data_arr, mean_arr, std_arr):
-    std_arr[std_arr==0] = 1
     norm_arr = (data_arr - mean_arr) / std_arr
     return np.nan_to_num(norm_arr)
 
 
 def zscore_denormalize(norm_arr, mean_arr, std_arr):
     return norm_arr * std_arr + mean_arr
+
+
+def get_mean_std(arr):
+    mean = np.mean(arr, axis=0, dtype=np.float32)
+    std = np.std(arr, axis=0, dtype=np.float32)
+    std[std==0] = 1
+    return mean, std
 
 
 def compute_mean_std(data_dirs):
@@ -526,9 +575,6 @@ def compute_mean_std(data_dirs):
     cp_all = np.concatenate(cp_all, axis=0)
     ep_all = np.concatenate(ep_all, axis=0)
     op_all = np.concatenate(op_all, axis=0)
-
-    def get_mean_std(arr):
-        return np.mean(arr, axis=0, dtype=np.float32), np.std(arr, axis=0, dtype=np.float32)
 
     cp_mean, cp_std = get_mean_std(cp_all)
     ep_mean, ep_std = get_mean_std(ep_all)
@@ -555,9 +601,6 @@ def compute_mean_std_plant(data_dirs):
     ep_all = np.concatenate(ep_all, axis=0)
     op_other_all = np.concatenate(op_other_all, axis=0)
     op_plant_all = np.concatenate(op_plant_all, axis=0)
-
-    def get_mean_std(arr):
-        return np.mean(arr, axis=0, dtype=np.float32), np.std(arr, axis=0, dtype=np.float32)
 
     cp_mean, cp_std = get_mean_std(cp_all)
     ep_mean, ep_std = get_mean_std(ep_all)
