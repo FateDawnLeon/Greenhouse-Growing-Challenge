@@ -1,6 +1,7 @@
 from collections import defaultdict
 import datetime
 import json
+import random
 
 import gym
 import numpy as np
@@ -276,7 +277,7 @@ class GreenhouseSim(gym.Env):
     def reset(self, start=None):
         # if START is none, randomly choose a start date
         if start is None:
-            self.start_iter = self.rng.integers(0, self.init_day_range) * 24
+            self.start_iter = random.randint(0, self.init_day_range) * 24
         # otherwise, start from day START
         else:
             self.start_iter = start * 24
@@ -284,7 +285,7 @@ class GreenhouseSim(gym.Env):
 
         # state and state history definition
         # randomly choose an OP1 to start from
-        op1 = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
+        op1 = self.init_states[random.randint(0, self.init_states.shape[0])]
         self.op_in = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_IN_KEYS]]
         self.op_in_day = np.zeros((24, self.num_output_in), dtype=np.float32)
         self.op_in_day[0] = self.op_in
