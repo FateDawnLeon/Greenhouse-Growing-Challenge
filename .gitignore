@@ -251,3 +251,7 @@ collect_data/output_jsons*/
 *.pkl
 *.ipynb
 policy/data/
+
+*.pth
+*.npz
+*.npy
