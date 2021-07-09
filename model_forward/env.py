@@ -83,7 +83,7 @@ class GreenhouseSim(gym.Env):
         [100, 400],  # comp1.illumination.lmp1.@maxIglob; sim_idx: 54; agent_idx: 42
         # comp1.illumination.lmp1.@maxPARsum = 50; sim_idx: 55
         [1, 90],  # crp_lettuce.Intkam.management.@plantDensity (daily); sim_idx: 56; agent_idx: 43
-    ])
+    ], dtype=np.float32)
     default_action = np.array([0, 60, 0, 0, 0, 0, 0, 50, 150, 1, 0, 0, 0, 0, 0, 0, 100, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0,
                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 50,
                                0], dtype=np.float32)
@@ -113,12 +113,14 @@ class GreenhouseSim(gym.Env):
         # loading checkpoint for model_in
         checkpoint_in = torch.load(model_in_path)
         self.net_in.load_state_dict(checkpoint_in['state_dict'])
-        self.norm_data_in = checkpoint_in['norm_data']  # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
+        self.norm_data_in = checkpoint_in[
+            'norm_data']  # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
 
         # loading checkpoint for model_pl
         checkpoint_pl = torch.load(model_pl_path)
         self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
-        self.norm_data_pl = checkpoint_pl['norm_data']  # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
+        self.norm_data_pl = checkpoint_pl[
+            'norm_data']  # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
 
         # loading initial state distribution
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
@@ -159,7 +161,7 @@ class GreenhouseSim(gym.Env):
         action[self.unchangeable_indices] = self.cp_prev[self.unchangeable_indices]
 
         # record action at the first hour at each day
-        if (self.iter - self.start_iter)%24 == 0:
+        if (self.iter - self.start_iter) % 24 == 0:
             self.agent_cp_daily = action
         action[self.daily_indices] = self.agent_cp_daily[self.daily_indices]
 
@@ -209,7 +211,7 @@ class GreenhouseSim(gym.Env):
         agent_op_pl_prev = self.op_pl_prev
 
         #    run net
-        norm_op_in_curr = self.net_in.predict_op(cp=norm_cp, ep_prev=norm_ep_prev, op_pre=norm_op_in_prev)
+        norm_op_in_curr = self.net_in.predict_op(norm_cp, norm_ep_prev, norm_op_in_prev)
         self.op_in = denormalize(norm_op_in_curr,
                                  self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
         #    store op_in in op_in_day
@@ -244,7 +246,10 @@ class GreenhouseSim(gym.Env):
             gain_diff = 0
             agent_gain_curr = 0
             agent_gain_prev = 0
-        cost = self.fixed_cost(agent_action) + self.variable_cost(self.env_values[self.iter])
+
+        fixed_cost, fixed_cost_info = self.fixed_cost(agent_action)
+        var_cost, var_cost_info = self.variable_cost(self.env_values[self.iter])
+        cost = fixed_cost + var_cost
         reward = gain_diff - cost
 
         # save env info for debug
@@ -253,7 +258,7 @@ class GreenhouseSim(gym.Env):
         agent_ep_curr = self.env_values[self.iter]
         agent_op_in_curr = self.op_in
         agent_op_pl_curr = self.op_pl_prev
-        
+
         agent_reward = reward
         agent_gain_diff = gain_diff
         agent_cost = cost
@@ -268,11 +273,35 @@ class GreenhouseSim(gym.Env):
         fw = self.op_pl[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.headFW"]]
         done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
 
+        info = {
+            'agent_ep_prev': agent_ep_prev,
+            'agent_op_in_prev': agent_op_in_prev,
+            'agent_op_pl_prev': agent_op_pl_prev,
+            'agent_action': agent_action,
+            'agent_ep_curr': agent_ep_curr,
+            'agent_op_in_curr': agent_op_in_curr,
+            'agent_op_pl_curr': agent_op_pl_curr,
+            'agent_reward': agent_reward,
+            'agent_gain_diff': agent_gain_diff,
+            'agent_gain_curr': agent_gain_curr,
+            'agent_gain_prev': agent_gain_prev,
+            'agent_cost': agent_cost,
+            'agent_cost_fix': agent_cost_fix,
+            'agent_cost_variable': agent_cost_variable,
+
+            'agent_cost_occupation': fixed_cost_info[0],
+            'agent_cost_fix_co2': fixed_cost_info[1],
+            'agent_cost_lamp': fixed_cost_info[2],
+            'agent_cost_screen': fixed_cost_info[3],
+            'agent_cost_spacing': fixed_cost_info[4],
+
+            'agent_cost_elec': var_cost_info[0],
+            'agent_cost_heating': var_cost_info[1],
+            'agent_cost_var_co2': var_cost_info[2]
+        }
+
         # TODO: std is 0, normalize to inf
-        return output_state, reward, done, {'agent_ep_prev': agent_ep_prev, 'agent_op_in_prev': agent_op_in_prev,  'agent_op_pl_prev': agent_op_pl_prev,\
-                'agent_action': agent_action, 'agent_ep_curr': agent_ep_curr, 'agent_op_in_curr': agent_op_in_curr, 'agent_op_pl_curr': agent_op_pl_curr,\
-                'agent_reward': agent_reward, 'agent_gain_diff': agent_gain_diff, 'agent_gain_curr': agent_gain_curr, 'agent_gain_prev': agent_gain_prev,\
-                'agent_cost': agent_cost, 'agent_cost_fix': agent_cost_fix, 'agent_cost_variable': agent_cost_variable}
+        return output_state, reward, done, info
 
     def reset(self, start=None):
         # if START is none, randomly choose a start date
@@ -339,37 +368,42 @@ class GreenhouseSim(gym.Env):
 
     def fixed_cost(self, action):
         # action should be the projected agent action (dim=44)
-        cost = 0
         # greenhouse occupation
-        cost += 11.5 / 365 / 24
+        cost_occupation = 11.5 / 365 / 24
         # CO2 dosing capacity
-        cost += action[8] * 0.015 / 365 / 24
+        cost_fix_co2 = action[8] * 0.015 / 365 / 24
         # lamp maintenance
-        cost += action[40] * 0.0281 / 365 / 24
+        cost_lamp = action[40] * 0.0281 / 365 / 24
         # screen usage
-        cost += (action[17] + action[28]) * 0.75 / 365 / 24
+        cost_screen = (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
         if action[-1] != self.cp_prev[-1]:
-            cost += (self.iter - self.start_iter) * 1.5 / 365 / 24
-        cost += self.num_spacings * 1.5 / 365 / 24
-        return cost
+            cost_spacing = (self.iter - self.start_iter) * 1.5 / 365 / 24
+        else:
+            cost_spacing = 0
+        cost_spacing += self.num_spacings * 1.5 / 365 / 24
+
+        cost_total = cost_occupation + cost_fix_co2 + cost_lamp + cost_screen + cost_spacing
+        return cost_total, (cost_occupation, cost_fix_co2, cost_lamp, cost_screen, cost_spacing)
 
     def variable_cost(self, ep):
-        cost = 0
         # electricity cost
         peak_hour = ep[ENV_KEYS_TO_INDEX['common.Economics.PeakHour']]
         electricity = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.Lmp1.ElecUse']]
         if peak_hour > 0.5:
-            cost += electricity / 1000 * 0.1
+            cost_elec = electricity / 1000 * 0.1
         else:
-            cost += electricity / 1000 * 0.06
+            cost_elec = electricity / 1000 * 0.06
         # heating cost
         pipe_value = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.PConPipe1.Value']]
-        cost += pipe_value / 1000 * 0.03
+        cost_heating = pipe_value / 1000 * 0.03
         # CO2 cost
         pure_air_value = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.McPureAir.Value']]
-        cost += pure_air_value * 3600 * 0.12
-        return cost
+        cost_var_co2 = pure_air_value * 3600 * 0.12
+
+        cost_total = cost_elec + cost_heating + cost_var_co2
+
+        return cost_total, (cost_elec, cost_heating, cost_var_co2)
 
     # map feature index to either default value or action index
     # e.g. CONTROL_KEY[i] -> action_dump_indices[i]
