@@ -123,7 +123,7 @@ class GreenhouseSim(gym.Env):
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
 
         # loading environmental values
-        self.env_values = np.load(ep_path)  # shape (day*24, 5); e.g. (1680,5) 1680=70*24
+        self.env_values = np.load(ep_path).astype(np.float32)  # shape (day*24, 5); e.g. (1680,5) 1680=70*24
         self._max_episode_steps = self.env_values.shape[0] - 1  # the last step need to output ep
 
         # state features definition
@@ -200,7 +200,7 @@ class GreenhouseSim(gym.Env):
         norm_ep_prev = normalize(self.env_values[self.iter - 1],
                                  self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
         norm_op_in_prev = normalize(self.op_in,
-                                    self.norm_data_in['op_other_mean'], self.norm_data_in['op_other_std'])
+                                    self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
 
         #    store env info
         agent_ep_prev = self.env_values[self.iter - 1]
@@ -210,7 +210,7 @@ class GreenhouseSim(gym.Env):
         #    run net
         norm_op_in_curr = self.net_in.predict_op(cp=norm_cp, ep_prev=norm_ep_prev, op_pre=norm_op_in_prev)
         self.op_in = denormalize(norm_op_in_curr,
-                                 self.norm_data_in['op_other_mean'], self.norm_data_in['op_other_std'])
+                                 self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
         #    store op_in in op_in_day
         self.op_in_day[(self.iter - self.start_iter) % 24] = self.op_in
 
@@ -286,11 +286,11 @@ class GreenhouseSim(gym.Env):
         # randomly choose an OP1 to start from
         op1 = self.init_states[self.rng.integers(0, self.init_states.shape[0])]
         self.op_in = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_IN_KEYS]]
-        self.op_in_day = np.zeros((24, self.num_output_in))
+        self.op_in_day = np.zeros((24, self.num_output_in), dtype=np.float32)
         self.op_in_day[0] = self.op_in
         self.op_pl = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_PL_KEYS]]
         self.op_pl_prev = self.op_pl
-        self.cp_day = np.zeros((24, self.num_output_pl))
+        self.cp_day = np.zeros((24, self.num_control_params), dtype=np.float32)
         self.cp_prev = None
         self.agent_cp_daily = None
 
@@ -299,7 +299,7 @@ class GreenhouseSim(gym.Env):
         self.cum_head_m2 = 0
 
         norm_ep = normalize(self.env_values[self.iter], self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
-        norm_op_in = normalize(self.op_in, self.norm_data_in['op_other_mean'], self.norm_data_in['op_other_std'])
+        norm_op_in = normalize(self.op_in, self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
         norm_op_pl = normalize(self.op_pl, self.norm_data_pl['op_plant_mean'], self.norm_data_pl['op_plant_std'])
         # state order is EP, OP_IN, OP_PL
         output_state = np.concatenate([norm_ep, norm_op_in, norm_op_pl])
