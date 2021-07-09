@@ -105,21 +105,22 @@ class GreenhouseSim(gym.Env):
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                                 shape=(self.num_env_params + self.num_output_in + self.num_output_pl,))
 
-        # model to predict weather inside the greenhouse, per hour
-        self.net_in = Model()
-        # model to predict plant properties, per day
-        self.net_pl = ModelPlant()
-
         # loading checkpoint for model_in
         checkpoint_in = torch.load(model_in_path)
-        self.net_in.load_state_dict(checkpoint_in['state_dict'])
         self.norm_data_in = checkpoint_in['norm_data']  # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
 
-        # loading checkpoint for model_pl
+        # model to predict weather inside the greenhouse, per hour
+        self.net_in = Model(norm_data=self.norm_data_in)
+        self.net_in.load_state_dict(checkpoint_in['state_dict'])
+        
+         # loading checkpoint for model_pl
         checkpoint_pl = torch.load(model_pl_path)
-        self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
         self.norm_data_pl = checkpoint_pl['norm_data']  # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
 
+        # model to predict plant properties, per day
+        self.net_pl = ModelPlant()       
+        self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
+        
         # loading initial state distribution
         self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
 
@@ -209,7 +210,7 @@ class GreenhouseSim(gym.Env):
         agent_op_pl_prev = self.op_pl_prev
 
         #    run net
-        norm_op_in_curr = self.net_in.predict_op(cp=norm_cp, ep_prev=norm_ep_prev, op_pre=norm_op_in_prev)
+        norm_op_in_curr = self.net_in.predict_op(cp=norm_cp, ep_prev=norm_ep_prev, op_prev=norm_op_in_prev)
         self.op_in = denormalize(norm_op_in_curr,
                                  self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
         #    store op_in in op_in_day
