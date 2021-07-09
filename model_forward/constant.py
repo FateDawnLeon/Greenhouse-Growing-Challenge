@@ -136,4 +136,4 @@ EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
 # TODO: change model checkpoint paths
 MODEL_IN_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_nonplant-epoch=92.pth'
-MODEL_PL_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_plant-epoch=83.pth'
+MODEL_PL_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_plant-epoch=193.pth'
