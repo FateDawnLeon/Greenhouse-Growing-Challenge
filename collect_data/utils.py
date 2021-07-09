@@ -61,6 +61,17 @@ CONTROL_KEYS = [
 ]
 
 
+def load_json_data(path):
+    with open(path, 'r') as f:
+        data = json.load(f)
+    return data
+
+
+def save_json_data(data, path):
+    with open(path, 'w') as f:
+        json.dump(data, f)
+
+
 def valseq_to_scheme(vals, start_date):
     assert isinstance(vals, list) and len(vals) > 0 and len(vals) % 24 == 0
 

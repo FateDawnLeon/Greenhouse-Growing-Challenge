@@ -100,13 +100,6 @@ OUTPUT_KEYS_RANGE = {
     'comp1.Scr2.Pos': [0, 1],  # lower=0, upper=1
     'comp1.Plant.fractionGroundCover': [0, 1],  # lower=0, upper=1
     'comp1.Plant.plantProjection': [0, 0.1],  # lower=0
-
-    # ===================== Assumption =====================
-    # CP + EP -> GEP
-    # CP + EP -> VCP
-    # CP + GEP -> CGP
-    # CP -> PD
-    # CP + EP + GEP -> OS
 }
 OUTPUT_KEYS = list(OUTPUT_KEYS_RANGE.keys())
 CONTROL_KEYS_TO_INDEX = {key: i for i, key in enumerate(CONTROL_KEYS)}

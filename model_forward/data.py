@@ -8,7 +8,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 
 from control_param import ControlParamSimple
-from constant import COMMON_DATA_DIR, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS, OUTPUT_KEYS_TO_INDEX
+from constant import COMMON_DATA_DIR, ENV_KEYS, KEYS, OUTPUT_KEYS, START_DATE, URL, EP_PATHS, INIT_STATE_PATHS, OUTPUT_KEYS_TO_INDEX, OUTPUT_IN_KEYS, OUTPUT_PL_KEYS
 
 
 DEBUG = False
@@ -462,20 +462,8 @@ def preprocess_data_plant(data_dir):
 
     print(f'preprocessing data @ {data_dir} ...')
 
-    OP_PLANT_KEYS = [
-        'comp1.Plant.headFW',
-        'comp1.Plant.shootDryMatterContent',
-        'comp1.Plant.fractionGroundCover',
-        'comp1.Plant.plantProjection',
-    ]
-    OP_OTHER_KEYS = [
-        'comp1.Air.T',
-        'comp1.Air.RH',
-        'comp1.Air.ppm',
-        'comp1.PARsensor.Above',
-    ]
-    OP_PLANT_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OP_PLANT_KEYS]
-    OP_OTHER_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OP_OTHER_KEYS]
+    OP_PLANT_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_PL_KEYS]
+    OP_OTHER_INDEX = [OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_IN_KEYS]
 
     cp_arr, ep_arr, op_other_arr, op_plant_pre_arr, op_plant_cur_arr = [], [], [], [], []
     for name in tqdm(names):
@@ -680,7 +668,7 @@ class AGCDatasetPlant(Dataset):
     
     @property
     def op_plant_dim(self):
-        return self.op_plant_pre.shape[2]
+        return self.op_plant_pre.shape[1]
 
 
 def get_output(control, sim_id):
