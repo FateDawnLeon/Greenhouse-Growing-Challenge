@@ -163,5 +163,5 @@ if __name__ == '__main__':
         
         torch.save(
             {'state_dict': model.state_dict(), 'norm_data': norm_data}, 
-            f'{args.root_dir}/checkpoints/epoch={epoch}-train_loss={loss_train:.4f}-loss_val={loss_val:.4f}.pth'
+            f'{args.root_dir}/checkpoints/epoch={epoch}-loss_train={loss_train:.4f}-loss_val={loss_val:.4f}.pth'
         )

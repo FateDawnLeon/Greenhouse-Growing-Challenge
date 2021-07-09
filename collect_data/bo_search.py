@@ -6,21 +6,21 @@ from skopt.utils import use_named_args, dump
 from skopt.space import Integer, Real, Categorical
 
 from pprint import pprint
-from utils import ControlParams, ControlParamSimple
+from utils import ControlParamSimple
 from run_simulation import try_on_simulator
 import numpy as np
 import random
 
 
 DIMS = {
-    'A': [
+    'A1': [
         # runtime: method=gbrt_init=1000_ncall=10000_RS=42_SP=A_P=1_sim=A
         # Best Parameters: [37, 29.331173428460527, 19.740135016200067, 105.54579140908399, 735.4649817201819, 800.7794533665503, 1114.7327640161704, 10.831808389882115, 12.963267259805608, 16.377776700064487, 347.19371387181457]
         # Best NetProfit: 3.923
-        Integer(name='duration', low=30, high=50),
-        Real(name='temp_night', low=15, high=30),
-        Real(name='temp_day', low=5, high=20),
-        Real(name='CO2_supply_rate', low=100, high=200),
+        Integer(name='num_days', low=30, high=50),
+        Real(name='heatingTemp_night', low=15, high=30),
+        Real(name='heatingTemp_day', low=5, high=20),
+        Real(name='CO2_pureCap', low=100, high=200),
         Real(name='CO2_setpoint_night', low=400, high=800),
         Real(name='CO2_setpoint_day', low=800, high=1200),
         Real(name='CO2_setpoint_lamp', low=800, high=1200),
@@ -29,11 +29,11 @@ DIMS = {
         Real(name='light_endTime', low=0, high=24),
         Real(name='light_maxIglob', low=100, high=400),
     ],
-    'B': [
-        Integer(name='duration', low=35, high=45),
-        Real(name='temp_night', low=10, high=30),
-        Real(name='temp_day', low=10, high=20),
-        Real(name='CO2_supply_rate', low=100, high=200),
+    'A2': [
+        Integer(name='num_days', low=35, high=45),
+        Real(name='heatingTemp_night', low=10, high=30),
+        Real(name='heatingTemp_day', low=10, high=20),
+        Real(name='CO2_pureCap', low=100, high=200),
         Real(name='CO2_setpoint_night', low=400, high=1200),
         Real(name='CO2_setpoint_day', low=400, high=1200),
         Real(name='CO2_setpoint_lamp', low=400, high=1200),
@@ -42,11 +42,11 @@ DIMS = {
         Real(name='light_endTime', low=0, high=24),
         Real(name='light_maxIglob', low=100, high=200),
     ],
-    'C': [
-        Integer(name='duration', low=30, high=50),
-        Integer(name='temp_night', low=0, high=20),
-        Integer(name='temp_day', low=10, high=30),
-        Integer(name='CO2_supply_rate', low=100, high=200),
+    'A3': [
+        Integer(name='num_days', low=30, high=50),
+        Integer(name='heatingTemp_night', low=0, high=20),
+        Integer(name='heatingTemp_day', low=10, high=30),
+        Integer(name='CO2_pureCap', low=100, high=200),
         Integer(name='CO2_setpoint_night', low=0, high=1200),
         Integer(name='CO2_setpoint_day', low=0, high=1200),
         Integer(name='CO2_setpoint_lamp', low=0, high=1200),
@@ -55,22 +55,9 @@ DIMS = {
         Integer(name='light_endTime', low=0, high=24),
         Integer(name='light_maxIglob', low=100, high=300),
     ],
-    'D': [
+    'A4': [
         # Best Parameters: [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300]
         # Best NetProfit: 4.941
-        Integer(name='duration', low=38, high=42),
-        Integer(name='temp_night', low=10, high=15),
-        Integer(name='temp_day', low=15, high=30),
-        Integer(name='CO2_supply_rate', low=150, high=200),
-        Integer(name='CO2_setpoint_night', low=400, high=800),
-        Integer(name='CO2_setpoint_day', low=1199, high=1200),
-        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
-        Integer(name='light_intensity', low=0, high=200),
-        Integer(name='light_hours', low=10, high=20),
-        Integer(name='light_endTime', low=18, high=24),
-        Integer(name='light_maxIglob', low=299, high=300),
-    ],
-    'DPD': [
         Integer(name='num_days', low=38, high=42),
         Integer(name='heatingTemp_night', low=10, high=15),
         Integer(name='heatingTemp_day', low=15, high=30),
@@ -83,7 +70,20 @@ DIMS = {
         Integer(name='light_endTime', low=18, high=24),
         Integer(name='light_maxIglob', low=299, high=300),
     ],
-    'BSTPD': [
+    'A4PD': [
+        Integer(name='num_days', low=38, high=42),
+        Integer(name='heatingTemp_night', low=10, high=15),
+        Integer(name='heatingTemp_day', low=15, high=30),
+        Integer(name='CO2_pureCap', low=150, high=200),
+        Integer(name='CO2_setpoint_night', low=400, high=800),
+        Integer(name='CO2_setpoint_day', low=1199, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
+        Integer(name='light_intensity', low=0, high=200),
+        Integer(name='light_hours', low=10, high=20),
+        Integer(name='light_endTime', low=18, high=24),
+        Integer(name='light_maxIglob', low=299, high=300),
+    ],
+    'A4BSTPD': [
         Categorical([38], name='num_days'),
         Categorical([10], name='heatingTemp_night'),
         Categorical([26], name='heatingTemp_day'),
@@ -96,13 +96,13 @@ DIMS = {
         Categorical([24], name='light_endTime'),
         Categorical([300], name='light_maxIglob')
     ],
-    'E': [
+    'A5': [
         # Best Parameters: [38, 9.5, 26.1, 184, 603, 1199, 857, 4, 4.2, 6.0, 300]
         # Best NetProfit: 4.94
-        Integer(name='duration', low=35, high=40),
-        Real(name='temp_night', low=8, high=12),
-        Real(name='temp_day', low=24, high=28),
-        Integer(name='CO2_supply_rate', low=175, high=200),
+        Integer(name='num_days', low=35, high=40),
+        Real(name='heatingTemp_night', low=8, high=12),
+        Real(name='heatingTemp_day', low=24, high=28),
+        Integer(name='CO2_pureCap', low=175, high=200),
         Integer(name='CO2_setpoint_night', low=600, high=800),
         Integer(name='CO2_setpoint_day', low=1199, high=1200),
         Integer(name='CO2_setpoint_lamp', low=800, high=1000),
@@ -111,10 +111,13 @@ DIMS = {
         Real(name='light_endTime', low=0, high=24),
         Integer(name='light_maxIglob', low=299, high=300),
     ],
-    'F': [
+    'A6': [
         # Best Parameters: [193, 672, 1124, 949, 0, 8.0, 0.4]
         # Best NetProfit: 4.901
-        Integer(name='CO2_supply_rate', low=100, high=200),
+        # num_days=38,
+        # heatingTemp_night=10,
+        # heatingTemp_day=26,
+        Integer(name='CO2_pureCap', low=100, high=200),
         Integer(name='CO2_setpoint_night', low=600, high=800),
         Integer(name='CO2_setpoint_day', low=800, high=1200),
         Integer(name='CO2_setpoint_lamp', low=800, high=1200),
@@ -122,11 +125,11 @@ DIMS = {
         Real(name='light_hours', low=0, high=24),
         Real(name='light_endTime', low=0, high=24),
     ],
-    'AA': [
-        Integer(name='duration', low=35, high=45),
-        Integer(name='temp_night', low=5, high=15),
-        Integer(name='temp_day', low=15, high=30),
-        Integer(name='CO2_supply_rate', low=100, high=200),
+    'A7': [
+        Integer(name='num_days', low=35, high=45),
+        Integer(name='heatingTemp_night', low=5, high=15),
+        Integer(name='heatingTemp_day', low=15, high=30),
+        Integer(name='CO2_pureCap', low=100, high=200),
         Integer(name='CO2_setpoint_night', low=400, high=800),
         Integer(name='CO2_setpoint_day', low=800, high=1200),
         Integer(name='CO2_setpoint_lamp', low=800, high=1200),
@@ -135,7 +138,8 @@ DIMS = {
         Integer(name='light_endTime', low=0, high=24),
         Integer(name='light_maxIglob', low=200, high=300),
     ],
-    'BB': [
+    'B1': [
+        # D=39_TN=9.0_TD=19.0_CO2Cap=157.0_CO2N=562.0_CO2D=1129.0_CO2L=1128.0_LI=19.0_LH=5.0_LET=20.0_LMI=384.0.json
         Integer(name='num_days', low=35, high=45),
         Integer(name='heatingTemp_night', low=5, high=15),
         Integer(name='heatingTemp_day', low=15, high=30),
@@ -147,7 +151,7 @@ DIMS = {
         Integer(name='light_hours', low=0, high=20),
         Integer(name='light_maxIglob', low=200, high=400),
     ],
-    'BB2': [
+    'B2': [
         # Best Parameters on B: [42, 5, 20, 184, 488, 955, 990, 64, 6, 267]
         # Best NetProfit on B: 4.714
         Integer(name='num_days', low=38, high=42),
@@ -159,6 +163,52 @@ DIMS = {
         Integer(name='CO2_setpoint_lamp', low=800, high=1000),
         Integer(name='light_intensity', low=0, high=100),
         Integer(name='light_hours', low=4, high=6),
+        Integer(name='light_maxIglob', low=100, high=300),
+    ],
+    'B3': [
+        # 'x*': [43,
+        # 5.971518146968884,
+        # 21.97330475346169,
+        # 193.14198622644798,
+        # 455.34083842135925,
+        # 998.8780689530633,
+        # 1011.9683308027328,
+        # 98.92770840263574,
+        # 6.814450817359264,
+        # 274.0868943754343],
+        # 'y*': -2.052, on sim B
+        Integer(name='num_days', low=41, high=43),
+        Real(name='heatingTemp_night', low=4, high=6),
+        Real(name='heatingTemp_day', low=18, high=22),
+        Real(name='CO2_pureCap', low=180, high=200),
+        Real(name='CO2_setpoint_night', low=450, high=500),
+        Real(name='CO2_setpoint_day', low=900, high=1000),
+        Real(name='CO2_setpoint_lamp', low=950, high=1050),
+        Real(name='light_intensity', low=50, high=100),
+        Real(name='light_hours', low=5, high=7),
+        Real(name='light_maxIglob', low=250, high=300),
+    ],
+    'B4': [
+        # 'x*': [42,
+        # 13.234358952995306,
+        # 29.75105761810473,
+        # 184,
+        # 773,
+        # 943,
+        # 1198,
+        # 66,
+        # 8.408759459289103,
+        # 169],
+        # 'y*': -2.209, on sim B
+        Integer(name='num_days', low=35, high=45),
+        Real(name='heatingTemp_night', low=0, high=15),
+        Real(name='heatingTemp_day', low=15, high=30),
+        Integer(name='CO2_pureCap', low=100, high=300),
+        Integer(name='CO2_setpoint_night', low=400, high=800),
+        Integer(name='CO2_setpoint_day', low=800, high=1200),
+        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
+        Integer(name='light_intensity', low=0, high=200),
+        Real(name='light_hours', low=0, high=20),
         Integer(name='light_maxIglob', low=100, high=300),
     ]
 }
@@ -195,135 +245,16 @@ def add_plantDensity(dims):
     dims.append(Categorical(control_densitys, name='plantDensity'))
     return dims
 
-DIMS['DPD'] = add_plantDensity(DIMS['DPD'])
-DIMS['BSTPD'] = add_plantDensity(DIMS['BSTPD'])
+DIMS['A4PD'] = add_plantDensity(DIMS['A4PD'])
+DIMS['A4BSTPD'] = add_plantDensity(DIMS['A4BSTPD'])
 
-class NetProfitOptimizer(object):
-    # deprecated: dont use this one
-    def __init__(self, args):
-        super().__init__()
-        self.dimensions = DIMS[args.dimension_spec]
-        self.data_dir = args.data_dir
-        self.n_calls = args.num_calls
-        self.n_initial_points = args.num_initial_points
-        self.random_state = args.random_seed
-        self.simulator = args.simulator
-        self.float_precision = args.float_precision
-
-        target_func = self.netprofit2 if args.dimension_spec == 'F' else self.netprofit
-        self.target_func = use_named_args(dimensions=self.dimensions)(target_func)
-
-    def netprofit(self,
-                duration,
-                temp_night,
-                temp_day,
-                CO2_supply_rate,
-                CO2_setpoint_night,
-                CO2_setpoint_day,
-                CO2_setpoint_lamp,
-                light_intensity,
-                light_hours,
-                light_endTime,
-                light_maxIglob):
-        
-        duration = int(duration)
-        temp_night = round(float(temp_night), self.float_precision)
-        temp_day = round(float(temp_day), self.float_precision)
-        CO2_supply_rate = round(float(CO2_supply_rate), self.float_precision)
-        CO2_setpoint_night = round(float(CO2_setpoint_night), self.float_precision)
-        CO2_setpoint_day = round(float(CO2_setpoint_day), self.float_precision)
-        CO2_setpoint_lamp = round(float(CO2_setpoint_lamp), self.float_precision)
-        light_intensity = round(float(light_intensity), self.float_precision)
-        light_hours = round(float(light_hours), self.float_precision)
-        light_endTime = round(float(light_endTime), self.float_precision)
-        light_maxIglob = round(float(light_maxIglob), self.float_precision)
-
-        CP = ControlParams()
-        CP.set_end_date(duration=duration)
-        CP.set_temperature(
-            heatingTemp={"01-01": {"r-1": temp_night,
-                                    "r+1": temp_day, "s-1": temp_day, "s+1": temp_night}}
-        )
-        CP.set_CO2(
-            pureCO2cap=CO2_supply_rate,
-            setpoint={"01-01": {"r-1": CO2_setpoint_night, "r+1": CO2_setpoint_day,
-                                "s-1": CO2_setpoint_day, "s+1": CO2_setpoint_night}},
-            setpIfLamps=CO2_setpoint_lamp
-        )
-        CP.set_illumination(
-            enabled=light_intensity > 0,
-            intensity=light_intensity,
-            hoursLight=light_hours,
-            endTime=light_endTime,
-            maxIglob=light_maxIglob,
-        )
-        
-
-        control_name = f'D={duration}_TN={temp_night}_TD={temp_day}_CO2Cap={CO2_supply_rate}_CO2N={CO2_setpoint_night}_CO2D={CO2_setpoint_day}_CO2L={CO2_setpoint_lamp}_LI={light_intensity}_LH={light_hours}_LET={light_endTime}_LMI={light_maxIglob}.json'
-        control_dir = f'{self.data_dir}/controls'
-        output_dir = f'{self.data_dir}/outputs'
-        CP.save_as_json(control_dir, control_name)
-
-        output = try_on_simulator(control_name, control_dir, output_dir, self.simulator)
-
-        return - output['stats']['economics']['balance']
-
-    def netprofit2(self, 
-                CO2_supply_rate,
-                CO2_setpoint_night,
-                CO2_setpoint_day,
-                CO2_setpoint_lamp,
-                light_intensity,
-                light_hours,
-                light_endTime):
-        return self.netprofit(
-            duration=38,
-            temp_night=10,
-            temp_day=26,
-            CO2_supply_rate=CO2_supply_rate,
-            CO2_setpoint_night=CO2_setpoint_night,
-            CO2_setpoint_day=CO2_setpoint_day,
-            CO2_setpoint_lamp=CO2_setpoint_lamp,
-            light_intensity=light_intensity,
-            light_hours=light_hours,
-            light_endTime=light_endTime,
-            light_maxIglob=300
-        )
-
-    def save_result(self, res):
-        result = {
-            'space': res.space,
-            'random_state': res.random_state,
-            'xs': res.x_iters,
-            'ys': list(res.func_vals),
-            'x*': res.x,
-            'y*': res.fun,
-        }
-        
-        dump(result, f'{self.data_dir}/result.gz')
-        
-        with open(f'{self.data_dir}/result.log', 'w') as log_file:
-            pprint(result, log_file)
-
-    def optimize(self, opt, verbose):
-        if opt == 'gp':
-            opt_func = gp_minimize
-        elif opt == 'forest':
-            opt_func = forest_minimize
-        elif opt == 'gbrt':
-            opt_func = gbrt_minimize
-        else:
-            raise NotImplementedError(f'optimizer {opt} not supported!')
-
-        return opt_func(
-            func=self.target_func,
-            dimensions=self.dimensions,
-            n_initial_points=self.n_initial_points,
-            n_calls=self.n_calls,
-            random_state=self.random_state,
-            callback=self.save_result,
-            verbose=verbose
-        )
+def make_day_scheme(dt1, v1, dt2, v2, dt3, v3, dt4, v4):
+    return {
+        f'r-{dt1}': v1,
+        f'r+{dt2}': v2, 
+        f's-{dt3}': v3,
+        f's+{dt4}': v4,
+    }
 
 
 def get_func_and_callback(args):
@@ -457,9 +388,6 @@ if __name__ == '__main__':
     print(args)
 
     assert args.num_calls >= args.num_initial_points
-
-    # optimizer = NetProfitOptimizer(args)
-    # res  = optimizer.optimize(opt=args.optimizer, verbose=args.logging)
 
     res = optimize(args)
     

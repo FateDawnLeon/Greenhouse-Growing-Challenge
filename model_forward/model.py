@@ -1,11 +1,6 @@
-from numpy.core.fromnumeric import ndim
-from numpy.core.numeric import outer
-from numpy.lib.function_base import select
 import torch
-from torch import nn
+import torch.nn as nn
 import numpy as np
-from torch._C import set_flush_denormal
-from torch.functional import atleast_1d
 
 
 def get_spacing_scheme(plant_density):

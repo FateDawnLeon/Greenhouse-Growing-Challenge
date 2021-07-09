@@ -252,3 +252,7 @@ collect_data/data_sample*/
 *.pkl
 *.ipynb
 policy/data/
+
+*.pth
+*.npz
+*.npy

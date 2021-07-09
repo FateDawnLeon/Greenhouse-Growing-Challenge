@@ -128,6 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--wd', type=float, default=1e-5)
     parser.add_argument('--max-epochs', type=int, default=1)
+    parser.add_argument('--lr-milestones', type=int, nargs='+', default=[50, 75])
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--train-dirs', nargs='+', required=True)
     parser.add_argument('--val-dirs', nargs='+', required=True)
@@ -148,7 +149,7 @@ if __name__ == '__main__':
     model = Model(op_dim=train_loader.dataset.op_dim)
 
     optimizer = get_optimizer(model, args)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[50, 75], gamma=0.1)
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_milestones, gamma=0.1)
     criterion = nn.MSELoss()
 
     logger = Logger(args.print_interval, len(train_loader))
