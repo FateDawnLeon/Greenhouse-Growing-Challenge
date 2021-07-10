@@ -27,7 +27,7 @@ class GreenhouseSim(gym.Env):
         # comp1.heatingpipes.pipe1.@maxTemp = 60; sim_idx: 1
         # comp1.heatingpipes.pipe1.@minTemp = 0; sim_idx: 2
         # comp1.heatingpipes.pipe1.@radiationInfluence = [0, 0]; sim_idx: 3,4
-        [0, 60],  # comp1.setpoints.temp.@heatingTemp; sim_idx: 5; agent_idx: 1
+        [0, 40],  # comp1.setpoints.temp.@heatingTemp; sim_idx: 5; agent_idx: 1
         [0, 5],  # comp1.setpoints.temp.@ventOffset; sim_idx: 6; agent_idx: 2
         # comp1.setpoints.temp.@radiationInfluence = [50, 150, 1]; sim_idx: 7, 8, 9
         # @PbandVent [1] [3] needs to be descending
