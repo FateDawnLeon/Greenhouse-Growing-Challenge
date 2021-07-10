@@ -188,24 +188,30 @@ class Model(nn.Module):
         self.in_features = self.CP_DIM + self.EP_DIM + self.OP_NON_PLANT_DIM
         self.out_features = self.OP_NON_PLANT_DIM
 
-        self.net = nn.Sequential(
-            nn.Linear(self.in_features, 64),
-            nn.BatchNorm1d(64),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(64, self.out_features),
-        )
         # self.net = nn.Sequential(
         #     nn.Linear(self.in_features, 64),
         #     nn.BatchNorm1d(64),
         #     nn.LeakyReLU(inplace=True),
-        #     nn.Linear(64, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.LeakyReLU(inplace=True),
-        #     nn.Linear(64, 64),
-        #     nn.BatchNorm1d(64),
-        #     nn.LeakyReLU(inplace=True),
         #     nn.Linear(64, self.out_features),
         # )
+        self.net = nn.Sequential(
+            nn.Linear(self.in_features, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(64, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(64, self.out_features),
+        )
 
     def forward(self, cp, ep_prev, op_prev):
         x = torch.cat([cp, ep_prev, op_prev], dim=1) # B x (cp_dim + ep_dim + op_dim)
