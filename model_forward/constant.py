@@ -74,9 +74,9 @@ OUTPUT_PL_KEYS = [
 OUTPUT_KEYS_RANGE = {
     # ================= need to predict =================
     # Greenhouse Env Param: directly related to FW and DMC
-    'comp1.Air.T': [15, 30],  # lower=0, upper=30
-    'comp1.Air.RH': [40, 90],  # lower=0, upper=100
-    'comp1.Air.ppm': [300, 1000],  # lower=0, upper=1200
+    'comp1.Air.T': [0, 30],  # lower=0, upper=30  # [15, 30]
+    'comp1.Air.RH': [0, 100],  # lower=0, upper=100  # [40, 90]
+    'comp1.Air.ppm': [0, 1200],  # lower=0, upper=1200  # [300, 1000]
     'comp1.PARsensor.Above': [0, 1200],  # lower=0, upper=1200
     # Crop Growth Param: directly realted to gain
     'comp1.Plant.headFW': [0, 500],  # lower=0, upper=500
@@ -128,5 +128,5 @@ INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for s
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
 # TODO: change model checkpoint paths
-MODEL_IN_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_nonplant_epoch=1.pth'
+MODEL_IN_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/epoch=69-train_loss=0.1328-loss_val=0.1265.pth'
 MODEL_PL_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_plant-epoch=193.pth'

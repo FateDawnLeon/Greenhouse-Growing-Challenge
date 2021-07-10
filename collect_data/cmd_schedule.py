@@ -38,11 +38,11 @@ if __name__ == '__main__':
     #     plan=False
     # )
     run_BO(
-        simulator='A',
-        num_calls=1000,
-        num_init_points=100,
-        dimension_spec='A4PD2',
-        optimizer='gp',
-        precision=0,
+        simulator='B',
+        num_calls=100,
+        num_init_points=10,
+        dimension_spec='B4',
+        optimizer='gbrt',
+        precision=1,
         plan=False
     )
