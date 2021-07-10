@@ -5,7 +5,7 @@ hyper = {
     'bl': 'Gaussian',  # baseline: Linear
     'bls': (32, 32),  # baseline hidden size
     'n_epochs': 500,
-    'batch_size': 5000,
+    'batch_size': 5000,  
     'seed': 1
 }
 hyper['clip'] = 0.01 if hyper['alg'] == 'TRPO' else 0.2  # TRPO default = 0.01; PPO default = 0.2

@@ -10,6 +10,7 @@ from utils import ControlParamSimple
 from run_simulation import try_on_simulator
 import numpy as np
 import random
+import copy
 
 
 DIMS = {
@@ -70,20 +71,7 @@ DIMS = {
         Integer(name='light_endTime', low=18, high=24),
         Integer(name='light_maxIglob', low=299, high=300),
     ],
-    'A4PD': [
-        Integer(name='num_days', low=38, high=42),
-        Integer(name='heatingTemp_night', low=10, high=15),
-        Integer(name='heatingTemp_day', low=15, high=30),
-        Integer(name='CO2_pureCap', low=150, high=200),
-        Integer(name='CO2_setpoint_night', low=400, high=800),
-        Integer(name='CO2_setpoint_day', low=1199, high=1200),
-        Integer(name='CO2_setpoint_lamp', low=800, high=1200),
-        Integer(name='light_intensity', low=0, high=200),
-        Integer(name='light_hours', low=10, high=20),
-        Integer(name='light_endTime', low=18, high=24),
-        Integer(name='light_maxIglob', low=299, high=300),
-    ],
-    'A4BSTPD': [
+    'A4BST': [
         Categorical([38], name='num_days'),
         Categorical([10], name='heatingTemp_night'),
         Categorical([26], name='heatingTemp_day'),
@@ -213,7 +201,7 @@ DIMS = {
     ]
 }
 
-def add_plantDensity(dims):
+def add_plantDensity1(dims):
     start_density_range = np.arange(80, 91, 5)  # 80,85,90
     end_density_range = np.arange(5, 16, 5)  # 5,10,15
     skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
@@ -242,11 +230,63 @@ def add_plantDensity(dims):
         unique_densitys = set(control_densitys)
         control_densitys = list(unique_densitys)
 
-    dims.append(Categorical(control_densitys, name='plantDensity'))
-    return dims
+    dims_pd = copy.deepcopy(dims)
+    dims_pd.append(Categorical(control_densitys, name='plantDensity'))
+    return dims_pd
 
-DIMS['A4PD'] = add_plantDensity(DIMS['A4PD'])
-DIMS['A4BSTPD'] = add_plantDensity(DIMS['A4BSTPD'])
+def add_plantDensity2(dims):
+    start_density_range = np.arange(80, 91, 5)  # 80,85,90
+    end_density_range = np.arange(5, 16, 5)  # 5,10,15
+    skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
+    change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
+
+    max_days = 38
+    control_densitys = []
+
+    for i in range(20000):
+        # "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
+        start_density = random.choice(start_density_range)
+        end_density = random.choice(end_density_range)
+            
+        days = 1
+        density = start_density
+        
+        skip_days = []
+        change_densitys = []
+        while True:
+            skip_day = random.choice(skip_day_range)
+            change_density = random.choice(change_density_range)
+            days = days+skip_day
+            if days>max_days: break
+            density = density - change_density
+            if density<end_density: break
+            skip_days.append(skip_day)
+            change_densitys.append(change_density)
+        change_densitys.sort(reverse=True)
+
+        days = 1
+        density = start_density
+        control_density =  f'{days} {density}'
+        for i in range(len(skip_days)):
+            days = days + skip_days[i]
+            density = density - change_densitys[i]
+            control_density = f'{control_density}; {days} {density}'
+
+        if density in end_density_range:
+            control_densitys.append(control_density)
+    
+    dims_pd = copy.deepcopy(dims)
+    dims_pd.append(Categorical(control_densitys, name='plantDensity'))
+    return dims_pd
+
+DIMS['A4PD1'] = add_plantDensity1(DIMS['A4'])
+# 5.348
+# [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300, '1 85; 6 50; 15 25; 25 15']
+DIMS['A4BSTPD1'] = add_plantDensity1(DIMS['A4BST'])
+DIMS['A4PD2'] = add_plantDensity2(DIMS['A4'])
+# 5.433
+# [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300, '1 80; 9 50; 14 25; 20 20; 27 15']
+DIMS['A4BSTPD2'] = add_plantDensity2(DIMS['A4BST'])
 
 def make_day_scheme(dt1, v1, dt2, v2, dt3, v3, dt4, v4):
     return {

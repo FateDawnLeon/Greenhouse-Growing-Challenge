@@ -244,6 +244,7 @@ Temporary Items
 collect_data/control_jsons*/
 collect_data/output_jsons*/
 collect_data/data_sample*/
+collect_data/bo_data*/
 *.zip
 *.json
 *.png
