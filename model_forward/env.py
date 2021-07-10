@@ -90,7 +90,7 @@ class GreenhouseSim(gym.Env):
 
     bool_indices = [0, 17, 18, 19, 20, 27, 28, 29, 30, 31, 38, 39]
     unchangeable_indices = [8, 17, 18, 19, 20, 28, 29, 30, 31, 40]
-    daily_indices = [-1, -3]
+    daily_indices = [41, 43]
     descending_indices = [[4, 6], [12, 14, 16], [23, 25], [34, 36]]
     pick_one_indices = [[18, 19, 20], [29, 30, 31]]
     action_parse_indices = [0, 5, 6, 10, 11, 12, 13, 14, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
@@ -107,15 +107,17 @@ class GreenhouseSim(gym.Env):
 
         # loading checkpoint for model_in
         checkpoint_in = torch.load(model_in_path)
-        self.norm_data_in = checkpoint_in['norm_data']  # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
+        # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
+        self.norm_data_in = checkpoint_in['norm_data']
 
         # model to predict weather inside the greenhouse, per hour
         self.net_in = Model(norm_data=self.norm_data_in)
         self.net_in.load_state_dict(checkpoint_in['state_dict'])
         
-         # loading checkpoint for model_pl
+        # loading checkpoint for model_pl
         checkpoint_pl = torch.load(model_pl_path)
-        self.norm_data_pl = checkpoint_pl['norm_data']  # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
+        # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
+        self.norm_data_pl = checkpoint_pl['norm_data']
 
         # model to predict plant properties, per day
         self.net_pl = ModelPlant()       
@@ -508,9 +510,13 @@ class GreenhouseSim(gym.Env):
                 # type 2: daily
                 elif target[0] in GreenhouseSim.daily_indices:
                     assert val.shape[1] == 1
-                    # get action at the first hour of each day
                     val = val[::24, 0]
-                    val = {GreenhouseSim.__day2str(day): val[day] for day in range(num_days)}
+                    # special handling for @plantDensity
+                    if target[0] == 43:
+                        val = ';'
+                    else:
+                        # get action at the first hour of each day
+                        val = {GreenhouseSim.__day2str(day): val[day] for day in range(num_days)}
                 # type 3: hourly, single value
                 elif len(target) == 1:
                     val = np.reshape(val, (num_days, 24))
@@ -520,6 +526,7 @@ class GreenhouseSim(gym.Env):
                         }
                         for day in range(num_days)
                     }
+                # type 4: hourly, multiple values
                 else:
                     assert len(target) % 2 == 0
                     val = np.reshape(val, (num_days, 24, len(target) // 2, 2))
