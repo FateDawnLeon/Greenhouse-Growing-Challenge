@@ -159,7 +159,12 @@ class GreenhouseSim(gym.Env):
         if self.cp_prev is None:
             self.cp_prev = action
             self.agent_cp_daily = action
+
+        # enforce unchangeable actions
         action[self.unchangeable_indices] = self.cp_prev[self.unchangeable_indices]
+
+        # enforce descending @plantDensity
+        action[43] = min(action[43], self.cp_prev[43])
 
         # record action at the first hour at each day
         if (self.iter - self.start_iter) % 24 == 0:
