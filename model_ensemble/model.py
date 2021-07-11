@@ -201,13 +201,12 @@ class AGCModelEnsemble(nn.Module):
 
         models = nn.ModuleList()
         for ckpt_path in ckpt_paths:
-            ckpt = torch.load(ckpt_path)
+            ckpt = torch.load(ckpt_path, map_location=DEVICE)
             model = AGCModel(cp_dim, ep_dim, op_dim, ckpt['norm_data'])
             model.load_state_dict(ckpt['state_dict'])
             models.append(model)
         self.child_models = models
-        self.num_childmodels = len(self.child_models)
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.num_childmodels = len(self.child_models)      
 
     def forward(self, cp, ep, op, mode='average'):
         """
@@ -216,9 +215,9 @@ class AGCModelEnsemble(nn.Module):
             param `op`: Unnormalized greenhouse observation `s_op[t]` -> numpy.ndarray
             return `op_next_pred`: the predicted `s_op[t+1]` -> numpy.ndarray
         """
-        cp = cp.to(DEVICE)
-        ep = ep.to(DEVICE)
-        op = op.to(DEVICE)
+        # cp = cp.to(DEVICE)
+        # ep = ep.to(DEVICE)
+        # op = op.to(DEVICE)
 
         if mode == 'average':
             op_next_pred_all = [model.predict_op(cp, ep, op) for model in self.child_models]
