@@ -7,20 +7,17 @@ import gym
 import numpy as np
 import torch
 
-from ..model_ensemble.model import AGCModelEnsemble
-from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_IN_KEYS, OUTPUT_PL_KEYS, START_DATE, MATERIALS, \
-    ENV_KEYS_TO_INDEX, OUTPUT_KEYS_TO_INDEX, \
-    EP_PATH, TRACE_PATH, MODEL_PATHS
-from data import zscore_normalize as normalize
-from data import zscore_denormalize as denormalize
-
+from model import AGCModelEnsemble
+from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, ENV_KEYS_TO_INDEX, \
+                                    OUTPUT_KEYS_TO_INDEX, START_DATE, MATERIALS, EP_PATH, OP_TRACES_PATH,\
+                                    MODEL_PATHS
+from utils import normalize, unnormalize, get_ensemble_ckpt_paths
 
 class GreenhouseSim(gym.Env):
     min_fw = 210
     num_control_params = 56  # count from CONTROL_KEYS
     num_env_params = len(ENV_KEYS)
-    num_output_in = len(OUTPUT_IN_KEYS)
-    num_output_pl = len(OUTPUT_PL_KEYS)
+    num_op_params= len(OUTPUT_KEYS)
 
     action_range = np.array([
         [0, 1],  # end (bool); sim_idx: 0; agent_idx: 0  
@@ -99,11 +96,9 @@ class GreenhouseSim(gym.Env):
     init_day_range = 20
 
     def __init__(self, model_paths=MODEL_PATHS, ep_path=EP_PATH):
-        self.rng = np.random.default_rng()
-
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
-                                                shape=(self.num_env_params + self.num_output_in + self.num_output_pl,))
+                                                shape=(self.num_env_params + self.num_op_params,))
 
         # # loading checkpoint for model_in
         # checkpoint_in = torch.load(model_in_path)
@@ -124,11 +119,11 @@ class GreenhouseSim(gym.Env):
         # self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
 
         # loading initial state distribution
-        self.traces = np.load(TRACE_PATH, allow_pickle=True)  # list of trajectory each with shape (T, 20)
+        self.traces = np.load(OP_TRACES_PATH, allow_pickle=True)  # list of trajectory each with shape (T, 20)
 
+        ckpt_paths = get_ensemble_ckpt_paths('all')
         self.net = AGCModelEnsemble(self.num_control_params, self.num_env_params,
-                                    self.num_output_in + self.num_output_pl,
-                                    model_paths)
+                                    self.num_op_params, ckpt_paths)
         self.net.eval()
         self.norm_data = self.net.child_models[0].norm_data
 
@@ -141,7 +136,6 @@ class GreenhouseSim(gym.Env):
         self.iter = 0
         self.trace_idx = 0
         self.op = None
-        self.cp_day = None
         self.cp_prev = None
         self.agent_cp_daily = None
         self.num_spacings = 0  # TODO：space starts from 1 or 0?
@@ -182,20 +176,14 @@ class GreenhouseSim(gym.Env):
         # sim_action dim=57, action dim=44
         return sim_action[0], sim_action[1:], action
 
-    def seed(self, seed=None):
-        self.rng = np.random.default_rng(seed=seed)
-
     def step(self, action: np.ndarray):
         # print('action before parse:', action)
         # parse action to model input dim
         # end dim=1, model_action dim=56, agent_action dim=44
         end, model_action, agent_action = self.parse_action(action)
 
-        # store cp into daily history
-        self.cp_day[(self.iter - self.start_iter) % 24] = model_action
         # if this is the first action query, also copy it as action[0] and update CUM_HEAD_M2
         if self.iter - self.start_iter == 1:
-            self.cp_day[0] = model_action
             self.cum_head_m2 += 1 / model_action[-1]
 
         # update spacing info
@@ -208,8 +196,7 @@ class GreenhouseSim(gym.Env):
             self.cum_head_m2 += 1 / model_action[-1]
 
         # run net
-        op_prev = self.op
-        self.op = self.net.forward(action, self.env_values[self.iter - 1], op_prev)
+        self.op = self.net.forward(action, model_action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format
         # TODO: is this normalized?
@@ -294,8 +281,9 @@ class GreenhouseSim(gym.Env):
 
         # randomly choose a trace
         self.trace_idx = np.random.choice(self.traces.shape[0])
+        if self.traces[self.trace_idx].shape[0] <= self.iter:
+            return self.reset()
         self.op = self.traces[self.trace_idx][self.iter]
-        self.cp_day = np.zeros((24, self.num_control_params), dtype=np.float32)
         self.cp_prev = None
         self.agent_cp_daily = None
 
