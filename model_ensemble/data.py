@@ -498,7 +498,7 @@ class AGCDataset(Dataset):
 
 def prepare_op_traces(data_dirs):
     op_traces = []
-    for data_dir in data_dirs.split():
+    for data_dir in data_dirs:
         output_dir = os.path.join(data_dir, 'outputs')
         print(f'extracting OP traces from {data_dir} ...')
         for name in tqdm(os.listdir(output_dir)):
@@ -509,7 +509,7 @@ def prepare_op_traces(data_dirs):
 
 
 if __name__ == '__main__':
-    import argparse
+    # import argparse
 
     prefix = '/home/liuys/Greenhouse-Growing-Challenge/collect_data/data_sample/sim=A/'
 
@@ -540,11 +540,14 @@ if __name__ == '__main__':
         'data_sample=random_date=2021-07-06_sim=A_number=1000'
     ]
 
-    data_dirs = ' '.join(f'{prefix}{f}' for f in data_folders)
+    op_traces = prepare_op_traces(data_folders)
+    np.save('op_traces.npy', op_traces)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--data-dirs', type=str, nargs='+', default=data_dirs)
-    args = parser.parse_args()
+    # data_dirs = ' '.join(f'{prefix}{f}' for f in data_folders)
+
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--data-dirs', type=str, nargs='+', default=data_dirs)
+    # args = parser.parse_args()
 
     # dataset = AGCDataset(args.data_dirs, 'test_preprocess', force_preprocess=True)
     # norm_data = get_norm_data(dataset)
@@ -555,5 +558,5 @@ if __name__ == '__main__':
     # sps = CP_parser.parse_plant_density_to_setpoints("  1  80; 3   70 ; 3 70; 5 60; 7 1")
     # print(sps)
 
-    op_traces = prepare_op_traces(args.data_dirs)
-    np.save('op_traces.npy', op_traces)
+    # op_traces = prepare_op_traces(args.data_dirs)
+    
