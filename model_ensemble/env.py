@@ -95,7 +95,7 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_path = OP_TRACES_PATH):
+    def __init__(self, learning=True, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_path = OP_TRACES_PATH):
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                                 shape=(self.num_env_params + self.num_op_params,))
@@ -140,6 +140,7 @@ class GreenhouseSim(gym.Env):
         self.agent_cp_daily = None
         self.num_spacings = 0  # TODO：space starts from 1 or 0?
         self.cum_head_m2 = 0
+        self.learning = learning
 
     def parse_action(self, action):
         action[self.bool_indices] = action[self.bool_indices] > 0.5
@@ -196,7 +197,7 @@ class GreenhouseSim(gym.Env):
             self.cum_head_m2 += 1 / model_action[-1]
 
         # run net
-        op_prev = self.traces[self.trace_idx][self.iter]
+        op_prev = self.traces[self.trace_idx][self.iter] if self.learning else self.op
         self.op = self.net.forward(model_action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format
@@ -273,7 +274,8 @@ class GreenhouseSim(gym.Env):
     def reset(self, start=None):
         # if START is none, randomly choose a start date
         if start is None:
-            self.start_iter = np.random.choice(self.init_day_range) * 24
+            self.start_iter = np.random.choice(min(self.init_day_range, int(self.traces.shape[0]/24))) * 24\
+                             if self.learning else 0
         # otherwise, start from day START
         else:
             self.start_iter = start * 24
@@ -281,8 +283,6 @@ class GreenhouseSim(gym.Env):
 
         # randomly choose a trace
         self.trace_idx = np.random.choice(self.traces.shape[0])
-        if self.traces[self.trace_idx].shape[0] <= self.iter:
-            return self.reset()
         self.op = self.traces[self.trace_idx][self.iter]
         self.cp_prev = None
         self.agent_cp_daily = None
