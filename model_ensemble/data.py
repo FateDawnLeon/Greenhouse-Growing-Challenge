@@ -540,7 +540,7 @@ if __name__ == '__main__':
         'data_sample=random_date=2021-07-06_sim=A_number=1000'
     ]
 
-    op_traces = prepare_op_traces(data_folders)
+    op_traces = prepare_op_traces([prefix+folder for folder in data_folders])
     np.save('op_traces.npy', op_traces)
 
     # data_dirs = ' '.join(f'{prefix}{f}' for f in data_folders)
@@ -559,4 +559,3 @@ if __name__ == '__main__':
     # print(sps)
 
     # op_traces = prepare_op_traces(args.data_dirs)
-    
