@@ -136,6 +136,7 @@ if __name__ == '__main__':
     parser.add_argument('--print-interval', type=int, default=100)
     parser.add_argument('--optimizer', type=str, default='adam')
     parser.add_argument('-FP', '--force-preprocess', action='store_true')
+    parser.add_argument('-R', '--resume', type=str, default=None)
     args = parser.parse_args()
 
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
@@ -146,10 +147,17 @@ if __name__ == '__main__':
 
     norm_data = compute_mean_std(args.train_dirs + args.val_dirs)
     train_loader, val_loader = get_dataloaders(args, norm_data)
-    model = Model(op_dim=train_loader.dataset.op_dim)
+    model = Model(op_dim=train_loader.dataset.op_dim, norm_data=norm_data)
+
+    # if args.resume:
+    #     start_epoch = int(args.resume.split('/')[-1].split('-')[0].split('=')[1]) + 1
+    #     ckpt = torch.load(args.resume)
+    #     model.load_state_dict(ckpt['state_dict'])
+    #     args.lr_milestones = [m-start_epoch+1 for m in args.lr_milestones]
 
     optimizer = get_optimizer(model, args)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_milestones, gamma=0.1)
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_milestones, gamma=0.1)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, min_lr=1e-5)
     criterion = nn.MSELoss()
 
     logger = Logger(args.print_interval, len(train_loader))
@@ -157,7 +165,7 @@ if __name__ == '__main__':
     for epoch in range(1, args.max_epochs+1):
         loss_train = train_epoch(model, train_loader, criterion, optimizer, logger)
         loss_val = validate(model, val_loader, criterion)
-        scheduler.step()
+        scheduler.step(loss_val)
 
         print(f'Epoch[{epoch}] Train Loss: {loss_train:.4f} | Val Loss: {loss_val:.4f}')
         

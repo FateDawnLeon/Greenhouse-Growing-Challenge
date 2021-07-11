@@ -146,7 +146,11 @@ if __name__ == '__main__':
 
     norm_data = compute_mean_std_plant(args.train_dirs + args.val_dirs)
     train_loader, val_loader = get_dataloaders(args, norm_data)
-    model = ModelPlant(op_other_dim=train_loader.dataset.op_other_dim, op_plant_dim=train_loader.dataset.op_plant_dim)
+    model = ModelPlant(
+        op_other_dim=train_loader.dataset.op_other_dim, 
+        op_plant_dim=train_loader.dataset.op_plant_dim,
+        norm_data=norm_data
+    )
 
     optimizer = get_optimizer(model, args)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_milestones, gamma=0.1)

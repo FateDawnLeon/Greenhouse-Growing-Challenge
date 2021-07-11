@@ -1,7 +1,4 @@
-import json
 import random
-
-from numpy import save
 from control_param import ControlParamSimple
 
 
@@ -106,24 +103,87 @@ def sample_CP_random():
     return CP
 
 
+def make_CP():
+    CP = ControlParamSimple()
+    CP.set_endDate(num_days=42)
+    CP.set_value("comp1.heatingpipes.pipe1.@maxTemp", 60)
+    CP.set_value("comp1.heatingpipes.pipe1.@minTemp", 0)
+    CP.set_value("comp1.heatingpipes.pipe1.@radiationInfluence", "0 0")
+    
+    # ============== sample temp params ============== 
+    CP.set_value("comp1.setpoints.temp.@heatingTemp", {'01-01': {'r-1':5, 'r+1':20, 's-1':20, 's+1':5}})
+    # CP.set_value("comp1.setpoints.temp.@ventOffset", {})
+    # CP.set_value("comp1.setpoints.temp.@radiationInfluence", "0")
+    # CP.set_value("comp1.setpoints.temp.@PbandVent", {})
+    
+    # ============== sample ventilation params ============== 
+    # CP.set_value("comp1.setpoints.ventilation.@startWnd", {})
+    # CP.set_value("comp1.setpoints.ventilation.@winLeeMin", 0)
+    # CP.set_value("comp1.setpoints.ventilation.@winLeeMax", 100)
+    # CP.set_value("comp1.setpoints.ventilation.@winWndMin", 0)
+    # CP.set_value("comp1.setpoints.ventilation.@winWndMax", 100)
+    
+    # ============== sample CO2 params ============== 
+    CP.set_value("common.CO2dosing.@pureCO2cap", 184)
+    CP.set_value("comp1.setpoints.CO2.@setpoint", {'01-01': {'r-1':488, 'r+1':955, 's-1':955, 's+1':488}})
+    CP.set_value("comp1.setpoints.CO2.@setpIfLamps", 990)
+    # CP.set_value("comp1.setpoints.CO2.@doseCapacity", {})
+    
+    # ============== sample screen params ============== 
+    # CP.set_value(f"comp1.screens.scr1.@enabled", True)
+    # CP.set_value(f"comp1.screens.scr1.@material", 'scr_Transparent.par')
+    # CP.set_value(f"comp1.screens.scr1.@ToutMax", {})
+    # CP.set_value(f"comp1.screens.scr1.@closeBelow", {})
+    # CP.set_value(f"comp1.screens.scr1.@closeAbove", {})
+    # CP.set_value(f"comp1.screens.scr1.@lightPollutionPrevention", True)
+    # CP.set_value(f"comp1.screens.scr2.@enabled", True)
+    # CP.set_value(f"comp1.screens.scr2.@material", 'scr_Transparent.par')
+    # CP.set_value(f"comp1.screens.scr2.@ToutMax", {})
+    # CP.set_value(f"comp1.screens.scr2.@closeBelow", {})
+    # CP.set_value(f"comp1.screens.scr2.@closeAbove", {})
+    # CP.set_value(f"comp1.screens.scr2.@lightPollutionPrevention", True)
+    
+    # ============== sample illumination params ==============
+    CP.set_value("comp1.illumination.lmp1.@enabled", True)
+    CP.set_value("comp1.illumination.lmp1.@intensity", 64)
+    CP.set_value("comp1.illumination.lmp1.@endTime", 20)
+    CP.set_value("comp1.illumination.lmp1.@hoursLight", 6)
+    CP.set_value("comp1.illumination.lmp1.@maxIglob", 267)
+
+    # CP.set_hoursLight(6)
+    # CP.set_maxIglob(267)
+    # CP.set_maxPARsum({})
+
+    # ============== sample plant density ==============
+    CP.set_value("crp_lettuce.Intkam.management.@plantDensity", "1 90; 7 60; 14 40; 21 30; 28 20; 34 15")  # density must be in range of [1, 90]
+
+    return CP
+
+
 if __name__ == '__main__':
     import os
+    import datetime
+    import argparse
     from tqdm import tqdm
     from data import get_output, save_json_data
 
-    simulator = 'A'
-    N = 100
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-S', '--simulator', type=str, default='A')
+    parser.add_argument('-N', '--num-samples', type=int, required=True)
+    args = parser.parse_args()
 
-    save_dir = f'../collect_data/data_sample=random_date=0705_sim={simulator}_number={N}'
+    today = datetime.date.today().isoformat()
+    save_dir = f'../collect_data/data_sample=random_date={today}_sim={args.simulator}_number={args.num_samples}'
     control_dir = f'{save_dir}/controls'
     output_dir = f'{save_dir}/outputs'
+    
     os.makedirs(control_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    for _ in tqdm(range(N)):
+    for _ in tqdm(range(args.num_samples)):
         CP = sample_CP_random()
         sample_name = f'{hex(hash(CP))}.json'
-
         CP.dump_json(control_dir, sample_name)
-        output = get_output(CP.data, simulator)
+        
+        output = get_output(CP.data, args.simulator)
         save_json_data(output, f'{output_dir}/{sample_name}')

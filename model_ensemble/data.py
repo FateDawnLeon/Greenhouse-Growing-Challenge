@@ -396,7 +396,8 @@ def preprocess_data(data_dir, save_name, ep_keys, op_keys):
         control = load_json_data(os.path.join(control_dir, name))
         output = load_json_data(os.path.join(output_dir, name))
 
-        assert output['responsemsg'] == 'ok'
+        if output['responsemsg'] != 'ok':
+            continue
 
         control_vals = parse_control(control) # control_vals: T x CP_DIM
         env_vals = parse_output_to_EP(output, ep_keys) # env_vals: T x EP_DIM

@@ -245,7 +245,7 @@ class Model(nn.Module):
         return op_cur.cpu().numpy().flatten()
 
     
-    def rollout(self, cp_cur, ep_pre, op_pre_0):
+    def rollout_multistep(self, cp_cur, ep_pre, op_pre_0):
         self.net.eval()
 
         T = cp_cur.shape[0]
@@ -269,11 +269,43 @@ class Model(nn.Module):
                 op = torch.maximum(op, self.min_val)
                 op = torch.minimum(op, self.max_val)
             op_pred = zscore_denormalize(op.flatten().cpu().numpy(), self.norm_data['op_mean'], self.norm_data['op_std'])
+            np.round(op_pred)
             # op[-2:] = (op[-2:]>self.norm_data['op_mean'][-2:]).astype(np.float32)
 
             op_cur_prediction.append(op_pred)
 
         return np.asarray(op_cur_prediction, dtype=np.float32) # T x num_op_params
+    
+    
+    def rollout_onestep(self, cp_cur, ep_pre, op_pre):
+        self.net.eval()
+
+        T = cp_cur.shape[0]
+
+        # cp_cur: np.ndarray -> T x num_cp_params 
+        # ep_pre: np.ndarray -> T x num_ep_params
+        # op_pre_1: np.ndarray -> num_op_params
+
+        op_cur_prediction = []
+        for i in range(T):
+            cp = zscore_normalize(cp_cur[i], self.norm_data['cp_mean'], self.norm_data['cp_std'])
+            ep = zscore_normalize(ep_pre[i], self.norm_data['ep_mean'], self.norm_data['ep_std'])
+            op = zscore_normalize(op_pre[i], self.norm_data['op_mean'], self.norm_data['op_std'])
+            
+            cp = torch.from_numpy(cp).unsqueeze(0)
+            ep = torch.from_numpy(ep).unsqueeze(0)
+            op = torch.from_numpy(op).unsqueeze(0)
+            
+            with torch.no_grad():
+                op = self.forward(cp, ep, op)
+                op = torch.maximum(op, self.min_val)
+                op = torch.minimum(op, self.max_val)
+            op_pred = zscore_denormalize(op.flatten().cpu().numpy(), self.norm_data['op_mean'], self.norm_data['op_std'])
+            op_cur_prediction.append(op_pred)
+
+        op_pred_arr = np.asarray(op_cur_prediction, dtype=np.float32) # T x num_op_params
+
+        return np.around(op_pred_arr)
 
 
 class ModelPlant(nn.Module):
