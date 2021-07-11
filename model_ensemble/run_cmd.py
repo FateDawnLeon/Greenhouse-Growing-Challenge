@@ -1,4 +1,6 @@
 import os
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
+
 import random
 import string
 
