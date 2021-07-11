@@ -58,6 +58,7 @@ def validate(model, val_loader):
 
 def get_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', type=str, default='0')
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--wd', type=float, default=0)
     parser.add_argument('--max-iters', type=int, default=20000)
@@ -75,6 +76,8 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     print(args)
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
 
     train_dataset = AGCDataset(args.train_dirs, force_preprocess=args.force_preprocess)
