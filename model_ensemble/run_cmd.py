@@ -16,6 +16,8 @@ def train_single_model():
         --root-dir trained_models/single_model \
         --train-dirs YOUR_OWN_DIRS \
         --val-dirs YOUR_OWN_DIRS'
+    if reparse_all_data:
+        cmd += ' -FP'
     os.system(cmd)
 
 
@@ -26,6 +28,8 @@ def train_ensemble_model(N=10):
             --root-dir trained_models/ensemble_model_{model_id}_child[{n}] \
             --train-dirs YOUR_OWN_DIRS \
             --val-dirs YOUR_OWN_DIRS'
+        if reparse_all_data:
+            cmd += ' -FP'
         os.system(cmd)
 
 
