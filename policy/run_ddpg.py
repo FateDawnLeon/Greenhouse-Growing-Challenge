@@ -21,8 +21,9 @@ from garage.sampler import LocalSampler, RaySampler, DefaultWorker, VecWorker, F
 from garage.tf.algos import TRPO, PPO
 from ddpg import DDPG
 from garage.tf.policies import GaussianMLPPolicy, GaussianLSTMPolicy, ContinuousMLPPolicy
-from garage.np.exploration_policies import AddOrnsteinUhlenbeckNoise
-from path_buffer import PathBuffer
+from garage.np.exploration_policies import AddOrnsteinUhlenbeckNoise, AddGaussianNoise, epsilon_greedy_policy
+from bath_buffer import PathBuffer
+from her_replay_buffer import HERReplayBuffer
 from garage.tf.q_functions import ContinuousMLPQFunction
 from garage.trainer import TFTrainer
 from parameters import hyper, log_folder
@@ -34,10 +35,12 @@ from parameters import hyper, log_folder
 @click.option('--qfs0', default=hyper['qfs'][0])
 @click.option('--qfs1', default=hyper['qfs'][1])
 @click.option('--n_epochs', default=hyper['n_epochs'])
+@click.option('--buffer', default=hyper['buffer'])
+@click.option('--expl', default=hyper['expl'])
 @click.option('--batch_size', default=hyper['batch_size'])
 @click.option('--seed', default=hyper['seed'])
-@wrap_experiment(prefix='model69', name=log_folder, snapshot_mode='last')  # snapshot_mode='last'/'all'
-def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, n_epochs, batch_size, seed):
+@wrap_experiment(prefix='model_final', name=log_folder, snapshot_mode='last')  # snapshot_mode='last'/'all'
+def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_epochs, batch_size, seed):
     """Train DDPG with greenhouse sim.
 
     Args:
@@ -67,14 +70,21 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, n_epochs, batch_size, seed):
                 hidden_dim=pls0,
             )
 
-        exploration_policy = AddOrnsteinUhlenbeckNoise(env.spec,
-                                                       policy,
-                                                       sigma=0.2)
+        if expl == 'Ornstein':
+            exploration_policy = AddOrnsteinUhlenbeckNoise(env.spec, policy, sigma=0.2)
+        elif expl == 'Gaussian':
+            exploration_policy = AddGaussianNoise(env.spec, policy)
+        elif expl == 'epsilon':
+            exploration_policy = epsilon_greedy_policy(env.spec, policy)
         
         qf = ContinuousMLPQFunction(env_spec=env.spec,
                                     hidden_sizes=(qfs0, qfs1))
 
+
+        if buffer == 'path':
         replay_buffer = PathBuffer(capacity_in_transitions=int(1e6))
+        elif buffer == 'her':
+            replay_buffer = HERReplayBuffer(capacity_in_transitions=int(1e6))
 
         # sampler = RaySampler(agents=exploration_policy,
         #                      envs=env,
