@@ -7,10 +7,10 @@ import gym
 import numpy as np
 import torch
 
-from model import Model, ModelPlant
+from ..model_ensemble.model import AGCModelEnsemble
 from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_IN_KEYS, OUTPUT_PL_KEYS, START_DATE, MATERIALS, \
-    ENV_KEYS_TO_INDEX, OUTPUT_KEYS_TO_INDEX, OUTPUT_IN_KEYS_TO_INDEX, OUTPUT_PL_KEYS_TO_INDEX, \
-    EP_PATH, INIT_STATE_PATH, MODEL_IN_PATH, MODEL_PL_PATH
+    ENV_KEYS_TO_INDEX, OUTPUT_KEYS_TO_INDEX, \
+    EP_PATH, TRACE_PATH, MODEL_PATHS
 from data import zscore_normalize as normalize
 from data import zscore_denormalize as denormalize
 
@@ -98,33 +98,39 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, model_in_path=MODEL_IN_PATH, model_pl_path=MODEL_PL_PATH, ep_path=EP_PATH):
+    def __init__(self, model_paths=MODEL_PATHS, ep_path=EP_PATH):
         self.rng = np.random.default_rng()
 
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                                 shape=(self.num_env_params + self.num_output_in + self.num_output_pl,))
 
-        # loading checkpoint for model_in
-        checkpoint_in = torch.load(model_in_path)
-        # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
-        self.norm_data_in = checkpoint_in['norm_data']
+        # # loading checkpoint for model_in
+        # checkpoint_in = torch.load(model_in_path)
+        # # {'op_other_mean': op_other_mean, 'op_other_std':op_other_std, ...}
+        # self.norm_data_in = checkpoint_in['norm_data']
+        #
+        # # model to predict weather inside the greenhouse, per hour
+        # self.net_in = Model(norm_data=self.norm_data_in)
+        # self.net_in.load_state_dict(checkpoint_in['state_dict'])
+        #
+        # # loading checkpoint for model_pl
+        # checkpoint_pl = torch.load(model_pl_path)
+        # # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
+        # self.norm_data_pl = checkpoint_pl['norm_data']
+        #
+        # # model to predict plant properties, per day
+        # self.net_pl = ModelPlant()
+        # self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
 
-        # model to predict weather inside the greenhouse, per hour
-        self.net_in = Model(norm_data=self.norm_data_in)
-        self.net_in.load_state_dict(checkpoint_in['state_dict'])
-        
-        # loading checkpoint for model_pl
-        checkpoint_pl = torch.load(model_pl_path)
-        # {'op_plant_mean': op_plant_mean, 'op_plant_std':op_plant_std, ...}
-        self.norm_data_pl = checkpoint_pl['norm_data']
-
-        # model to predict plant properties, per day
-        self.net_pl = ModelPlant()       
-        self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
-        
         # loading initial state distribution
-        self.init_states = np.load(INIT_STATE_PATH)  # shape: (*, 20), e.g. (15396，20)
+        self.traces = np.load(TRACE_PATH, allow_pickle=True)  # list of trajectory each with shape (T, 20)
+
+        self.net = AGCModelEnsemble(self.num_control_params, self.num_env_params,
+                                    self.num_output_in + self.num_output_pl,
+                                    model_paths)
+        self.net.eval()
+        self.norm_data = self.net.child_models[0].norm_data
 
         # loading environmental values
         self.env_values = np.load(ep_path).astype(np.float32)  # shape (day*24, 5); e.g. (1680,5) 1680=70*24
@@ -133,10 +139,8 @@ class GreenhouseSim(gym.Env):
         # state features definition
         self.start_iter = 0
         self.iter = 0
-        self.op_in = None
-        self.op_in_day = None
-        self.op_pl = None
-        self.op_pl_prev = None
+        self.trace_idx = 0
+        self.op = None
         self.cp_day = None
         self.cp_prev = None
         self.agent_cp_daily = None
@@ -199,94 +203,64 @@ class GreenhouseSim(gym.Env):
             self.num_spacings += 1
 
         # update CUM_HEAD_M2 at the start of the day
+        cum_head_m2_prev = self.cum_head_m2
         if (self.iter - self.start_iter) % 24 == 0:
             self.cum_head_m2 += 1 / model_action[-1]
 
-        # predict op_in every hour
-        #    normalize input
-        norm_cp = normalize(model_action,
-                            self.norm_data_in['cp_mean'], self.norm_data_in['cp_std'])
-        norm_ep_prev = normalize(self.env_values[self.iter - 1],
-                                 self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
-        norm_op_in_prev = normalize(self.op_in,
-                                    self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
-
-        #    store env info
-        agent_ep_prev = self.env_values[self.iter - 1]
-        agent_op_in_prev = self.op_in
-        agent_op_pl_prev = self.op_pl_prev
-
-        #    run net
-        norm_op_in_curr = self.net_in.predict_op(cp=norm_cp, ep_prev=norm_ep_prev, op_prev=norm_op_in_prev)
-        self.op_in = denormalize(norm_op_in_curr,
-                                 self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
-        #    store op_in in op_in_day
-        self.op_in_day[(self.iter - self.start_iter) % 24] = self.op_in
-
-        # predict op_pl at the end of the day
-        self.op_pl_prev = self.op_pl
-        norm_op_pl_prev = normalize(self.op_pl_prev,
-                                    self.norm_data_pl['op_plant_mean'], self.norm_data_pl['op_plant_std'])
-        if (self.iter - self.start_iter) % 24 == 23:
-            norm_cp_day = normalize(self.cp_day,
-                                    self.norm_data_pl['cp_mean'], self.norm_data_pl['cp_std'])
-            norm_ep_day = normalize(self.env_values[self.iter - 23:self.iter + 1],
-                                    self.norm_data_pl['ep_mean'], self.norm_data_pl['ep_std'])
-            norm_op_in_day = normalize(self.op_in_day,
-                                       self.norm_data_pl['op_other_mean'], self.norm_data_pl['op_other_std'])
-            norm_op_pl_curr = self.net_pl.predict_op(norm_cp_day, norm_ep_day, norm_op_in_day, norm_op_pl_prev)
-            self.op_pl = denormalize(norm_op_pl_curr,
-                                     self.norm_data_pl['op_plant_mean'], self.norm_data_pl['op_plant_std'])
+        # run net
+        op_prev = self.op
+        self.op = self.net.forward(action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format
-        norm_ep = normalize(self.env_values[self.iter],
-                            self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
-        output_state = np.concatenate([norm_ep, norm_op_in_curr, norm_op_pl_prev])
+        # TODO: is this normalized?
+        output_state = self.gather_agent_state(self.env_values[self.iter], self.op)
 
         # calculate reward and cost with denormalized data
         if (self.iter - self.start_iter) % 24 == 23:
-            gain_diff = self.gain(self.op_pl) - self.gain(self.op_pl_prev)
-            agent_gain_curr = self.gain(self.op_pl)
-            agent_gain_prev = self.gain(self.op_pl_prev)
+            agent_gain_curr = self.gain(self.op, self.iter - self.start_iter + 1, self.cum_head_m2)
+            agent_gain_prev = self.gain(op_prev, self.iter - self.start_iter, cum_head_m2_prev)
+            gain_diff = agent_gain_curr - agent_gain_prev
         else:
             gain_diff = 0
             agent_gain_curr = 0
             agent_gain_prev = 0
 
-        fixed_cost, fixed_cost_info = self.fixed_cost(agent_action)
-        var_cost, var_cost_info = self.variable_cost(self.env_values[self.iter])
+        fixed_cost, fixed_cost_info = self.fixed_cost(agent_action, self.cp_prev,
+                                                      self.iter - self.start_iter + 1, self.num_spacings)
+        var_cost, var_cost_info = self.variable_cost(self.env_values[self.iter], self.op)
         cost = fixed_cost + var_cost
         reward = gain_diff - cost
 
         # save env info for debug
         agent_action = agent_action
-
+        agent_ep_prev = self.env_values[self.iter - 1]
         agent_ep_curr = self.env_values[self.iter]
-        agent_op_in_curr = self.op_in
-        agent_op_pl_curr = self.op_pl_prev
+        agent_op_prev = op_prev
+        agent_op_curr = self.op
 
         agent_reward = reward
         agent_gain_diff = gain_diff
         agent_cost = cost
-        agent_cost_fix = self.fixed_cost(agent_action)
-        agent_cost_variable = self.variable_cost(self.env_values[self.iter])
+        agent_cost_fix = fixed_cost
+        agent_cost_variable = var_cost
 
         # update step and prev_action
         self.iter += 1
         self.cp_prev = agent_action
 
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
-        fw = self.op_pl[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.headFW"]]
-        done = (end and fw > self.min_fw) or self.iter >= self._max_episode_steps
+        fw = self.op[OUTPUT_KEYS_TO_INDEX["comp1.Plant.headFW"]]
+        done = end and fw > self.min_fw
+        done = done or self.iter >= self._max_episode_steps or self.iter >= self.traces[self.trace_idx].shape[0] - 2
 
         info = {
+            'real_next_state': self.traces[self.trace_idx][self.iter + 1],
+
             'agent_ep_prev': agent_ep_prev,
-            'agent_op_in_prev': agent_op_in_prev,
-            'agent_op_pl_prev': agent_op_pl_prev,
+            'agent_op_prev': agent_op_prev,
             'agent_action': agent_action,
             'agent_ep_curr': agent_ep_curr,
-            'agent_op_in_curr': agent_op_in_curr,
-            'agent_op_pl_curr': agent_op_pl_curr,
+            'agent_op_curr': agent_op_curr,
             'agent_reward': agent_reward,
             'agent_gain_diff': agent_gain_diff,
             'agent_gain_curr': agent_gain_curr,
@@ -312,20 +286,15 @@ class GreenhouseSim(gym.Env):
     def reset(self, start=None):
         # if START is none, randomly choose a start date
         if start is None:
-            self.start_iter = random.randint(0, self.init_day_range) * 24
+            self.start_iter = np.random.choice(self.init_day_range) * 24
         # otherwise, start from day START
         else:
             self.start_iter = start * 24
         self.iter = self.start_iter
 
-        # state and state history definition
-        # randomly choose an OP1 to start from
-        op1 = self.init_states[random.randint(0, self.init_states.shape[0])]
-        self.op_in = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_IN_KEYS]]
-        self.op_in_day = np.zeros((24, self.num_output_in), dtype=np.float32)
-        self.op_in_day[0] = self.op_in
-        self.op_pl = op1[[OUTPUT_KEYS_TO_INDEX[key] for key in OUTPUT_PL_KEYS]]
-        self.op_pl_prev = self.op_pl
+        # randomly choose a trace
+        self.trace_idx = np.random.choice(self.traces.shape[0])
+        self.op = self.traces[self.trace_idx][self.iter]
         self.cp_day = np.zeros((24, self.num_control_params), dtype=np.float32)
         self.cp_prev = None
         self.agent_cp_daily = None
@@ -334,23 +303,24 @@ class GreenhouseSim(gym.Env):
         self.num_spacings = 0
         self.cum_head_m2 = 0
 
-        norm_ep = normalize(self.env_values[self.iter], self.norm_data_in['ep_mean'], self.norm_data_in['ep_std'])
-        norm_op_in = normalize(self.op_in, self.norm_data_in['op_mean'], self.norm_data_in['op_std'])
-        norm_op_pl = normalize(self.op_pl, self.norm_data_pl['op_plant_mean'], self.norm_data_pl['op_plant_std'])
-        # state order is EP, OP_IN, OP_PL
-        output_state = np.concatenate([norm_ep, norm_op_in, norm_op_pl])
+        output_state = self.gather_agent_state(self.env_values[self.iter], self.op)
 
         self.iter += 1
 
-        # TODO: std is 0, normalize to inf
         return output_state
 
     def render(self, mode='human'):
         raise NotImplementedError
 
-    def gain(self, op_plant):
-        fw = op_plant[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.headFW"]]
-        dmc = op_plant[OUTPUT_PL_KEYS_TO_INDEX["comp1.Plant.shootDryMatterContent"]]
+    def gather_agent_state(self, ep, op):
+        ep = normalize(ep, self.norm_data['ep_mean'], self.norm_data['ep_std'])
+        op = normalize(op, self.norm_data['op_mean'], self.norm_data['op_std'])
+        return np.concatenate([ep, op])
+
+    @staticmethod
+    def gain(op, it, cum_head_m2):
+        fw = op[OUTPUT_KEYS_TO_INDEX["comp1.Plant.headFW"]]
+        dmc = op[OUTPUT_KEYS_TO_INDEX["comp1.Plant.shootDryMatterContent"]]
         # mirror fresh weight
         fw = fw if fw <= 250 else 500 - fw
         if fw <= 210:
@@ -367,12 +337,13 @@ class GreenhouseSim(gym.Env):
         elif dmc > 0.05:
             price *= 1.1
         # adjust for density
-        num_days = (self.iter + 1 - self.start_iter) // 24
-        avg_head_m2 = num_days / self.cum_head_m2
+        num_days = it // 24
+        avg_head_m2 = num_days / cum_head_m2
         price *= avg_head_m2
         return price
 
-    def fixed_cost(self, action):
+    @staticmethod
+    def fixed_cost(action, prev_action, it, num_spacings):
         # action should be the projected agent action (dim=44)
         # greenhouse occupation
         cost_occupation = 11.5 / 365 / 24
@@ -383,28 +354,29 @@ class GreenhouseSim(gym.Env):
         # screen usage
         cost_screen = (action[17] + action[28]) * 0.75 / 365 / 24
         # spacing changes
-        if action[-1] != self.cp_prev[-1]:
-            cost_spacing = (self.iter - self.start_iter) * 1.5 / 365 / 24
+        if action[-1] != prev_action[-1]:
+            cost_spacing = (it - 1) * 1.5 / 365 / 24
         else:
             cost_spacing = 0
-        cost_spacing += self.num_spacings * 1.5 / 365 / 24
+        cost_spacing += num_spacings * 1.5 / 365 / 24
 
         cost_total = cost_occupation + cost_fix_co2 + cost_lamp + cost_screen + cost_spacing
         return cost_total, (cost_occupation, cost_fix_co2, cost_lamp, cost_screen, cost_spacing)
 
-    def variable_cost(self, ep):
+    @staticmethod
+    def variable_cost(ep, op):
         # electricity cost
         peak_hour = ep[ENV_KEYS_TO_INDEX['common.Economics.PeakHour']]
-        electricity = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.Lmp1.ElecUse']]
+        electricity = op[OUTPUT_KEYS_TO_INDEX['comp1.Lmp1.ElecUse']]
         if peak_hour > 0.5:
             cost_elec = electricity / 1000 * 0.1
         else:
             cost_elec = electricity / 1000 * 0.06
         # heating cost
-        pipe_value = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.PConPipe1.Value']]
+        pipe_value = op[OUTPUT_KEYS_TO_INDEX['comp1.PConPipe1.Value']]
         cost_heating = pipe_value / 1000 * 0.03
         # CO2 cost
-        pure_air_value = self.op_in[OUTPUT_IN_KEYS_TO_INDEX['comp1.McPureAir.Value']]
+        pure_air_value = op[OUTPUT_KEYS_TO_INDEX['comp1.McPureAir.Value']]
         cost_var_co2 = pure_air_value * 3600 * 0.12
 
         cost_total = cost_elec + cost_heating + cost_var_co2

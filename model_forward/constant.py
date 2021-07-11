@@ -127,6 +127,13 @@ INIT_STATE_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP1-POOL-SIM={sim_id}.npy' for s
 # ====================== runtime related ======================
 EP_PATH = EP_PATHS['A']  # TODO: change the simulator id as your will
 INIT_STATE_PATH = INIT_STATE_PATHS['A']  # TODO: change the simulator id as your will
+# TODO: this
+TRACE_PATH = 'TODO'
 # TODO: change model checkpoint paths
 MODEL_IN_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/epoch=69-train_loss=0.1328-loss_val=0.1265.pth'
 MODEL_PL_PATH = f'{os.path.dirname(os.path.abspath(__file__))}/model_plant-epoch=193.pth'
+# ensemble model
+# TODO: this
+MODEL_PATHS = ['TODO']
+
+
