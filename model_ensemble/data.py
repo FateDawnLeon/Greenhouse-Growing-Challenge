@@ -503,7 +503,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = AGCDataset(args.data_dirs, 'test_preprocess', force_preprocess=True)
-    norm_data = get_norm_data([dataset])
+    norm_data = get_norm_data(dataset)
 
     print(norm_data)
 
