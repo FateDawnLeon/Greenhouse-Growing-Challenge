@@ -196,8 +196,8 @@ class GreenhouseSim(gym.Env):
             self.cum_head_m2 += 1 / model_action[-1]
 
         # run net
-        op_prev = self.op
-        self.op = self.net.forward(action, model_action, self.env_values[self.iter - 1], op_prev)
+        op_prev = self.traces[self.trace_idx][self.iter]
+        self.op = self.net.forward(model_action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format
         # TODO: is this normalized?
@@ -242,10 +242,9 @@ class GreenhouseSim(gym.Env):
         done = done or self.iter >= self._max_episode_steps or self.iter >= self.traces[self.trace_idx].shape[0] - 2
 
         info = {
-            'real_next_state': self.traces[self.trace_idx][self.iter + 1],
-
             'agent_ep_prev': agent_ep_prev,
             'agent_op_prev': agent_op_prev,
+            'agent_ob_prev': self.gather_agent_state(self.env_values[self.iter - 1], op_prev),
             'agent_action': agent_action,
             'agent_ep_curr': agent_ep_curr,
             'agent_op_curr': agent_op_curr,

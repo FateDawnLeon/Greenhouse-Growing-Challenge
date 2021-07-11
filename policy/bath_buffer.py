@@ -47,7 +47,7 @@ class PathBuffer:
             ],
                                  dtype=bool)
             path = {
-                'observations': obs_space.flatten_n(eps.observations),
+                'observations': obs_space.flatten_n(eps.env_infos['agent_ob_prev']),
                 'next_observations':
                 obs_space.flatten_n(eps.next_observations),
                 'actions': env_spec.action_space.flatten_n(eps.actions),
