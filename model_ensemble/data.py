@@ -500,6 +500,8 @@ def prepare_op_traces(data_dirs):
     op_traces = []
     for data_dir in data_dirs:
         output_dir = os.path.join(data_dir, 'outputs')
+        if output['responsemsg'] != 'ok':
+            continue
         print(f'extracting OP traces from {data_dir} ...')
         for name in tqdm(os.listdir(output_dir)):
             output = load_json_data(f'{output_dir}/{name}')
