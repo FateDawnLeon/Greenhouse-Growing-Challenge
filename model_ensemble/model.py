@@ -96,10 +96,11 @@ class AGCModel(nn.Module):
 
     def forward(self, cp, ep, op):  # this should only be used for training
         """
-            param `cp`: Unnormalized actions -> torch.Tensor
-            param `ep`: Unnormalized weather observations -> torch.Tensor
-            param `op`: Unnormalized greenhouse observations -> torch.Tensor
-            return `delta_pred_normalized`: the normalized (i.e. not unnormalized) output of the delta network -> torch.Tensor
+            param `cp`: Unnormalized actions -> torch.Tensor (B x CP_DIM)
+            param `ep`: Unnormalized weather observations -> torch.Tensor (B x EP_DIM)
+            param `op`: Unnormalized greenhouse observations -> torch.Tensor (B x OP_DIM)
+            return `delta_pred_normalized`: the normalized (i.e. not unnormalized) 
+            output of the delta network -> torch.Tensor (B x OP_DIM)
         """
         # normalize input data to mean 0, std 1
         cp_normalized = normalize(cp, self.cp_mean, self.cp_std)
@@ -113,10 +114,10 @@ class AGCModel(nn.Module):
 
     def predict_op(self, cp, ep, op):  # use this only for prediction after training
         """
-            param `cp`: Unnormalized actions -> numpy.ndarray
-            param `ep`: Unnormalized weather observations -> numpy.ndarray
-            param `op`: Unnormalized greenhouse observations `s_t` -> numpy.ndarray
-            return `op_next_pred`: the predicted `s_t+1` -> numpy.ndarray
+            param `cp`: Unnormalized control actions `a_cp[t+1]` -> numpy.ndarray (CP_DIM)
+            param `ep`: Unnormalized weather observations `s_ep[t]` -> numpy.ndarray (EP_DIM)
+            param `op`: Unnormalized greenhouse observations `s_op[t]` -> numpy.ndarray (OP_DIM)
+            return `op_next_pred`: the predicted `s_op[t+1]` -> numpy.ndarray
         """
         cp_tensor = from_numpy(cp).unsqueeze(0)
         ep_tensor = from_numpy(ep).unsqueeze(0)
@@ -145,10 +146,10 @@ class AGCModel(nn.Module):
 
     def rollout(self, cp_all, ep_all, op_all, lookahead=1):
         """
-            param `cp_all`: Unnormalized control actions `a[t:t+T]` -> numpy.ndarray (T x CP_DIM)
+            param `cp_all`: Unnormalized control actions `a_cp[t+1:t+1+T]` -> numpy.ndarray (T x CP_DIM)
             param `ep_all`: Unnormalized weather observations `s_ep[t:t+T]` -> numpy.ndarray (T x EP_DIM)
             param `op_all`: Unnormalized greenhouse observations `s_op[t:t+T]` -> numpy.ndarray (OP_DIM)
-            return `op_next_all_pred`: Predicted `s_op[t+horizon:t+T+1]` -> numpy.ndarray ((T-lookahead+1) x OP_DIM)
+            return `op_next_all_pred`: Predicted `s_op[t+lookahead:t+1+T]` -> numpy.ndarray ((T-lookahead+1) x OP_DIM)
         """
         op_next_all_pred = []
         T = cp_all.shape[0]
@@ -159,6 +160,26 @@ class AGCModel(nn.Module):
                 cp = cp_all[t+s]
                 ep = ep_all[t+s]
                 op = self.predict_op(cp, ep, op)
+            op_next_all_pred.append(op)
+        
+        return np.asarray(op_next_all_pred)
+    
+    
+    def rollout_one_trajectory(self, cp_all, ep_all, op_init):
+        """
+            param `cp_all`: Unnormalized control actions `a_cp[t:t+T]` -> numpy.ndarray (T x CP_DIM)
+            param `ep_all`: Unnormalized weather observations `s_ep[t:t+T]` -> numpy.ndarray (T x EP_DIM)
+            param `op_all`: Unnormalized greenhouse observations `s_op[t:t+T]` -> numpy.ndarray (OP_DIM)
+            return `op_next_all_pred`: Predicted `s_op[t+1:t+1+T]` -> numpy.ndarray (T x OP_DIM)
+        """
+        T = cp_all.shape[0]
+        op = op_init
+        op_next_all_pred = []
+
+        for t in range(T):
+            cp = cp_all[t]
+            ep = ep_all[t]
+            op = self.predict_op(cp, ep, op)
             op_next_all_pred.append(op)
         
         return np.asarray(op_next_all_pred)
@@ -179,7 +200,7 @@ class AGCModelEnsemble(nn.Module):
 
     def forward(self, cp, ep, op, mode='average'):
         """
-            param `cp`: Unnormalized control action `a_cp[t]` -> numpy.ndarray
+            param `cp`: Unnormalized control action `a_cp[t+1]` -> numpy.ndarray
             param `ep`: Unnormalized weather observation `s_ep[t]` -> numpy.ndarray
             param `op`: Unnormalized greenhouse observation `s_op[t]` -> numpy.ndarray
             return `op_next_pred`: the predicted `s_op[t+1]` -> numpy.ndarray
@@ -195,12 +216,12 @@ class AGCModelEnsemble(nn.Module):
 
         return op_next_pred
 
-    def rollout(self, cp_all, ep_all, op_all, lookahead=1):
+    def rollout(self, cp_all, ep_all, op_all, lookahead=1, mode='average'):
         """
-            param `cp_all`: Unnormalized control actions `a[t:t+T]` -> numpy.ndarray (T x CP_DIM)
+            param `cp_all`: Unnormalized control actions `a_cp[t+1:t+1+T]` -> numpy.ndarray (T x CP_DIM)
             param `ep_all`: Unnormalized weather observations `s_ep[t:t+T]` -> numpy.ndarray (T x EP_DIM)
             param `op_all`: Unnormalized greenhouse observations `s_op[t:t+T]` -> numpy.ndarray (OP_DIM)
-            return `op_next_all_pred`: Predicted `s_op[t+horizon:t+T+1]` -> numpy.ndarray ((T-lookahead+1) x OP_DIM)
+            return `op_next_all_pred`: Predicted `s_op[t+lookahead:t+1+T]` -> numpy.ndarray ((T-lookahead+1) x OP_DIM)
         """
         op_next_all_pred = []
         T = cp_all.shape[0]
@@ -210,7 +231,26 @@ class AGCModelEnsemble(nn.Module):
             for s in range(lookahead):
                 cp = cp_all[t+s]
                 ep = ep_all[t+s]
-                op = self.forward(cp, ep, op)
+                op = self.forward(cp, ep, op, mode=mode)
+            op_next_all_pred.append(op)
+        
+        return np.asarray(op_next_all_pred)
+
+    def rollout_one_trajectory(self, cp_all, ep_all, op_init, mode='average'):
+        """
+            param `cp_all`: Unnormalized control actions `a_cp[t:t+T]` -> numpy.ndarray (T x CP_DIM)
+            param `ep_all`: Unnormalized weather observations `s_ep[t:t+T]` -> numpy.ndarray (T x EP_DIM)
+            param `op_all`: Unnormalized greenhouse observations `s_op[t:t+T]` -> numpy.ndarray (OP_DIM)
+            return `op_next_all_pred`: Predicted `s_op[t+1:t+1+T]` -> numpy.ndarray (T x OP_DIM)
+        """
+        T = cp_all.shape[0]
+        op = op_init
+        op_next_all_pred = []
+
+        for t in range(T):
+            cp = cp_all[t]
+            ep = ep_all[t]
+            op = self.forward(cp, ep, op, mode=mode)
             op_next_all_pred.append(op)
         
         return np.asarray(op_next_all_pred)

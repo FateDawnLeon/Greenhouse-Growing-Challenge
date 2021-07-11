@@ -7,30 +7,13 @@ from torch.optim import SGD, Adam, optimizer, lr_scheduler
 
 from model import AGCModel
 from data import AGCDataset, get_norm_data
+from utils import save_json_data, plot_loss_curve
 
 
 OPTIM = {
     'adam': Adam,
     'sgd': SGD,
 }
-
-
-class Logger(object):
-    def __init__(self, print_interval, num_batch):
-        super().__init__()
-        self.step = 0
-        self.loss_stats = []
-        self.print_interval = print_interval
-        self.num_bacth = num_batch
-
-    def log(self, loss, lr):
-        self.loss_stats.append(loss)
-        self.step += 1
-
-        if self.step % self.print_interval == 0:
-            batch_idx = self.step % self.num_bacth
-            epoch_idx = self.step // self.num_bacth + 1
-            print(f'Epoch[{epoch_idx}] Batch[{batch_idx}/{self.num_bacth}] Loss[{loss:.4f}] lr[{lr}]')
 
 
 def get_batch(dataloader):
@@ -60,7 +43,7 @@ def train_step(model, iterloader, optimizer):
     loss.backward()
     optimizer.step()
 
-    return loss
+    return loss.item()
 
 
 def validate(model, val_loader):
@@ -108,8 +91,11 @@ if __name__ == '__main__':
     optimizer = OPTIM[args.optimizer](model.parameters(), lr=args.lr, weight_decay=args.wd)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, min_lr=1e-5)
 
+    loss_stats = {'train':[], 'val':[]}
+
     for step in range(1, args.max_iters+1):
         loss = train_step(model, iter_loader, optimizer)
+        loss_stats['train'].append((step, loss))
 
         if step % args.log_interval == 0:
             print(f'Iter[{step}/{args.max_iters}] Train Loss: {loss:.4f} | lr: {get_lr(optimizer)}')
@@ -118,7 +104,10 @@ if __name__ == '__main__':
             loss_val = validate(model, val_loader)
             print(f'Iter[{step}/{args.max_iters}] Val Loss: {loss_val:.4f}')
             scheduler.step(loss_val)
-            torch.save(
-                {'state_dict': model.state_dict(), 'norm_data': norm_data}, 
-                f'{args.root_dir}/checkpoints/step={step}-train_loss={loss:.4f}-loss_val={loss_val:.4f}.pth'
-            )
+            
+            torch.save({'state_dict': model.state_dict(), 'norm_data': norm_data}, 
+                f'{args.root_dir}/checkpoints/step={step}.pth')
+
+            loss_stats['val'].append((step, loss_val))
+            save_json_data(loss_stats, f'{args.root_dir}/loss_stats.json')
+            plot_loss_curve(loss_stats, f'{args.root_dir}/loss_curve.png')
