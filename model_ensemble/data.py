@@ -498,7 +498,7 @@ class AGCDataset(Dataset):
 
 def prepare_op_traces(data_dirs):
     op_traces = []
-    for data_dir in data_dirs:
+    for data_dir in data_dirs.split():
         output_dir = os.path.join(data_dir, 'outputs')
         print(f'extracting OP traces from {data_dir} ...')
         for name in tqdm(os.listdir(output_dir)):
@@ -511,8 +511,39 @@ def prepare_op_traces(data_dirs):
 if __name__ == '__main__':
     import argparse
 
+    prefix = '/home/liuys/Greenhouse-Growing-Challenge/collect_data/data_sample/sim=A/'
+
+    data_folders = [
+        'data_sample=BO_data_2021-07-07_SIM=A_DS=DPD_OPT=gbrt_NI=500_NC=5000_P=0',
+        'data_sample=BO_data_2021-07-08_SIM=A_DS=BSTPD_OPT=gbrt_NI=500_NC=5000_P=0',
+        'data_sample=BO_date=0626_sim=A_method=gp_init=200_ncall=1000',
+        'data_sample=BO_date=0626_sim=A_space=B_N=1000_init=100',
+        'data_sample=BO_date=0627_sim=A_method=gbrt_init=100_ncall=1000_RS=1234',
+        'data_sample=BO_date=0628_method=gbrt_init=1000_ncall=10000_RS=42_SP=A_P=1_sim=A',
+        'data_sample=BO_date=0628_method=gbrt_init=100_ncall=1000_RS=1_SP=F_P=1_sim=A',
+        'data_sample=BO_date=0628_sim=A_method=gbrt_init=100_ncall=1000_RS=12345_SP=E_P=1',
+        'data_sample=BO_date=2021-06-30_SIM=A_DS=AA_OPT=gbrt_NI=500_NC=5000_P=0',
+        'data_sample=BO_date=2021-07-08_SIM=A_DS=A4BSTPD2_OPT=gbrt_NI=100_NC=1000_P=0',
+        'data_sample=BO_date=2021-07-08_SIM=A_DS=B3_OPT=gbrt_NI=10_NC=100_P=2',
+        'data_sample=BO_date=2021-07-08_SIM=A_DS=B3_OPT=gbrt_NI=30_NC=300_P=2',
+        'data_sample=BO_date=2021-07-09_SIM=A_DS=A4PD2_OPT=gbrt_NI=100_NC=1000_P=0',
+        'data_sample=BO_date=2021-07-09_SIM=A_DS=A4PD2_OPT=gbrt_NI=500_NC=5000_P=0',
+        'data_sample=grid_search_date=2021-06-19_sim=A_number=360',
+        'data_sample=original_random_date=2021-06-19_sim=A_number=1000',
+        'data_sample=original_random_date=2021-06-20_sim=A_number=2000',
+        'data_sample=original_random_date=2021-06-21_sim=A_number=5000',
+        'data_sample=original_random_date=2021-06-22_sim=A_number=10000',
+        'data_sample=original_random_date=2021-06-23_sim=A_number=5000',
+        'data_sample=original_random_date=2021-06-24_sim=A_number=5000',
+        'data_sample=original_random_date=2021-06-25_sim=A_number=8869',
+        'data_sample=random_date=2021-07-05_sim=A_number=100',
+        'data_sample=random_date=2021-07-06_sim=A_number=1000'
+    ]
+
+    data_dirs = ' '.join(f'{prefix}{f}' for f in data_folders)
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data-dirs', type=str, nargs='+')
+    parser.add_argument('--data-dirs', type=str, nargs='+', default=data_dirs)
     args = parser.parse_args()
 
     # dataset = AGCDataset(args.data_dirs, 'test_preprocess', force_preprocess=True)
