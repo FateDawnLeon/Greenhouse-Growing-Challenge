@@ -74,6 +74,7 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
+    print(args)
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
 
     train_dataset = AGCDataset(args.train_dirs, force_preprocess=args.force_preprocess)

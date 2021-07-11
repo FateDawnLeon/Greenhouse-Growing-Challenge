@@ -3,7 +3,7 @@ import random
 import string
 
 
-wd = 0
+wd = 1e-4
 
 
 def id_generator(N=8):
@@ -23,7 +23,7 @@ def train_single_model(train_dirs, val_dirs, reparse_data=False):
 def train_ensemble_model(train_dirs, val_dirs, N=10, reparse_data=False):
     model_id = id_generator()
     for n in range(N):
-        cmd = f'python train.py --max-iters 10000 --batch-size 256 --lr 0.001 --wd {wd} \
+        cmd = f'python train.py --max-iters 50000 --batch-size 1024 --lr 0.001 --wd {wd} \
             --root-dir trained_models/ensemble_model_{model_id}_child[{n}] \
             --train-dirs {train_dirs} \
             --val-dirs {val_dirs}'
@@ -34,8 +34,8 @@ def train_ensemble_model(train_dirs, val_dirs, N=10, reparse_data=False):
 
 if __name__ == '__main__':
     reparse_data = True
-    train_dirs = "TRAIN_DATA_DIR1 TRAIN_DATA_DIR2 ..."  # TODO: change data dirs to your owns
-    val_dirs = "VAL_DATA_DIR1 VAL_DATA_DIR2 ..."  # TODO: change data dirs to your owns
+    train_dirs = '../collect_data/data_sample=random_date=2021-07-05_sim=A_number=100'  # TODO: change data dirs to your owns
+    val_dirs = "../collect_data/data_sample=random_date=2021-07-05_sim=A_number=100"  # TODO: change data dirs to your owns
 
     # train_single_model(train_dirs, val_dirs, reparse_data=reparse_data)
-    # train_ensemble_model(train_dirs, val_dirs, reparse_data=reparse_data)
+    train_ensemble_model(train_dirs, val_dirs, reparse_data=reparse_data)

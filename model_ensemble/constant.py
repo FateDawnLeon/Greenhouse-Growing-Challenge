@@ -1,7 +1,8 @@
+import torch
 import datetime
 
 
-DEVICE = 'cpu'
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CITY_NAME = 'Amsterdam'
 START_DATE = datetime.date(2021, 3, 4)
 MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
