@@ -320,13 +320,39 @@ class ParseControl(object):
     
     def parse_plant_density(self, control):
         value = self.get_value(control, "crp_lettuce.Intkam.management.@plantDensity")
-        assert type(value) == str and ';' in value
+        setpoints = self.parse_plant_density_to_setpoints(value)
         arr = np.zeros((1, self.num_hours))
-        for s in value.split(';'):
-            day, density = s.split()
-            hour_offset = (int(day) - 1) * 24
-            arr[0,hour_offset:] = float(density)
+        for day, density in setpoints:
+            hour_offset = (day - 1) * 24
+            if hour_offset >= self.num_hours:
+                break
+            arr[0,hour_offset:] = density
         return arr
+
+    @staticmethod
+    def parse_plant_density_to_setpoints(pd_str):
+        assert type(pd_str) == str
+        day_density_strs = pd_str.strip().split(';')
+        
+        setpoints = []
+        for day_density in day_density_strs:
+            try:
+                day, density = day_density.split()
+                day, density = int(day), float(density)
+            except:
+                raise ValueError(f'"{day_density}" has invalid format or data types')
+            
+            assert day >= 1
+            assert 1 <= density <= 90
+            setpoints.append((day, density))
+        
+        days = [sp[0] for sp in setpoints]
+        densities = [sp[1] for sp in setpoints]
+        assert days[0] == 1  # must start with the 1st day
+        assert sorted(days) == days  # days must be ascending
+        assert sorted(densities, reverse=True) == densities  # densities must be descending
+        
+        return setpoints
 
 
 def parse_control(control, start_date=START_DATE, city_name=CITY_NAME):
@@ -480,3 +506,7 @@ if __name__ == '__main__':
     norm_data = get_norm_data([dataset])
 
     print(norm_data)
+
+    # CP_parser = ParseControl(START_DATE, CITY_NAME)
+    # sps = CP_parser.parse_plant_density_to_setpoints("  1  80; 3   70 ; 3 70; 5 60; 7 1")
+    # print(sps)
