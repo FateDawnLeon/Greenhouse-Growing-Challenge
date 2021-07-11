@@ -102,6 +102,10 @@ class AGCModel(nn.Module):
             return `delta_pred_normalized`: the normalized (i.e. not unnormalized) 
             output of the delta network -> torch.Tensor (B x OP_DIM)
         """
+        cp = cp.to(DEVICE)
+        ep = ep.to(DEVICE)
+        op = op.to(DEVICE)
+
         # normalize input data to mean 0, std 1
         cp_normalized = normalize(cp, self.cp_mean, self.cp_std)
         ep_normalized = normalize(ep, self.ep_mean, self.ep_std)
@@ -140,6 +144,12 @@ class AGCModel(nn.Module):
         """
         cp, ep, op = input
         op_next = target
+
+        cp = cp.to(DEVICE)
+        ep = ep.to(DEVICE)
+        op = op.to(DEVICE)
+        op_next = op_next.to(DEVICE)
+
         delta_real_normalized = normalize(op_next - op, self.delta_mean, self.delta_std)
         delta_pred_normalized = self.forward(cp, ep, op)
         return self.criterion(delta_pred_normalized, delta_real_normalized)
@@ -197,6 +207,7 @@ class AGCModelEnsemble(nn.Module):
             models.append(model)
         self.child_models = models
         self.num_childmodels = len(self.child_models)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def forward(self, cp, ep, op, mode='average'):
         """
@@ -205,6 +216,10 @@ class AGCModelEnsemble(nn.Module):
             param `op`: Unnormalized greenhouse observation `s_op[t]` -> numpy.ndarray
             return `op_next_pred`: the predicted `s_op[t+1]` -> numpy.ndarray
         """
+        cp = cp.to(DEVICE)
+        ep = ep.to(DEVICE)
+        op = op.to(DEVICE)
+
         if mode == 'average':
             op_next_pred_all = [model.predict_op(cp, ep, op) for model in self.child_models]
             op_next_pred = np.mean(op_next_pred_all, axis=0)
