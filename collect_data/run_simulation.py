@@ -7,7 +7,9 @@ from utils import ControlParamSimple
 
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
-    'B': 'C48B-PTmQ-89Kx-jqV5-3zRL' 
+    'B': 'C48B-PTmQ-89Kx-jqV5-3zRL',
+    'C': 'C48A-ZRJQ-3wcq-rGuC-mEme',
+    'D': 'C48B-PTmQ-89Kx-jqV5-3zRL' 
 }
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 
