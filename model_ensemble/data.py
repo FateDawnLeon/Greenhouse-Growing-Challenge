@@ -62,7 +62,7 @@ class ParseControl(object):
             self.parse_lmp1_maxPARsum(control),
             self.parse_plant_density(control),
         ]
-        return np.concatenate(cp_list, axis=0).T
+        return np.concatenate(cp_list, axis=0, dtype=np.float32).T
 
     @staticmethod
     def get_value(control, key_path):
@@ -365,7 +365,7 @@ def parse_output_to_OP(output, keys):
         val = output['data'][key]['data']
         val = [0 if x == 'NaN' else x for x in val]
         output_vals.append(val)
-    output_vals = np.array(output_vals)
+    output_vals = np.asarray(output_vals, dtype=np.float32)
     return output_vals.T # T x OP_DIM
 
 
@@ -374,7 +374,7 @@ def parse_output_to_EP(output, keys):
     for key in keys:
         val = output['data'][key]['data']
         env_vals.append(val)
-    env_vals = np.array(env_vals)
+    env_vals = np.asarray(env_vals, dtype=np.float32)
     return env_vals.T # T x EP_DIM
 
 
@@ -496,6 +496,18 @@ class AGCDataset(Dataset):
         }
 
 
+def prepare_op_traces(data_dirs):
+    op_traces = []
+    for data_dir in data_dirs:
+        output_dir = os.path.join(data_dir, 'outputs')
+        print(f'extracting OP traces from {data_dir} ...')
+        for name in tqdm(os.listdir(output_dir)):
+            output = load_json_data(f'{output_dir}/{name}')
+            op_trace = parse_output_to_OP(output, OUTPUT_KEYS)  # T x OP_DIM -> T could be different for different output files
+            op_traces.append(op_trace)
+    return op_traces
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -503,11 +515,14 @@ if __name__ == '__main__':
     parser.add_argument('--data-dirs', type=str, nargs='+')
     args = parser.parse_args()
 
-    dataset = AGCDataset(args.data_dirs, 'test_preprocess', force_preprocess=True)
-    norm_data = get_norm_data(dataset)
+    # dataset = AGCDataset(args.data_dirs, 'test_preprocess', force_preprocess=True)
+    # norm_data = get_norm_data(dataset)
 
-    print(norm_data)
+    # print(norm_data)
 
     # CP_parser = ParseControl(START_DATE, CITY_NAME)
     # sps = CP_parser.parse_plant_density_to_setpoints("  1  80; 3   70 ; 3 70; 5 60; 7 1")
     # print(sps)
+
+    op_traces = prepare_op_traces(args.data_dirs)
+    np.save('op_traces.npy', op_traces)
