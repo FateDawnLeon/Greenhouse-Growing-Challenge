@@ -58,12 +58,11 @@ def plot_loss_curve(loss_stats, save_path):
     plt.close()
 
 
-def get_ensemble_ckpt_paths(model_id="QTYW6TYM", step=50000):  # model_id should be something like QTYW6TYM
+def get_ensemble_ckpt_paths(model_paths, model_id="QTYW6TYM", step=50000):  # model_id should be something like QTYW6TYM
     ckpt_paths = []
-    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__)) 
-    for name in os.listdir(f'{CURRENT_DIR}/trained_models'):
-        isdir =  os.path.isdir(os.path.join(f'{CURRENT_DIR}/trained_models', name))
+    for name in os.listdir(model_paths):
+        isdir =  os.path.isdir(os.path.join(model_paths, name))
         if isdir and (model_id == 'all' or (model_id in name)):
-            path = f'{CURRENT_DIR}/trained_models/{name}/checkpoints/step={step}.pth'
+            path = f'{model_paths}/{name}/checkpoints/step={step}.pth'
             ckpt_paths.append(path)
     return ckpt_paths

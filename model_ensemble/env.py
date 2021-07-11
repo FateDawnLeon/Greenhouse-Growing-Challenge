@@ -95,7 +95,7 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, model_paths=MODEL_PATHS, ep_path=EP_PATH):
+    def __init__(self, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_path = OP_TRACES_PATH):
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                                 shape=(self.num_env_params + self.num_op_params,))
@@ -119,9 +119,9 @@ class GreenhouseSim(gym.Env):
         # self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
 
         # loading initial state distribution
-        self.traces = np.load(OP_TRACES_PATH, allow_pickle=True)  # list of trajectory each with shape (T, 20)
+        self.traces = np.load(op_traces_path, allow_pickle=True)  # list of trajectory each with shape (T, 20)
 
-        ckpt_paths = get_ensemble_ckpt_paths('all')
+        ckpt_paths = get_ensemble_ckpt_paths(model_paths=model_paths, model_id='all')
         self.net = AGCModelEnsemble(self.num_control_params, self.num_env_params,
                                     self.num_op_params, ckpt_paths)
         self.net.eval()
