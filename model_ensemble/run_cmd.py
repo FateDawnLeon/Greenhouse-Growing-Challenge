@@ -34,8 +34,13 @@ def train_ensemble_model(train_dirs, val_dirs, N=10, reparse_data=False):
 
 if __name__ == '__main__':
     reparse_data = True
-    train_dirs = '../collect_data/data_sample=random_date=2021-07-05_sim=A_number=100'  # TODO: change data dirs to your owns
-    val_dirs = "../collect_data/data_sample=random_date=2021-07-05_sim=A_number=100"  # TODO: change data dirs to your owns
+    prefix = '/home/liuys/Greenhouse-Growing-Challenge/collect_data/data_sample/sim=A/'
+
+    train_folders = 'data_sample=BO_data_2021-07-07_SIM=A_DS=DPD_OPT=gbrt_NI=500_NC=5000_P=0 data_sample=BO_data_2021-07-08_SIM=A_DS=BSTPD_OPT=gbrt_NI=500_NC=5000_P=0 data_sample=BO_date=0626_sim=A_method=gp_init=200_ncall=1000 data_sample=BO_date=0626_sim=A_space=B_N=1000_init=100 data_sample=BO_date=0627_sim=A_method=gbrt_init=100_ncall=1000_RS=1234 data_sample=BO_date=0628_method=gbrt_init=1000_ncall=10000_RS=42_SP=A_P=1_sim=A data_sample=BO_date=0628_method=gbrt_init=100_ncall=1000_RS=1_SP=F_P=1_sim=A data_sample=BO_date=0628_sim=A_method=gbrt_init=100_ncall=1000_RS=12345_SP=E_P=1 data_sample=BO_date=2021-06-30_SIM=A_DS=AA_OPT=gbrt_NI=500_NC=5000_P=0 data_sample=BO_date=2021-07-08_SIM=A_DS=A4BSTPD2_OPT=gbrt_NI=100_NC=1000_P=0 data_sample=BO_date=2021-07-08_SIM=A_DS=B3_OPT=gbrt_NI=10_NC=100_P=2 data_sample=BO_date=2021-07-08_SIM=A_DS=B3_OPT=gbrt_NI=30_NC=300_P=2 data_sample=BO_date=2021-07-09_SIM=A_DS=A4PD2_OPT=gbrt_NI=100_NC=1000_P=0 data_sample=BO_date=2021-07-09_SIM=A_DS=A4PD2_OPT=gbrt_NI=500_NC=5000_P=0 data_sample=grid_search_date=2021-06-19_sim=A_number=360 data_sample=original_random_date=2021-06-19_sim=A_number=1000 data_sample=original_random_date=2021-06-20_sim=A_number=2000 data_sample=original_random_date=2021-06-21_sim=A_number=5000 data_sample=original_random_date=2021-06-23_sim=A_number=5000 data_sample=original_random_date=2021-06-24_sim=A_number=5000 data_sample=original_random_date=2021-06-25_sim=A_number=8869 data_sample=random_date=2021-07-05_sim=A_number=100 data_sample=random_date=2021-07-06_sim=A_number=1000'
+    train_dirs = ' '.join([f'{prefix}{f}' for f in train_folders.split()])  # change data dirs to your owns
+
+    val_folders = 'data_sample=original_random_date=2021-06-22_sim=A_number=10000'
+    val_dirs = ' '.join([f'{prefix}{f}' for f in val_folders.split()])  # change data dirs to your owns
 
     # train_single_model(train_dirs, val_dirs, reparse_data=reparse_data)
     train_ensemble_model(train_dirs, val_dirs, reparse_data=reparse_data)
