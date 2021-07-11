@@ -1,3 +1,4 @@
+import os
 import json
 import torch
 import numpy as np
@@ -55,3 +56,12 @@ def plot_loss_curve(loss_stats, save_path):
     plt.legend()
     plt.savefig(save_path)
     plt.close()
+
+
+def get_ensemble_ckpt_paths(model_id="QTYW6TYM", step=50000):  # model_id should be something like QTYW6TYM
+    ckpt_paths = []
+    for name in os.listdir('trained_models'):
+        if model_id in name:
+            path = f'trained_models/{name}/checkpoints/step={step}.pth'
+            ckpt_paths.append(path)
+    return ckpt_paths
