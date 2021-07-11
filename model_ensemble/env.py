@@ -196,6 +196,7 @@ class GreenhouseSim(gym.Env):
             self.cum_head_m2 += 1 / model_action[-1]
 
         # run net
+        op_prev = self.op
         self.op = self.net.forward(action, model_action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format

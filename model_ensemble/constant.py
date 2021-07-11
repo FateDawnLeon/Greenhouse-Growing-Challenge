@@ -1,5 +1,6 @@
 import torch
 import datetime
+import os
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -113,3 +114,13 @@ KEYS = {
 }
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
+
+# ====================== data related ======================
+COMMON_DATA_DIR = os.path.dirname(os.path.abspath(__file__)) 
+EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
+OP_TRACES_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP_TRACES-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
+
+# ====================== runtime related ======================
+EP_PATH = EP_PATHS['A']
+OP_TRACES_PATH = OP_TRACES_PATHS['A']
+MODEL_PATHS = f'{COMMON_DATA_DIR}/trained_models'
