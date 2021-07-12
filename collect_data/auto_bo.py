@@ -14,6 +14,8 @@ import copy
 import pytz
 from datetime import datetime
 import sys
+import glob
+import os
 
 
 DIMS = {
@@ -246,7 +248,7 @@ DIMS = {
 BEST_PROFIT = np.inf
 BEST_PARM = None
 TIMEZONE = pytz.timezone('Europe/Amsterdam')
-END_TIME = datetime(2021, 7, 13, hour=14, minutes=55, tzinfo=TIMEZONE)
+END_TIME = datetime(year=2021, month=7, day=13, hour=14, minute=55, tzinfo=TIMEZONE)
 
 def make_day_scheme(dt1, v1, dt2, v2, dt3, v3, dt4, v4):
     return {
@@ -257,11 +259,11 @@ def make_day_scheme(dt1, v1, dt2, v2, dt3, v3, dt4, v4):
     }
 
 
-def get_func_and_callback(args):
+def get_func_and_callback(args, dim):
 
     LIGHT_END_TIME = 20
     
-    @use_named_args(dimensions=DIMS[args.dimension_spec])
+    @use_named_args(dimensions=dim)
     def netprofit(
         num_days,
         heatingTemp_night,
@@ -330,12 +332,15 @@ def get_func_and_callback(args):
         global BEST_PROFIT, BEST_PARM
         if - output['stats']['economics']['balance'] < BEST_PROFIT:
             BEST_PROFIT = - output['stats']['economics']['balance']
-            CP.dump_json(f'{args.data_dir}/best_control', control_name)
+            files = glob.glob(f'{args.data_dir}/best_control/*')
+            for f in files:
+                os.remove(f)
+            CP.dump_json(f'{args.data_dir}/best_control', f'BST={BEST_PROFIT}_{control_name}')
             BEST_PARM = control_name.split(".")[0]
 
         now = datetime.now(tz=TIMEZONE)
         if now > END_TIME: 
-            try_on_simulator(control_name, f'{args.data_dir}/best_control', f'{args.data_dir}/best_output', args.simulator)
+            try_on_simulator(f'BST={BEST_PROFIT}_{control_name}', f'{args.data_dir}/best_control', f'{args.data_dir}/best_output', args.simulator)
             sys.exit(0)
 
         return - output['stats']['economics']['balance']
@@ -413,8 +418,8 @@ def expand_best(best_no_pd):
         Integer(name='heatingTemp_night', low=best_no_pd[1]-3, high=best_no_pd[1]+3),
         Integer(name='heatingTemp_day', low=best_no_pd[2]-3, high=best_no_pd[2]+3),
         Integer(name='CO2_pureCap', low=best_no_pd[3]-15, high=best_no_pd[3]+15),
-        Integer(name='CO2_setpoint_night', low=best_no_pd[4]-50, high=best_no_pd[4]+50),
-        Integer(name='CO2_setpoint_day', low=best_no_pd[5]-3, high=best_no_pd[5]+3),
+        Integer(name='CO2_setpoint_night', low=best_no_pd[4]-50, high=min(best_no_pd[4]+50, 1200)),
+        Integer(name='CO2_setpoint_day', low=best_no_pd[5]-3, high=min(best_no_pd[5]+3, 1200)),
         Integer(name='CO2_setpoint_lamp', low=best_no_pd[6]-50, high=best_no_pd[6]+50),
         Integer(name='light_intensity', low=best_no_pd[7]-5, high=best_no_pd[7]+5),
         Integer(name='light_hours', low=best_no_pd[8]-2, high=best_no_pd[8]+2),
@@ -433,12 +438,10 @@ def optimize(args):
     else:
         raise NotImplementedError(f'optimizer {opt} not supported!')
 
-    netprofit, save_result = get_func_and_callback(args)
-
     best_pd = None
     best_no_pd = []
 
-    for r in len(args.num_round):
+    for r in range(args.num_round):
         now = datetime.now(tz=TIMEZONE)
         if now > END_TIME: break
         
@@ -448,6 +451,8 @@ def optimize(args):
             dim = add_plantDensity_fix(DIMS[args.start_range], best_pd)
         else:
             dim = add_plantDensity_fix(expand_best(best_no_pd), best_pd)
+
+        netprofit, save_result = get_func_and_callback(args, dim)
 
         one_round = opt_func(
             func=netprofit,
@@ -469,9 +474,9 @@ if __name__ == '__main__':
     parser.add_argument('-NR', '--num-round', type=int, default=10)
     parser.add_argument('-NC', '--num-calls', type=int, default=100, help='num of calls in each round')
     parser.add_argument('-NI', '--num-initial-points', type=int, default=10, help='num of initial calls in each round')
-    parser.add_argument('-SP', '--start-point', type=str, default=None)
-    parser.add_argument('-SR', '--start-range', type=str, default=None)
-    parser.add_argument('-S', '--simulator', type=str, default='A')
+    parser.add_argument('-SP', '--start-point', type=str, default='C2BST')
+    parser.add_argument('-SR', '--start-range', type=str, default='C2')
+    parser.add_argument('-S', '--simulator', type=str, default='C')
     parser.add_argument('-O', '--optimizer', type=str, default='gbrt')
     parser.add_argument('-RS', '--random-seed', type=int, default=None)
     parser.add_argument('-L', '--logging', action='store_true')
