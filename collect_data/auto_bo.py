@@ -340,7 +340,7 @@ def get_func_and_callback(args, dim):
 
         now = datetime.now(tz=TIMEZONE)
         if now > END_TIME: 
-            try_on_simulator(f'BST={BEST_PROFIT}_{control_name}', f'{args.data_dir}/best_control', f'{args.data_dir}/best_output', args.simulator)
+            try_on_simulator(f'BST={BEST_PROFIT}_{BEST_PARM}.json', f'{args.data_dir}/best_control', f'{args.data_dir}/best_output', args.simulator)
             sys.exit(0)
 
         return - output['stats']['economics']['balance']
@@ -442,7 +442,7 @@ def optimize(args):
     best_no_pd = []
 
     for r in range(args.num_round):
-        now = datetime.now(tz=TIMEZONE)
+        now = datetime.now(tz=NOW_TIMEZONE)
         if now > END_TIME: break
         
         if r == 0:
