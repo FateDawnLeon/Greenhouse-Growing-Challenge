@@ -246,7 +246,7 @@ def add_plantDensity1(dims):
     skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
     change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
 
-    max_days = dims[0].categories[0]
+    max_days = 38
     control_densitys = []
 
     for i in range(10000):
@@ -279,7 +279,7 @@ def add_plantDensity2(dims):
     skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
     change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
 
-    max_days = dims[0].categories[0]
+    max_days = 40
     control_densitys = []
 
     for i in range(20000):
