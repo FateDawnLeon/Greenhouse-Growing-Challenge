@@ -120,7 +120,7 @@ class GreenhouseSim(gym.Env):
         # self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
 
         # loading initial state distribution
-        self.op_trace_paths = [f for f in os.listdir(op_traces_dir) if os.path.splitext(f)[1] == '.npy']
+        self.op_trace_paths = [f'{op_traces_dir}/{f}' for f in os.listdir(op_traces_dir) if os.path.splitext(f)[1] == '.npy']
 
         ckpt_paths = get_ensemble_ckpt_paths(model_paths=model_paths, model_id='all')
         self.net = AGCModelEnsemble(self.num_control_params, self.num_env_params,

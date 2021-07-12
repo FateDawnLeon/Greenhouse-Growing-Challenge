@@ -35,12 +35,13 @@ from parameters import hyper, log_folder
 @click.option('--qfs0', default=hyper['qfs'][0])
 @click.option('--qfs1', default=hyper['qfs'][1])
 @click.option('--n_epochs', default=hyper['n_epochs'])
+@click.option('--n_cycles', default=hyper['n_cycles'])
 @click.option('--buffer', default=hyper['buffer'])
 @click.option('--expl', default=hyper['expl'])
 @click.option('--batch_size', default=hyper['batch_size'])
 @click.option('--seed', default=hyper['seed'])
 @wrap_experiment(prefix='model_final', name=log_folder, snapshot_mode='last')  # snapshot_mode='last'/'all'
-def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_epochs, batch_size, seed):
+def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_cycles, n_epochs, batch_size, seed):
     """Train DDPG with greenhouse sim.
 
     Args:
@@ -82,26 +83,26 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_epochs, batc
 
 
         if buffer == 'path':
-        replay_buffer = PathBuffer(capacity_in_transitions=int(1e6))
+            replay_buffer = PathBuffer(capacity_in_transitions=int(1e6))
         elif buffer == 'her':
             replay_buffer = HERReplayBuffer(capacity_in_transitions=int(1e6))
 
-        # sampler = RaySampler(agents=exploration_policy,
-        #                      envs=env,
-        #                      max_episode_length=env.spec.max_episode_length,
-        #                      is_tf_worker=True,
-        #                      worker_class=VecWorker,
-        #                      worker_args=dict(n_envs=6),
-        #                     #  n_workers=96
-        #                      )
+        sampler = RaySampler(agents=exploration_policy,
+                             envs=env,
+                             max_episode_length=env.spec.max_episode_length,
+                             is_tf_worker=True,
+                             worker_class=FragmentWorker,
+                             worker_args=dict(n_envs=6),
+                            #  n_workers=96
+                             )
 
         #  LocalSample debug
-        sampler = LocalSampler(agents=exploration_policy,
-                               envs=env,
-                               max_episode_length=env.spec.max_episode_length,
-                               is_tf_worker=True,
-                                # worker_class=FragmentWorker
-                               )
+        # sampler = LocalSampler(agents=exploration_policy,
+        #                        envs=env,
+        #                        max_episode_length=env.spec.max_episode_length,
+        #                        is_tf_worker=True,
+        #                         # worker_class=FragmentWorker
+        #                        )
 
         ddpg = DDPG(env_spec=env.spec,
                     policy=policy,
@@ -110,7 +111,7 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_epochs, batc
                     qf=qf,
                     replay_buffer=replay_buffer,
                     sampler=sampler,
-                    steps_per_epoch=20,
+                    steps_per_epoch=n_cycles,
                     target_update_tau=1e-2,
                     n_train_steps=50,
                     discount=1,

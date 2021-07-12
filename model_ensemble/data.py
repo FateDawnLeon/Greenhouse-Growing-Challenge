@@ -551,7 +551,7 @@ if __name__ == '__main__':
     for i, trace in enumerate(op_traces):
         file_name = file_pattern.format(i)
         path = os.path.join(traces_dir, file_name)
-        np.save(file_name, trace)
+        np.save(path, trace)
 
     # data_dirs = ' '.join(f'{prefix}{f}' for f in data_folders)
 

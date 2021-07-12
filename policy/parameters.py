@@ -1,11 +1,12 @@
 hyper = {
-    'alg': 'DDPG',  # PPO, TRPO
+    'alg': 'DDPG',  # PPO, TRPO, DDPG
     'pl': 'cont',  # cont, mlp, lstm
     'pls': (64, 64),  # policy hidden size
     'n_epochs': 500,
     'batch_size': 5000,  
     'seed': 1,
     # DDPG
+    'n_cycles': 50,
     'qfs': (64, 64),  # q function hidden size
     'buffer': 'path',  # her
     'expl': 'Ornstein',  # Gaussian, epsilon
