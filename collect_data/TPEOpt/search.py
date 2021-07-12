@@ -4,7 +4,10 @@ from ray.tune.suggest.hyperopt import HyperOptSearch
 
 from space import SPACES
 from utils import query_simulator, ControlParamSimple, save_json_data, load_json_data
+import os
+import glob
 
+SIM_ID = 'C'
 
 def generate_control(config):
     num_days = int(config["num_days"])
@@ -59,11 +62,24 @@ def objective(config, checkpoint_dir=None):
     control = generate_control(config)
     save_json_data(control, 'control.json')
     
-    output = query_simulator(control, sim_id='C')
+    output = query_simulator(control, sim_id=SIM_ID)
     save_json_data(output, 'output.json')
     
     balance = output['stats']['economics']['balance']
     print(f'Netprofit={balance}, Config={config}')
+
+    best_control_file_list = glob.glob(f'{os.path.dirname(os.path.abspath(__file__))}/best_control_*.json')
+    if len(best_control_file_list) == 0:
+        best_control_file = f'{os.path.dirname(os.path.abspath(__file__))}/best_control_{balance}.json'
+        save_json_data(control, best_control_file)
+    else:
+        best_prev = float(os.path.splitext(best_control_file_list[0])[0].split('_')[-1])
+        if balance > best_prev:
+            for f in best_control_file_list:
+                os.remove(f)
+            best_control_file = f'{os.path.dirname(os.path.abspath(__file__))}/best_control_{balance}.json'
+            save_json_data(control, best_control_file)
+
     tune.report(netprofit=balance)
 
 
@@ -88,13 +104,8 @@ def run_search(args):
         local_dir="./search_results"
     )
 
-    best_control_path = f'{analysis.best_logdir}/control.json'
-    best_control = load_json_data(best_control_path)
-    best_output = query_simulator(best_control, sim_id='C')
-
     print('best config:', analysis.best_config)
     print('best netprofit of this round:', analysis.best_result['netprofit'])
-    print('best netprofit of final upload:', best_output['stats']['economics']['balance'])
 
 
 if __name__ == '__main__':
