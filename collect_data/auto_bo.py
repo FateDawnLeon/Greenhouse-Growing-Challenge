@@ -442,7 +442,7 @@ def optimize(args):
     best_no_pd = []
 
     for r in range(args.num_round):
-        now = datetime.now(tz=NOW_TIMEZONE)
+        now = datetime.now(tz=TIMEZONE)
         if now > END_TIME: break
         
         if r == 0:
