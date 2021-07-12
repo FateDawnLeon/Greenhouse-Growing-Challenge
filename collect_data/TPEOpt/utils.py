@@ -11,8 +11,11 @@ KEYS = {
     'D': 'C48B-PTmQ-89Kx-jqV5-3zRL' 
 }
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
-SAMPLE_CONTROL_PATH = "/mnt/d/Codes/Greenhouse-Growing-Challenge/collect_data/TPEOpt/ClimateControlSample.json"
 START_DATE = datetime.date(2021, 3, 4)
+
+
+# TODO: change this to the ***absolute*** path of 'ClimateControlSample.json' on your own machine
+SAMPLE_CONTROL_PATH = "/mnt/d/Codes/Greenhouse-Growing-Challenge/collect_data/ClimateControlSample.json"
 
 
 def query_simulator(control, sim_id):
@@ -95,3 +98,10 @@ class ControlParamSimple(object):
     def __hash__(self):
         return str(self.data).__hash__()
     
+
+# use this to fix some params if needed
+def set_default_CP_values(CP):
+    CP.set_value("comp1.screens.scr2.@enabled", True)
+    CP.set_value("comp1.screens.scr2.@ToutMax", 15)
+    CP.set_value("comp1.screens.scr2.@closeBelow", "0 290; 10 2")
+    CP.set_value("comp1.screens.scr2.@closeAbove", 1200)

@@ -3,7 +3,7 @@ from ray.tune.suggest import ConcurrencyLimiter
 from ray.tune.suggest.hyperopt import HyperOptSearch
 
 from space import SPACES
-from utils import query_simulator, ControlParamSimple, save_json_data
+from utils import query_simulator, ControlParamSimple, save_json_data, load_json_data
 
 
 def generate_control(config):
@@ -19,6 +19,8 @@ def generate_control(config):
     light_endTime = float(config["light_endTime"])
     light_maxIglob = float(config["light_maxIglob"])
     plantDensity = str(config["plantDensity"])
+    scr1_ToutMax = float(config["scr1_ToutMax"])
+    vent_startWnd = float(config["vent_startWnd"])
 
     CP = ControlParamSimple()
     CP.set_endDate(num_days)
@@ -34,10 +36,10 @@ def generate_control(config):
     CP.set_value("common.CO2dosing.@pureCO2cap", CO2_pureCap)
     CO2_setpoint_scheme = {
         "01-01": {
-            "r-1": CO2_setpoint_night, 
+            "r": CO2_setpoint_night, 
             "r+1": CO2_setpoint_day,
             "s-1": CO2_setpoint_day, 
-            "s+1": CO2_setpoint_night
+            "s": CO2_setpoint_night,
         }
     }
     CP.set_value("comp1.setpoints.CO2.@setpoint", CO2_setpoint_scheme)
@@ -48,6 +50,8 @@ def generate_control(config):
     CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
     CP.set_value("comp1.illumination.lmp1.@maxIglob", light_maxIglob)
     CP.set_value("crp_lettuce.Intkam.management.@plantDensity", plantDensity)
+    CP.set_value("comp1.screens.scr1.@ToutMax", scr1_ToutMax)
+    CP.set_value("comp1.setpoints.ventilation.@startWnd", vent_startWnd)
     return CP.data
 
 
@@ -74,7 +78,7 @@ def run_search(args):
 
     analysis = tune.run(
         objective,
-        name=f'MaxNetProfit_{args.search_space}',
+        name=f'Max_NetProfit_Space={args.search_space}',
         search_alg=algo,
         metric="netprofit",
         mode="max",
@@ -84,8 +88,13 @@ def run_search(args):
         local_dir="./search_results"
     )
 
+    best_control_path = f'{analysis.best_logdir}/control.json'
+    best_control = load_json_data(best_control_path)
+    best_output = query_simulator(best_control, sim_id='C')
+
     print('best config:', analysis.best_config)
-    print('best netprofit:', analysis.best_result['netprofit'])
+    print('best netprofit of this round:', analysis.best_result['netprofit'])
+    print('best netprofit of final upload:', best_output['stats']['economics']['balance'])
 
 
 if __name__ == '__main__':

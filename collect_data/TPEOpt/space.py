@@ -95,6 +95,22 @@ SPACES = {
         "light_maxIglob": 300,
         "plantDensity": "1 80; 11 45; 19 25; 27 15",
     },
+    'C6': {
+        "num_days": tune.qrandint(lower=37, upper=40, q=1),
+        "heatingTemp_night": tune.quniform(lower=10, upper=12, q=0.1),
+        "heatingTemp_day": tune.quniform(lower=18, upper=20, q=0.1),
+        "CO2_pureCap": 200,  # having minor effects on profit -> could be fixed
+        "CO2_setpoint_night": tune.qrandint(lower=650, upper=700, q=10),
+        "CO2_setpoint_day": tune.qrandint(lower=1000, upper=1200, q=10),
+        "CO2_setpoint_lamp": 0,  # could be fixed to 0 so that only CO2_setpoint_day works
+        "light_intensity": tune.qrandint(lower=0, upper=100, q=10),
+        "light_hours": tune.quniform(lower=0, upper=18, q=0.1),
+        "light_endTime": tune.quniform(lower=18, upper=20, q=0.1),
+        "light_maxIglob": 300,  # having minor effects on profit -> could be fixed
+        "plantDensity": tune.choice(make_plant_density()),
+        "scr1_ToutMax": 8,  # TODO: may need to be searched also
+        "vent_startWnd": 50,  # TODO: may need to be searched also
+    },
 }
 
 
