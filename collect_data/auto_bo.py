@@ -11,6 +11,9 @@ from run_simulation import try_on_simulator
 import numpy as np
 import random
 import copy
+import pytz
+from datetime import datetime
+import sys
 
 
 DIMS = {
@@ -240,110 +243,10 @@ DIMS = {
     ],
 }
 
-def add_plantDensity1(dims):
-    start_density_range = np.arange(80, 91, 5)  # 80,85,90
-    end_density_range = np.arange(5, 16, 5)  # 5,10,15
-    skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
-    change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
-
-    max_days = 38
-    control_densitys = []
-
-    for i in range(10000):
-        # "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
-        start_density = random.choice(start_density_range)
-        end_density = random.choice(end_density_range)
-            
-        days = 1
-        density = start_density
-        control_density =  f'{days} {start_density}'
-        while True:
-            skip_day = random.choice(skip_day_range)
-            change_density = random.choice(change_density_range)
-            days = days+skip_day
-            if days>max_days: break
-            density = density - change_density
-            if density<end_density: break
-            control_density = f'{control_density}; {days} {density}'
-        control_densitys.append(control_density)
-        unique_densitys = set(control_densitys)
-        control_densitys = list(unique_densitys)
-
-    dims_pd = copy.deepcopy(dims)
-    dims_pd.append(Categorical(control_densitys, name='plantDensity'))
-    return dims_pd
-
-def add_plantDensity2(dims):
-    start_density_range = np.arange(80, 91, 5)  # 80,85,90
-    end_density_range = np.arange(5, 16, 5)  # 5,10,15
-    skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
-    change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
-
-    max_days = 40
-    control_densitys = []
-
-    for i in range(20000):
-        # "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
-        start_density = random.choice(start_density_range)
-        end_density = random.choice(end_density_range)
-            
-        days = 1
-        density = start_density
-        
-        skip_days = []
-        change_densitys = []
-        while True:
-            skip_day = random.choice(skip_day_range)
-            change_density = random.choice(change_density_range)
-            days = days+skip_day
-            if days>max_days: break
-            density = density - change_density
-            if density<end_density: break
-            skip_days.append(skip_day)
-            change_densitys.append(change_density)
-        change_densitys.sort(reverse=True)
-
-        days = 1
-        density = start_density
-        control_density =  f'{days} {density}'
-        for i in range(len(skip_days)):
-            days = days + skip_days[i]
-            density = density - change_densitys[i]
-            control_density = f'{control_density}; {days} {density}'
-
-        if density in end_density_range:
-            control_densitys.append(control_density)
-    
-    dims_pd = copy.deepcopy(dims)
-    dims_pd.append(Categorical(control_densitys, name='plantDensity'))
-    return dims_pd
-
-def add_plantDensity_fix(dims, pd):    
-    dims_pd = copy.deepcopy(dims)
-    dims_pd.append(Categorical([pd], name='plantDensity'))
-    return dims_pd
-
-DIMS['A4PD1'] = add_plantDensity1(DIMS['A4'])
-# 5.348
-# [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300, '1 85; 6 50; 15 25; 25 15']
-DIMS['A4BSTPD1'] = add_plantDensity1(DIMS['A4BST'])
-DIMS['A4PD2'] = add_plantDensity2(DIMS['A4'])
-# Best Parameters on A: [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300, '1 80; 9 50; 14 25; 20 20; 27 15']
-# Best NetProfit on A: 5.433
-# Best Parameters on C: [38, 10, 26, 182, 694, 1200, 912, 0, 12, 24, 300, '1 80; 11 45; 19 25; 27 15']
-# Best NetProfit on C: 3.319
-DIMS['A4BSTPD2'] = add_plantDensity2(DIMS['A4BST'])
-# Best Parameters on C: [38, 10, 20, 159, 648, 1199, 1125, 2, 11, 19, 300, '1 80; 11 45; 19 25; 27 15']
-# Best NetProfit on C: 5.686
-DIMS['A4PDF'] = add_plantDensity_fix(DIMS['A4'], '1 80; 11 45; 19 25; 27 15')
-# Best Parameters: [39, 10, 17, 155, 646, 1197, 1080, 10, 12, 18, 299, '1 80; 11 45; 19 25; 27 15']
-# Best NetProfit: 6.465
-DIMS['C1PDF'] = add_plantDensity_fix(DIMS['C1'], '1 80; 11 45; 19 25; 27 15')
-# Best Parameters: [40, 9, 16, 159, 620, 1200, 1119, 0, 10, 20, 299, '1 80; 11 45; 19 25; 27 15']
-# Best NetProfit: 6.612
-DIMS['C2PDF'] = add_plantDensity_fix(DIMS['C2'], '1 80; 11 45; 19 25; 27 15')
-DIMS['C2BSTPD2'] = add_plantDensity2(DIMS['C2BST'])
-
+BEST_PROFIT = np.inf
+BEST_PARM = None
+TIMEZONE = pytz.timezone('Europe/Amsterdam')
+END_TIME = datetime(2021, 7, 13, hour=14, minutes=55, tzinfo=TIMEZONE)
 
 def make_day_scheme(dt1, v1, dt2, v2, dt3, v3, dt4, v4):
     return {
@@ -424,6 +327,17 @@ def get_func_and_callback(args):
 
         output = try_on_simulator(control_name, control_dir, output_dir, args.simulator)
 
+        global BEST_PROFIT, BEST_PARM
+        if - output['stats']['economics']['balance'] < BEST_PROFIT:
+            BEST_PROFIT = - output['stats']['economics']['balance']
+            CP.dump_json(f'{args.data_dir}/best_control', control_name)
+            BEST_PARM = control_name.split(".")[0]
+
+        now = datetime.now(tz=TIMEZONE)
+        if now > END_TIME: 
+            try_on_simulator(control_name, f'{args.data_dir}/best_control', f'{args.data_dir}/best_output', args.simulator)
+            sys.exit(0)
+
         return - output['stats']['economics']['balance']
 
     def save_result(res):
@@ -443,6 +357,70 @@ def get_func_and_callback(args):
 
     return netprofit, save_result
 
+def add_plantDensity(dims):
+    start_density_range = np.arange(80, 91, 5)  # 80,85,90
+    end_density_range = np.arange(5, 16, 5)  # 5,10,15
+    skip_day_range = np.arange(5, 11, 1)  # 5,6,7,8,9,10
+    change_density_range = np.arange(5, 36, 5)  # 5,10,15,20,25,30,35
+
+    max_days = dims[0].categories[0]
+    control_densitys = []
+
+    for i in range(1000):
+        # "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
+        start_density = random.choice(start_density_range)
+        end_density = random.choice(end_density_range)
+            
+        days = 1
+        density = start_density
+        
+        skip_days = []
+        change_densitys = []
+        while True:
+            skip_day = random.choice(skip_day_range)
+            change_density = random.choice(change_density_range)
+            days = days+skip_day
+            if days>max_days: break
+            density = density - change_density
+            if density<end_density: break
+            skip_days.append(skip_day)
+            change_densitys.append(change_density)
+        change_densitys.sort(reverse=True)
+
+        days = 1
+        density = start_density
+        control_density =  f'{days} {density}'
+        for i in range(len(skip_days)):
+            days = days + skip_days[i]
+            density = density - change_densitys[i]
+            control_density = f'{control_density}; {days} {density}'
+
+        if density in end_density_range:
+            control_densitys.append(control_density)
+    
+    dims_pd = copy.deepcopy(dims)
+    dims_pd.append(Categorical(control_densitys, name='plantDensity'))
+    return dims_pd
+
+def add_plantDensity_fix(dims, pd):    
+    dims_pd = copy.deepcopy(dims)
+    dims_pd.append(Categorical([pd], name='plantDensity'))
+    return dims_pd
+
+def expand_best(best_no_pd):
+    return [
+        Integer(name='num_days', low=best_no_pd[0]-2, high=best_no_pd[0]+2),
+        Integer(name='heatingTemp_night', low=best_no_pd[1]-3, high=best_no_pd[1]+3),
+        Integer(name='heatingTemp_day', low=best_no_pd[2]-3, high=best_no_pd[2]+3),
+        Integer(name='CO2_pureCap', low=best_no_pd[3]-15, high=best_no_pd[3]+15),
+        Integer(name='CO2_setpoint_night', low=best_no_pd[4]-50, high=best_no_pd[4]+50),
+        Integer(name='CO2_setpoint_day', low=best_no_pd[5]-3, high=best_no_pd[5]+3),
+        Integer(name='CO2_setpoint_lamp', low=best_no_pd[6]-50, high=best_no_pd[6]+50),
+        Integer(name='light_intensity', low=best_no_pd[7]-5, high=best_no_pd[7]+5),
+        Integer(name='light_hours', low=best_no_pd[8]-2, high=best_no_pd[8]+2),
+        Integer(name='light_endTime', low=best_no_pd[9]-2, high=best_no_pd[9]+2),
+        Integer(name='light_maxIglob', low=best_no_pd[10]-5, high=best_no_pd[10]+5),
+    ]
 
 def optimize(args):
     opt = args.optimizer
@@ -457,27 +435,45 @@ def optimize(args):
 
     netprofit, save_result = get_func_and_callback(args)
 
-    return opt_func(
-        func=netprofit,
-        dimensions=DIMS[args.dimension_spec],
-        n_initial_points=args.num_initial_points,
-        n_calls=args.num_calls,
-        random_state=args.random_seed,
-        callback=save_result,
-        verbose=args.logging
-    )
+    best_pd = None
+    best_no_pd = []
 
+    for r in len(args.num_round):
+        now = datetime.now(tz=TIMEZONE)
+        if now > END_TIME: break
+        
+        if r == 0:
+            dim = add_plantDensity(DIMS[args.start_point])
+        elif r==1:
+            dim = add_plantDensity_fix(DIMS[args.start_range], best_pd)
+        else:
+            dim = add_plantDensity_fix(expand_best(best_no_pd), best_pd)
+
+        one_round = opt_func(
+            func=netprofit,
+            dimensions=dim,
+            n_initial_points=args.num_initial_points,
+            n_calls=args.num_calls,
+            random_state=args.random_seed,
+            callback=save_result,
+            verbose=args.logging
+        )
+
+        if r == 0: best_pd = one_round.x[-1]
+        if r > 0: best_no_pd = one_round.x[0:-1]
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-NC', '--num-calls', type=int, default=5)
-    parser.add_argument('-NI', '--num-initial-points', type=int, default=1)
-    parser.add_argument('-RS', '--random-seed', type=int, default=None)
-    parser.add_argument('-DS', '--dimension-spec', type=str, default=None)
+    parser.add_argument('-NR', '--num-round', type=int, default=10)
+    parser.add_argument('-NC', '--num-calls', type=int, default=100, help='num of calls in each round')
+    parser.add_argument('-NI', '--num-initial-points', type=int, default=10, help='num of initial calls in each round')
+    parser.add_argument('-SP', '--start-point', type=str, default=None)
+    parser.add_argument('-SR', '--start-range', type=str, default=None)
     parser.add_argument('-S', '--simulator', type=str, default='A')
-    parser.add_argument('-O', '--optimizer', type=str, default='gp')
+    parser.add_argument('-O', '--optimizer', type=str, default='gbrt')
+    parser.add_argument('-RS', '--random-seed', type=int, default=None)
     parser.add_argument('-L', '--logging', action='store_true')
     parser.add_argument('-P', '--float-precision', type=int, default=0)
     parser.add_argument('-D', '--data-dir', type=str, default=None)
@@ -486,7 +482,7 @@ if __name__ == '__main__':
 
     assert args.num_calls >= args.num_initial_points
 
-    res = optimize(args)
+    optimize(args)
     
-    print(f'Best Parameters:', res.x)
-    print(f'Best NetProfit:', - res.fun)
+    print(f'Best Parameters:', BEST_PARM)
+    print(f'Best NetProfit:', BEST_PROFIT)
