@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 import datetime
 import json
@@ -9,15 +10,15 @@ import torch
 
 from model import AGCModelEnsemble
 from constant import CONTROL_KEYS, ENV_KEYS, OUTPUT_KEYS, ENV_KEYS_TO_INDEX, \
-                                    OUTPUT_KEYS_TO_INDEX, START_DATE, MATERIALS, EP_PATH, OP_TRACES_PATH,\
-                                    MODEL_PATHS
+    OUTPUT_KEYS_TO_INDEX, START_DATE, MATERIALS, EP_PATH, OP_TRACES_DIR, MODEL_PATHS
 from utils import normalize, unnormalize, get_ensemble_ckpt_paths
+
 
 class GreenhouseSim(gym.Env):
     min_fw = 210
     num_control_params = 56  # count from CONTROL_KEYS
     num_env_params = len(ENV_KEYS)
-    num_op_params= len(OUTPUT_KEYS)
+    num_op_params = len(OUTPUT_KEYS)
 
     action_range = np.array([
         [0, 1],  # end (bool); sim_idx: 0; agent_idx: 0  
@@ -95,7 +96,7 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, learning=True, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_path = OP_TRACES_PATH):
+    def __init__(self, learning=True, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_dir=OP_TRACES_DIR):
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                                 shape=(self.num_env_params + self.num_op_params,))
@@ -119,7 +120,7 @@ class GreenhouseSim(gym.Env):
         # self.net_pl.load_state_dict(checkpoint_pl['state_dict'])
 
         # loading initial state distribution
-        self.traces = np.load(op_traces_path, allow_pickle=True)  # list of trajectory each with shape (T, 20)
+        self.op_trace_paths = [f for f in os.listdir(op_traces_dir) if os.path.splitext(f)[1] == '.npy']
 
         ckpt_paths = get_ensemble_ckpt_paths(model_paths=model_paths, model_id='all')
         self.net = AGCModelEnsemble(self.num_control_params, self.num_env_params,
@@ -134,7 +135,7 @@ class GreenhouseSim(gym.Env):
         # state features definition
         self.start_iter = 0
         self.iter = 0
-        self.trace_idx = 0
+        self.trace = None
         self.op = None
         self.cp_prev = None
         self.agent_cp_daily = None
@@ -197,7 +198,7 @@ class GreenhouseSim(gym.Env):
             self.cum_head_m2 += 1 / model_action[-1]
 
         # run net
-        op_prev = self.traces[self.trace_idx][self.iter] if self.learning else self.op
+        op_prev = self.trace[self.iter] if self.learning else self.op
         self.op = self.net.forward(model_action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format
@@ -240,7 +241,7 @@ class GreenhouseSim(gym.Env):
         # end trajectory if (action[0] a.k.a. end is True and fw > 210) or exceed max step
         fw = self.op[OUTPUT_KEYS_TO_INDEX["comp1.Plant.headFW"]]
         done = end and fw > self.min_fw
-        done = done or self.iter >= self._max_episode_steps or self.iter >= self.traces[self.trace_idx].shape[0] - 2
+        done = done or self.iter >= self._max_episode_steps or self.iter >= self.trace.shape[0] - 2
 
         info = {
             'agent_ep_prev': agent_ep_prev,
@@ -272,18 +273,20 @@ class GreenhouseSim(gym.Env):
         return output_state, reward, done, info
 
     def reset(self, start=None):
+        # randomly choose a trace
+        trace_idx = np.random.choice(len(self.op_trace_paths))
+        self.trace = np.load(self.op_trace_paths[trace_idx])
+
         # if START is none, randomly choose a start date
         if start is None:
-            self.start_iter = np.random.choice(min(self.init_day_range, int(self.traces.shape[0]/24))) * 24\
-                             if self.learning else 0
+            self.start_iter = np.random.choice(min(self.init_day_range, int(self.trace.shape[0] / 24))) * 24 \
+                if self.learning else 0
         # otherwise, start from day START
         else:
             self.start_iter = start * 24
         self.iter = self.start_iter
 
-        # randomly choose a trace
-        self.trace_idx = np.random.choice(self.traces.shape[0])
-        self.op = self.traces[self.trace_idx][self.iter]
+        self.op = self.trace[self.iter]
         self.cp_prev = None
         self.agent_cp_daily = None
 

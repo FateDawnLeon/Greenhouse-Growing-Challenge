@@ -542,8 +542,16 @@ if __name__ == '__main__':
         'data_sample=random_date=2021-07-06_sim=A_number=1000'
     ]
 
+    traces_dir = './op_traces/'
+    if not os.path.isdir(traces_dir):
+        os.makedirs(traces_dir)
+
     op_traces = prepare_op_traces([prefix+folder for folder in data_folders])
-    np.save('op_traces.npy', op_traces)
+    file_pattern = f'op_trace_{{:0{len(str(len(op_traces)))}}}.npy'
+    for i, trace in enumerate(op_traces):
+        file_name = file_pattern.format(i)
+        path = os.path.join(traces_dir, file_name)
+        np.save(file_name, trace)
 
     # data_dirs = ' '.join(f'{prefix}{f}' for f in data_folders)
 
