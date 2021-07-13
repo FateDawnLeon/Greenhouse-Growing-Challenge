@@ -426,6 +426,23 @@ SPACES = {
         "vent_startWnd": tune.quniform(lower=50, upper=53, q=0.5),  # 50
         "plantDensity": '1 80; 10 55; 15 40; 20 25; 25 20; 31 15',
     },
+     'C13BEST': { # BEST of C13
+        # best netprofit of this round: 7.94
+        "num_days": 39,
+        "heatingTemp_night": 4.1,
+        "heatingTemp_day": 17.7,
+        "CO2_pureCap": 262,  # 200; having minor effects on profit -> could be fixed
+        "CO2_setpoint_night": 725,
+        "CO2_setpoint_day": 1160,
+        "CO2_setpoint_lamp": 1030,  # 0; could be fixed to 0 so that only CO2_setpoint_day works
+        "light_intensity":20,
+        "light_hours": 5,
+        "light_endTime": 19,
+        "light_maxIglob": 300, # 300; having minor effects on profit -> could be fixed
+        "scr1_ToutMax": 4.6, # 8
+        "vent_startWnd": 52.5,  # 50
+        "plantDensity": '1 80; 10 55; 15 40; 20 25; 25 20; 31 15',
+    },
     'SPC13BEST': { # UPDATE C13
         # best config: {'num_days': 39, 'heatingTemp_night': 4.1, 'heatingTemp_day': 17.7, 'CO2_pureCap': 262, 'CO2_setpoint_night': 725, 'CO2_setpoint_day': 1160, 'CO2_setpoint_lamp': 1030, 'light_intensity': 20, 'light_hours': 5, 'light_endTime': 19, 'light_maxIglob': 300, 'scr1_ToutMax': 4.6, 'vent_startWnd': 53.5, 'plantDensity': '1 90; 6 55; 15 35; 23 20; 28 15'}
         # best netprofit of this round: 7.489
@@ -523,7 +540,7 @@ SPACES = {
         "CO2_pureCap": 270,
         "CO2_setpoint_night": 400,
         "CO2_setpoint_day": 1200,
-        "CO2_setpoint_lamp": 0,
+        "CO2_setpoint_lamp": 1100,
         "light_intensity": 0,
         "light_hours": 9,
         "light_endTime": 17,
@@ -534,8 +551,8 @@ SPACES = {
     },
     'D2': { # BASED ON D1 -> best netprofit: ???
         "num_days": tune.qrandint(lower=38, upper=42, q=1),
-        "heatingTemp_night": tune.quniform(lower=2, upper=5, q=0.2),
-        "heatingTemp_day": tune.quniform(lower=17, upper=23, q=0.1),
+        "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
+        "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
         "CO2_pureCap": tune.qrandint(lower=260, upper=280, q=5),
         "CO2_setpoint_night": tune.qrandint(lower=400, upper=600, q=10),
         "CO2_setpoint_day": tune.qrandint(lower=1000, upper=1200, q=10),
@@ -550,8 +567,8 @@ SPACES = {
     },
     'D3': { # BASED ON D2 -> best netprofit: ???
         "num_days": tune.qrandint(lower=38, upper=42, q=1),
-        "heatingTemp_night": tune.quniform(lower=2, upper=5, q=0.1),
-        "heatingTemp_day": tune.quniform(lower=17, upper=23, q=0.1),
+        "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
+        "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
         "CO2_pureCap": tune.qrandint(lower=260, upper=280, q=2),
         "CO2_setpoint_night": tune.qrandint(lower=400, upper=600, q=5),
         "CO2_setpoint_day": tune.qrandint(lower=1000, upper=1200, q=5),
