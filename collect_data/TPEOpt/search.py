@@ -1,13 +1,14 @@
+import os
+import glob
+
 from ray import tune
 from ray.tune.suggest import ConcurrencyLimiter
 from ray.tune.suggest.hyperopt import HyperOptSearch
 
+from submit import BEST_DIR, SIM_ID
 from space import SPACES
-from utils import query_simulator, ControlParamSimple, save_json_data, load_json_data
-import os
-import glob
+from utils import query_simulator, ControlParamSimple, save_json_data
 
-SIM_ID = 'C'
 
 def generate_control(config):
     num_days = int(config["num_days"])
@@ -76,16 +77,16 @@ def objective(config, checkpoint_dir=None):
     balance = output['stats']['economics']['balance']
     print(f'Netprofit={balance}, Config={config}')
 
-    best_control_file_list = glob.glob(f'{os.path.dirname(os.path.abspath(__file__))}/best_control_*.json')
+    best_control_file_list = glob.glob(f'{BEST_DIR}/best_control_*.json')
     if len(best_control_file_list) == 0:
-        best_control_file = f'{os.path.dirname(os.path.abspath(__file__))}/best_control_{balance}.json'
+        best_control_file = f'{BEST_DIR}/best_control_{balance}.json'
         save_json_data(control, best_control_file)
     else:
         best_prev = float(os.path.splitext(best_control_file_list[0])[0].split('_')[-1])
         if balance > best_prev:
             for f in best_control_file_list:
                 os.remove(f)
-            best_control_file = f'{os.path.dirname(os.path.abspath(__file__))}/best_control_{balance}.json'
+            best_control_file = f'{BEST_DIR}/best_control_{balance}.json'
             save_json_data(control, best_control_file)
 
     tune.report(netprofit=balance)

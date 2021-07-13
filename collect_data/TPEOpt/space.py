@@ -14,7 +14,8 @@ def make_plant_density(max_days):
         "1 90; 7 60; 14 40; 21 30; 28 20; 34 15",
         "1 80; 9 50; 14 25; 20 20; 27 15",
         "1 80; 12 45; 20 25; 27 20; 35 10",  # from email
-        "1 80; 10 40; 20 30; 25 20; 30 10"  # from control sample
+        "1 80; 10 40; 20 30; 25 20; 30 10",  # from control sample
+        "1 80; 10 55; 15 40; 20 25; 25 20; 31 15"  # from C15TEST
     ]
 
     for i in range(1000):
@@ -484,65 +485,65 @@ SPACES = {
         "num_days": 40,
         "heatingTemp_night": 3,
         "heatingTemp_day": 20,
-        "CO2_pureCap": 270,  # 200; having minor effects on profit -> could be fixed
+        "CO2_pureCap": 270,
         "CO2_setpoint_night": 400,
         "CO2_setpoint_day": 1200,
-        "CO2_setpoint_lamp": 0,  # tune.qrandint(lower=1000, upper=1200, q=10),  # 0; could be fixed to 0 so that only CO2_setpoint_day works
+        "CO2_setpoint_lamp": 0,
         "light_intensity": 0,
-        "light_hours": 9,  # tune.quniform(lower=10, upper=12, q=0.1),
-        "light_endTime": 17,  # tune.quniform(lower=18, upper=19, q=0.1),
-        "light_maxIglob": 800,  # 300; having minor effects on profit -> could be fixed
-        "scr1_ToutMax": 5,  # tune.quniform(lower=4, upper=6.4, q=0.2), # 8
-        "vent_startWnd": 50,  # tune.quniform(lower=50, upper=53, q=0.5),  # 50
+        "light_hours": 9,
+        "light_endTime": 17,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 50,
         "plantDensity": '1 80; 10 55; 15 40; 20 25; 25 20; 31 15',
     },
-    'D1': { # BASED ON C15TEST -> best netprofit: 7.796
-        "num_days": tune.qrandint(lower=38, upper=42, q=1),
+    'D1': { # BASED ON C15TEST -> best netprofit: ???
+        "num_days": 40,
         "heatingTemp_night": 3,
         "heatingTemp_day": 20,
-        "CO2_pureCap": 270,  # 200; having minor effects on profit -> could be fixed
+        "CO2_pureCap": 270,
         "CO2_setpoint_night": 400,
         "CO2_setpoint_day": 1200,
-        "CO2_setpoint_lamp": 0,  # tune.qrandint(lower=1000, upper=1200, q=10),  # 0; could be fixed to 0 so that only CO2_setpoint_day works
+        "CO2_setpoint_lamp": 0,
         "light_intensity": 0,
-        "light_hours": 9,  # tune.quniform(lower=10, upper=12, q=0.1),
-        "light_endTime": 17,  # tune.quniform(lower=18, upper=19, q=0.1),
-        "light_maxIglob": 800,  # 300; having minor effects on profit -> could be fixed
-        "scr1_ToutMax": 5,  # tune.quniform(lower=4, upper=6.4, q=0.2), # 8
-        "vent_startWnd": 50,  # tune.quniform(lower=50, upper=53, q=0.5),  # 50
-        "plantDensity": tune.choice(make_plant_density(40)),
+        "light_hours": 9,
+        "light_endTime": 17,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 50,
+        "plantDensity": tune.choice(make_plant_density(38)),
     },
-    'D2': { # BASED ON C13 -> best netprofit: 7.94
-        "num_days": None,
+    'D2': { # BASED ON D1 -> best netprofit: ???
+        "num_days": tune.qrandint(lower=38, upper=42, q=1),
         "heatingTemp_night": tune.quniform(lower=2, upper=5, q=0.2),
         "heatingTemp_day": tune.quniform(lower=17, upper=23, q=0.1),
-        "CO2_pureCap": tune.qrandint(lower=260, upper=280, q=5),  # 200; having minor effects on profit -> could be fixed
+        "CO2_pureCap": tune.qrandint(lower=260, upper=280, q=5),
         "CO2_setpoint_night": tune.qrandint(lower=400, upper=600, q=10),
         "CO2_setpoint_day": tune.qrandint(lower=1000, upper=1200, q=10),
-        "CO2_setpoint_lamp": 0,  # 0; could be fixed to 0 so that only CO2_setpoint_day works
+        "CO2_setpoint_lamp": tune.qrandint(lower=1000, upper=1200, q=10),
         "light_intensity": tune.qrandint(lower=0, upper=30, q=2),
         "light_hours": 9,
         "light_endTime": 17,
-        "light_maxIglob": 800, # 300; having minor effects on profit -> could be fixed
-        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2), # 8
-        "vent_startWnd": tune.quniform(lower=50, upper=55, q=0.5),  # 50
-        "plantDensity": None,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2),
+        "vent_startWnd": tune.quniform(lower=50, upper=55, q=0.5),
+        "plantDensity": "...",  # TODO: need to adjust according to result from D1
     },
-    'D3': { # BASED ON C13 -> best netprofit: 7.94
-        "num_days": None,
-        "heatingTemp_night": tune.quniform(lower=None, upper=None, q=0.1),
-        "heatingTemp_day": tune.quniform(lower=None, upper=None, q=0.1),
-        "CO2_pureCap": tune.qrandint(lower=None, upper=None, q=2),  # 200; having minor effects on profit -> could be fixed
-        "CO2_setpoint_night": tune.qrandint(lower=None, upper=None, q=5),
-        "CO2_setpoint_day": tune.qrandint(lower=None, upper=None, q=5),
-        "CO2_setpoint_lamp": 0,  # 0; could be fixed to 0 so that only CO2_setpoint_day works
-        "light_intensity": tune.qrandint(lower=None, upper=None, q=1),
+    'D3': { # BASED ON D2 -> best netprofit: ???
+        "num_days": tune.qrandint(lower=38, upper=42, q=1),
+        "heatingTemp_night": tune.quniform(lower=2, upper=5, q=0.1),
+        "heatingTemp_day": tune.quniform(lower=17, upper=23, q=0.1),
+        "CO2_pureCap": tune.qrandint(lower=260, upper=280, q=2),
+        "CO2_setpoint_night": tune.qrandint(lower=400, upper=600, q=5),
+        "CO2_setpoint_day": tune.qrandint(lower=1000, upper=1200, q=5),
+        "CO2_setpoint_lamp": tune.qrandint(lower=1000, upper=1200, q=10),
+        "light_intensity": tune.qrandint(lower=0, upper=30, q=1),
         "light_hours": 9,
         "light_endTime": 17,
-        "light_maxIglob": 800, # 300; having minor effects on profit -> could be fixed
-        "scr1_ToutMax": tune.quniform(lower=None, upper=None, q=0.1), # 8
-        "vent_startWnd": tune.quniform(lower=None, upper=None, q=0.1),  # 50
-        "plantDensity": None,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.1), # 8
+        "vent_startWnd": tune.quniform(lower=50, upper=55, q=0.1),  # 50
+        "plantDensity": "...",  # TODO: need to adjust according to result from D1
     }
 }
 
