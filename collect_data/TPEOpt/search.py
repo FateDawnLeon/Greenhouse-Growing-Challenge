@@ -29,19 +29,27 @@ def generate_control(config):
     CP.set_endDate(num_days)
     heating_temp_scheme = {
         "01-01": {
-            "r-1": heatingTemp_night,
-            "r+1": heatingTemp_day, 
-            "s-1": heatingTemp_day, 
-            "s+1": heatingTemp_night
+            # "r-1": heatingTemp_night,
+            # "r+1": heatingTemp_day, 
+            # "s-1": heatingTemp_day, 
+            # "s+1": heatingTemp_night
+            "r": heatingTemp_night,
+            "8": heatingTemp_day, 
+            "17": heatingTemp_day, 
+            "s": heatingTemp_night
         }
     }
     CP.set_value("comp1.setpoints.temp.@heatingTemp", heating_temp_scheme)
     CP.set_value("common.CO2dosing.@pureCO2cap", CO2_pureCap)
     CO2_setpoint_scheme = {
         "01-01": {
+            # "r": CO2_setpoint_night, 
+            # "r+1": CO2_setpoint_day,
+            # "s-1": CO2_setpoint_day, 
+            # "s": CO2_setpoint_night,
             "r": CO2_setpoint_night, 
-            "r+1": CO2_setpoint_day,
-            "s-1": CO2_setpoint_day, 
+            "8": CO2_setpoint_day,
+            "17": CO2_setpoint_day, 
             "s": CO2_setpoint_night,
         }
     }
@@ -89,17 +97,26 @@ def run_search(args):
     else:
         current_best_params = None
 
-    algo = HyperOptSearch(points_to_evaluate=current_best_params)
-    algo = ConcurrencyLimiter(algo, max_concurrent=1)
+    if args.try_one:
+        algo = None
+        search_space = SPACES[args.try_one]
+        num_samples = 1
+        space_name = args.try_one
+    else:
+        algo = HyperOptSearch(points_to_evaluate=current_best_params)
+        algo = ConcurrencyLimiter(algo, max_concurrent=1)
+        search_space = SPACES[args.search_space]
+        num_samples = args.num_samples
+        space_name = args.search_space
 
     analysis = tune.run(
         objective,
-        name=f'Max_NetProfit_Space={args.search_space}',
+        name=f'Max_NetProfit_Space={space_name}',
         search_alg=algo,
         metric="netprofit",
         mode="max",
-        num_samples=args.num_samples,
-        config=SPACES[args.search_space],
+        num_samples=num_samples,
+        config=search_space,
         verbose=1,
         local_dir="./search_results"
     )
@@ -112,9 +129,10 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-SP', '--search-space', type=str, required=True)
-    parser.add_argument('-NS', '--num-samples', type=int, required=True)
+    parser.add_argument('-SP', '--search-space', type=str, default=None)
+    parser.add_argument('-NS', '--num-samples', type=int, default=1)
     parser.add_argument('-RF', '--run-first', type=str, nargs='+', default=None)
+    parser.add_argument('-TO', '--try-one', type=str, default=None)
     args = parser.parse_args()
 
     run_search(args)

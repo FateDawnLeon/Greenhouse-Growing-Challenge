@@ -89,6 +89,33 @@ class ControlParamSimple(object):
         end_date = self.start_date + datetime.timedelta(days=num_days)
         self.set_value("simset.@endDate", end_date.isoformat())
 
+    def set_heatingTemp(self, heatingTemp_night, heatingTemp_day):
+        heating_temp_scheme = {
+            "01-01": {
+                "r-1": heatingTemp_night,
+                "r+1": heatingTemp_day, 
+                "s-1": heatingTemp_day, 
+                "s+1": heatingTemp_night
+            }
+        }
+        self.set_value("comp1.setpoints.temp.@heatingTemp", heating_temp_scheme)
+
+    def set_CO2_setpoints(self, CO2_pureCap, CO2_setpoint_night, CO2_setpoint_day, CO2_setpoint_lamp=0):
+        CO2_setpoint_scheme = {
+            "01-01": {
+                "r": CO2_setpoint_night, 
+                "r+1": CO2_setpoint_day,
+                "s-1": CO2_setpoint_day, 
+                "s": CO2_setpoint_night,
+            }
+        }
+        self.set_value("comp1.setpoints.CO2.@setpoint", CO2_setpoint_scheme)
+        self.set_value("comp1.setpoints.CO2.@setpIfLamps", CO2_setpoint_lamp)
+        self.set_value("comp1.setpoints.CO2.@pureCO2cap", CO2_pureCap)
+
+    def set_illumination(self, light_intensity):
+        pass
+
     def __repr__(self):
         return json.dumps(self.data, indent=4)
 
@@ -105,3 +132,10 @@ def set_default_CP_values(CP):
     CP.set_value("comp1.screens.scr2.@ToutMax", 15)
     CP.set_value("comp1.screens.scr2.@closeBelow", "0 290; 10 2")
     CP.set_value("comp1.screens.scr2.@closeAbove", 1200)
+
+
+# use this to fix some params if needed
+def manual_control():
+    CP = ControlParamSimple()
+    CP.set_endDate(num_days=39)
+    # TODO: fillout all params
