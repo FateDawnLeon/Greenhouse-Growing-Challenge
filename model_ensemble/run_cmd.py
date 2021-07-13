@@ -41,9 +41,26 @@ def train_ensemble_model(train_dirs, val_dirs, N, reparse_data=False):
         cmd = f'python train.py --max-iters 50000 --batch-size 1024 --lr 0.001 --wd {wd} \
             --root-dir trained_models/{model_name} \
             --train-dirs {train_dirs} \
+            --val-dirs {val_dirs}'
+        cmd = f'CUDA_VISIBLE_DEVICES={n} nohup {cmd} > trained_models/{model_name}.log 2>&1 &'
+        os.system(cmd)
+        print(f'{model_name} starts training...')
+
+
+def finetune_ensemble_model(train_dirs, val_dirs, N, pretrained_model_id, reparse_data=False, lr=0.0001):
+    if reparse_data:
+        preprocess(train_dirs)
+        preprocess(val_dirs)
+    
+    for n in range(N):
+        model_name = f'ensemble_model_finetune_{pretrained_model_id}_child[{n}]'
+        pretrained_model_name = f'ensemble_model_{pretrained_model_id}_child[{n}]'
+        cmd = f'python train.py --max-iters 10000 --batch-size 1024 --lr {lr} --wd {wd} \
+            --root-dir trained_models/{model_name} \
+            --train-dirs {train_dirs} \
             --val-dirs {val_dirs} \
-            --gpu {n}'
-        cmd = f'nohup {cmd} > trained_models/{model_name}.log 2>&1 &'
+            --ckpt-path trained_models/{pretrained_model_name}/checkpoints/step=50000.pth'
+        cmd = f'CUDA_VISIBLE_DEVICES={n} nohup {cmd} > trained_models/{model_name}.log 2>&1 &'
         os.system(cmd)
         print(f'{model_name} starts training...')
 

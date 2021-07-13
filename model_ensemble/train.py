@@ -53,6 +53,7 @@ def validate(model, val_loader):
         with torch.no_grad():
             loss = model.loss(input, target)
         running_loss += loss.item() * target.size(0)
+    model.train()
     return running_loss / len(val_loader.dataset)
 
 
@@ -70,6 +71,8 @@ def get_args():
     parser.add_argument('--val-interval', type=int, default=1000)
     parser.add_argument('--optimizer', type=str, default='adam')
     parser.add_argument('-FP', '--force-preprocess', action='store_true')
+    parser.add_argument('-FT', '--finetune', action='store_true')
+    parser.add_argument('-CP', '--ckpt-path', type=str)
     return parser.parse_args()
 
 
@@ -77,7 +80,6 @@ if __name__ == '__main__':
     args = get_args()
     print(args)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
 
     train_dataset = AGCDataset(args.train_dirs, force_preprocess=args.force_preprocess)
@@ -92,11 +94,16 @@ if __name__ == '__main__':
         norm_data=norm_data,
     )
 
+    if args.finetune:
+        ckpt = torch.load(args.ckpt_path)
+        model.load_state_dict(ckpt['state_dict'])
+
     optimizer = OPTIM[args.optimizer](model.parameters(), lr=args.lr, weight_decay=args.wd)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, min_lr=1e-5)
 
     loss_stats = {'train':[], 'val':[]}
 
+    model.train()
     for step in range(1, args.max_iters+1):
         loss = train_step(model, iter_loader, optimizer)
         loss_stats['train'].append((step, loss))
