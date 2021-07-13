@@ -15,7 +15,8 @@ def make_plant_density(max_days):
         "1 80; 9 50; 14 25; 20 20; 27 15",
         "1 80; 12 45; 20 25; 27 20; 35 10",  # from email
         "1 80; 10 40; 20 30; 25 20; 30 10",  # from control sample
-        "1 80; 10 55; 15 40; 20 25; 25 20; 31 15"  # from C15TEST
+        "1 80; 10 55; 15 40; 20 25; 25 20; 31 15",  # from C15TEST
+        "1 85; 7 50; 15 30; 25 20; 33 15",  # from D1 test on sim C
     ]
 
     for i in range(1000):
@@ -479,7 +480,7 @@ SPACES = {
         "vent_startWnd": 50,  # tune.quniform(lower=50, upper=53, q=0.5),  # 50
         "plantDensity": tune.choice(make_plant_density(39)),
     },
-    'C15TEST': { # BASED ON C15 -> best netprofit: 5.138
+    'C15BEST1': { # BASED ON C15 -> best netprofit: 5.138
         # best config: {'num_days': 40, 'heatingTemp_night': 3, 'heatingTemp_day': 20, 'CO2_pureCap': 270, 'CO2_setpoint_night': 400, 'CO2_setpoint_day': 1200, 'CO2_setpoint_lamp': 0, 'light_intensity': 0, 'light_hours': 9, 'light_endTime': 17, 'light_maxIglob': 800, 'scr1_ToutMax': 5, 'vent_startWnd': 50, 'plantDensity': '1 80; 10 55; 15 40; 20 25; 25 20; 31 15'}
         # best netprofit of this round: 7.796
         "num_days": 40,
@@ -496,6 +497,24 @@ SPACES = {
         "scr1_ToutMax": 5,
         "vent_startWnd": 50,
         "plantDensity": '1 80; 10 55; 15 40; 20 25; 25 20; 31 15',
+    },
+    'C15BEST2': { # BASED ON C15 -> best netprofit: 5.138
+        # best config: {'num_days': 40, 'heatingTemp_night': 3, 'heatingTemp_day': 20, 'CO2_pureCap': 270, 'CO2_setpoint_night': 400, 'CO2_setpoint_day': 1200, 'CO2_setpoint_lamp': 0, 'light_intensity': 0, 'light_hours': 9, 'light_endTime': 17, 'light_maxIglob': 800, 'scr1_ToutMax': 5, 'vent_startWnd': 50, 'plantDensity': '1 85; 7 50; 15 30; 25 20; 33 15'}
+        # best netprofit of this round: 7.966
+        "num_days": 40,
+        "heatingTemp_night": 3,
+        "heatingTemp_day": 20,
+        "CO2_pureCap": 270,
+        "CO2_setpoint_night": 400,
+        "CO2_setpoint_day": 1200,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 0,
+        "light_hours": 9,
+        "light_endTime": 17,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 50,
+        "plantDensity": '1 85; 7 50; 15 30; 25 20; 33 15',
     },
     'D1': { # BASED ON C15TEST -> best netprofit: ???
         "num_days": 40,
