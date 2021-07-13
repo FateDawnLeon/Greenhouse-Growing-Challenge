@@ -2,6 +2,8 @@ from ray import tune
 import numpy as np
 import random
 
+from ray.tune.sample import quniform
+
 
 def make_plant_density(max_days):
     start_density_range = np.arange(80, 91, 5)  # 80,85,90
@@ -597,7 +599,7 @@ SPACES = {
         "vent_startWnd": 51,
         "plantDensity": "1 80; 9 45; 16 25; 23 20; 30 15",  # TODO: need to adjust according to result from D1
     },
-'D3': { # BASED ON D2 -> best netprofit: ???
+    'D3': { # BASED ON D2 -> best netprofit: ???
         "num_days": tune.qrandint(lower=36, upper=38, q=1),
         "heatingTemp_night": tune.quniform(lower=5, upper=7, q=0.1),
         "heatingTemp_day": tune.quniform(lower=18, upper=20, q=0.1),
@@ -611,6 +613,38 @@ SPACES = {
         "light_maxIglob": 800,
         "scr1_ToutMax": tune.quniform(lower=3, upper=5, q=0.1),
         "vent_startWnd": tune.quniform(lower=48, upper=52, q=0.1),
+        "plantDensity": "1 80; 9 45; 16 25; 23 20; 30 15",  # TODO: need to adjust according to result from D1
+    },
+    'D4': { # BASED ON D2 -> best netprofit: ???
+        "num_days": 37,
+        "heatingTemp_night": tune.quniform(lower=5.5, upper=6, q=0.1),
+        "heatingTemp_day": tune.quniform(lower=19, upper=19.5, q=0.1),
+        "CO2_pureCap": tune.qrandint(lower=250, upper=260, q=1),
+        "CO2_setpoint_night": tune.qrandint(lower=500, upper=550, q=5),
+        "CO2_setpoint_day": tune.qrandint(lower=1100, upper=1200, q=10),
+        "CO2_setpoint_lamp": tune.qrandint(lower=1100, upper=1200, q=10),
+        "light_intensity": tune.qrandint(lower=0, upper=5, q=1),
+        "light_hours": tune.quniform(lower=8.5, upper=9.5),
+        "light_endTime": 17,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": tune.quniform(lower=4.5, upper=5, q=0.1),
+        "vent_startWnd": tune.quniform(lower=50, upper=52, q=0.1),
+        "plantDensity": "1 80; 9 45; 16 25; 23 20; 30 15",  # TODO: need to adjust according to result from D1
+    },
+    'D4BEST': { # BASED ON D2 -> best netprofit: ???
+        "num_days": 37,
+        "heatingTemp_night": 5.8,
+        "heatingTemp_day": 19.2,
+        "CO2_pureCap": 245,
+        "CO2_setpoint_night": tune.qrandint(lower=500, upper=550, q=5),
+        "CO2_setpoint_day": tune.qrandint(lower=1100, upper=1200, q=10),
+        "CO2_setpoint_lamp": tune.qrandint(lower=1100, upper=1200, q=10),
+        "light_intensity": tune.qrandint(lower=0, upper=5, q=1),
+        "light_hours": tune.quniform(lower=8.5, upper=9.5),
+        "light_endTime": 17,
+        "light_maxIglob": 800,
+        "scr1_ToutMax": tune.quniform(lower=4.5, upper=5, q=0.1),
+        "vent_startWnd": tune.quniform(lower=50, upper=52, q=0.1),
         "plantDensity": "1 80; 9 45; 16 25; 23 20; 30 15",  # TODO: need to adjust according to result from D1
     }
 }
