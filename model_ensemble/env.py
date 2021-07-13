@@ -481,7 +481,11 @@ class GreenhouseSim(gym.Env):
                     val = val[::24, 0]
                     # special handling for @plantDensity
                     if target[0] == 43:
-                        val = ';'
+                        result = f'{1} {val[0]}'
+                        for idx, v in enumerate(val[1:]):
+                            if val[idx + 1] != val[idx]:
+                                result += f'; {idx + 2} {val[idx + 1]}'
+                        val = result
                     else:
                         # get action at the first hour of each day
                         val = {GreenhouseSim.__day2str(day): val[day] for day in range(num_days)}
