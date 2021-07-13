@@ -8,4 +8,8 @@ best_output = query_simulator(best_control, sim_id=SIM_ID)
 
 balance = best_output['stats']['economics']['balance']
 print('best netprofit of final submission:', balance)
+
+prev_outputs = glob.glob(f'{os.path.dirname(os.path.abspath(__file__))}/best_output_*.json')
+for f in prev_outputs:
+    os.remove(f)
 save_json_data(best_output, f'{os.path.dirname(os.path.abspath(__file__))}/best_output_{balance}.json')
