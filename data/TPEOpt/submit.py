@@ -2,9 +2,9 @@ import glob, os
 from utils import query_simulator, save_json_data, load_json_data
 
 
-SIM_ID = 'C'
-BEST_DIR = "/mnt/d/Codes/Greenhouse-Growing-Challenge/collect_data/TPEOpt"
-# BEST_DIR = os.path.dirname(os.path.abspath(__file__))
+SIM_ID = 'D'
+# BEST_DIR = "/mnt/d/Codes/Greenhouse-Growing-Challenge/collect_data/TPEOpt"
+BEST_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 if __name__ == "__main__":

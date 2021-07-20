@@ -241,10 +241,7 @@ Temporary Items
 
 ## Custom Rules
 .idea/
-collect_data/control_jsons*/
-collect_data/output_jsons*/
-collect_data/data_sample*/
-collect_data/bo_data*/
+data/samples/
 *.zip
 *.json
 *.png
