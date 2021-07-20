@@ -37,7 +37,7 @@ from parameters import hyper, log_folder
 @click.option('--n_epochs', default=hyper['n_epochs'])
 @click.option('--batch_size', default=hyper['batch_size'])
 @click.option('--seed', default=hyper['seed'])
-@wrap_experiment(prefix='model2', name=log_folder, snapshot_mode='last')  # snapshot_mode='last'/'all'
+@wrap_experiment(prefix='model_final', name=log_folder, snapshot_mode='last')  # snapshot_mode='last'/'all'
 def rl_greenhouse(ctxt, alg, clip, pl,  pls0, pls1, bl, bls0, bls1, n_epochs, batch_size, seed):
     """Train RL with greenhouse sim.
 

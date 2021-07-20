@@ -3,7 +3,7 @@ import csv
 import matplotlib.pyplot as plt
 from parameters import log_folder
 
-prefix = 'data/local/model2/'
+prefix = 'data/local/model_final/'
 experiment_path = prefix+log_folder
 
 # get log info, e.g. returns, we can also see logs from tensorboard
