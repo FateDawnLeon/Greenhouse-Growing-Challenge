@@ -96,7 +96,7 @@ class GreenhouseSim(gym.Env):
 
     init_day_range = 20
 
-    def __init__(self, learning=True, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_dir=OP_TRACES_DIR):
+    def __init__(self, learning=True, off=True, model_paths=MODEL_PATHS, ep_path=EP_PATH, op_traces_dir=OP_TRACES_DIR):
         self.action_space = gym.spaces.Box(low=self.action_range[:, 0], high=self.action_range[:, 1])
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
                                                 shape=(self.num_env_params + self.num_op_params,))
@@ -142,6 +142,7 @@ class GreenhouseSim(gym.Env):
         self.num_spacings = 0  # TODO：space starts from 1 or 0?
         self.cum_head_m2 = 0
         self.learning = learning
+        self.off = off
 
     def parse_action(self, action):
         action[self.bool_indices] = action[self.bool_indices] > 0.5
@@ -198,7 +199,7 @@ class GreenhouseSim(gym.Env):
             self.cum_head_m2 += 1 / model_action[-1]
 
         # run net
-        op_prev = self.trace[self.iter] if self.learning else self.op
+        op_prev = self.trace[self.iter] if (self.learning and self.off) else self.op
         self.op = self.net.forward(model_action, self.env_values[self.iter - 1], op_prev)
 
         # gather state into agent format

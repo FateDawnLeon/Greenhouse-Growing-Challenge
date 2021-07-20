@@ -53,7 +53,7 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_cycles, n_ep
     """
     set_seed(seed)
     with TFTrainer(ctxt) as trainer:
-        gh_env = GreenhouseSim()
+        gh_env = GreenhouseSim(learning=True, off=True)
         env = normalize(GymEnv(gh_env))
 
         if pl == 'cont':

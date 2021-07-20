@@ -50,7 +50,7 @@ def rl_greenhouse(ctxt, alg, clip, pl,  pls0, pls1, bl, bls0, bls1, n_epochs, ba
     """
     set_seed(seed)
     with TFTrainer(ctxt) as trainer:
-        gh_env = GreenhouseSim()
+        gh_env = GreenhouseSim(learning=True, off=False)
         env = normalize(GymEnv(gh_env))
 
         if pl == 'mlp':
