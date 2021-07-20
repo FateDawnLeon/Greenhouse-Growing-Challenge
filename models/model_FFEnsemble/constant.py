@@ -110,7 +110,9 @@ OUTPUT_PL_KEYS_TO_INDEX = {key: i for i, key in enumerate(OUTPUT_PL_KEYS)}
 # ====================== simulator related ======================
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
-    'B': 'C48B-PTmQ-89Kx-jqV5-3zRL'
+    'B': 'C48B-PTmQ-89Kx-jqV5-3zRL',
+    'C': 'C48A-ZRJQ-3wcq-rGuC-mEme',
+    'D': 'C48B-PTmQ-89Kx-jqV5-3zRL'
 }
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
@@ -119,9 +121,9 @@ SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 COMMON_DATA_DIR = os.path.dirname(os.path.abspath(__file__)) 
 EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
 # OP_TRACES_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP_TRACES-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
-OP_TRACES_DIR = f'{COMMON_DATA_DIR}/op_traces'
+OP_TRACES_DIR = f'{COMMON_DATA_DIR}/OP_TRACES-SMI=A'
 
 # ====================== runtime related ======================
-EP_PATH = EP_PATHS['A']
+EP_PATH = EP_PATHS['C']
 # OP_TRACES_PATH = OP_TRACES_PATHS['A']
 MODEL_PATHS = f'{COMMON_DATA_DIR}/trained_models'
