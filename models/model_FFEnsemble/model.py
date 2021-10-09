@@ -268,7 +268,29 @@ class AGCModelEnsemble(nn.Module):
             op_next_all_pred.append(op)
         
         return np.asarray(op_next_all_pred)
-
+    
+    def rollout2(self, cp_all, ep_all, op_all, lookahead=1):
+        """
+            param `cp_all`: Unnormalized control actions `a_cp[t+1:t+1+T]` -> numpy.ndarray (T x CP_DIM)
+            param `ep_all`: Unnormalized weather observations `s_ep[t:t+T]` -> numpy.ndarray (T x EP_DIM)
+            param `op_all`: Unnormalized greenhouse observations `s_op[t:t+T]` -> numpy.ndarray (OP_DIM)
+            return `op_next_all_pred`: Predicted `s_op[t+lookahead:t+1+T]` -> numpy.ndarray ((T-lookahead+1) x OP_DIM)
+        """
+        cm_res = []
+        T = cp_all.shape[0]
+        
+        for model in self.child_models:
+            op_next_all_pred = []
+            for t in range(T-lookahead+1):
+                op = op_all[t]
+                for s in range(lookahead):
+                    cp = cp_all[t+s]
+                    ep = ep_all[t+s]
+                    op = model.predict_op(cp, ep, op)
+                op_next_all_pred.append(op)
+            cm_res.append(np.asarray(op_next_all_pred))
+        
+        return np.mean(cm_res, axis=0)
 
 if __name__ == '__main__':
     import numpy as np

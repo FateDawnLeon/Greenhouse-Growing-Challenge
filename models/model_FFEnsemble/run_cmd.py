@@ -1,13 +1,10 @@
-import os
-os.environ['MKL_THREADING_LAYER'] = 'GNU'
-
-import random
-import string
-
-from data import preprocess_data
 from constant import ENV_KEYS, OUTPUT_KEYS
+from data import preprocess_data
+import string
+import random
+import os
 
-
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
 wd = 1e-4
 
 
@@ -20,9 +17,9 @@ def preprocess(data_dirs):
         preprocess_data(data_dir, 'processed_data', ENV_KEYS, OUTPUT_KEYS)
 
 
-def train_single_model(train_dirs, val_dirs, reparse_data=False):
+def train_single_model(train_dirs, val_dirs, model_name="single_model", reparse_data=False):
     cmd = f'python train.py --max-iters 200000 --batch-size 256 --lr 0.001 --wd {wd} \
-        --root-dir trained_models/single_model \
+        --root-dir trained_models/{model_name} \
         --train-dirs {train_dirs} \
         --val-dirs {val_dirs}'
     if reparse_data:
@@ -34,7 +31,7 @@ def train_ensemble_model(train_dirs, val_dirs, N, reparse_data=False):
     if reparse_data:
         preprocess(train_dirs)
         preprocess(val_dirs)
-    
+
     model_id = id_generator()
     for n in range(N):
         model_name = f'ensemble_model_{model_id}_child[{n}]'
@@ -51,7 +48,7 @@ def finetune_ensemble_model(train_dirs, val_dirs, N, pretrained_model_id, repars
     if reparse_data:
         preprocess(train_dirs)
         preprocess(val_dirs)
-    
+
     for n in range(N):
         model_name = f'ensemble_model_finetune_{pretrained_model_id}_child[{n}]'
         pretrained_model_name = f'ensemble_model_{pretrained_model_id}_child[{n}]'
@@ -97,8 +94,20 @@ if __name__ == '__main__':
 
     train_dirs = ' '.join(f'{prefix}{f}' for f in train_folders)
 
-    val_folders = ['data_sample=original_random_date=2021-06-22_sim=A_number=10000']
+    val_folders = [
+        'data_sample=original_random_date=2021-06-22_sim=A_number=10000']
     val_dirs = ' '.join(f'{prefix}{f}' for f in val_folders)
 
     # train_single_model(train_dirs, val_dirs, reparse_data=reparse_data)
-    train_ensemble_model(train_dirs, val_dirs, N=8, reparse_data=reparse_data)
+    # train_ensemble_model(train_dirs, val_dirs, N=8, reparse_data=reparse_data)
+
+    root = "/mnt/d/Codes/Greenhouse-Growing-Challenge"
+    val_dirs = f"{root}/data/data_sample=random_date=2021-07-05_sim=A_number=100"
+    train_dirs = f"{root}/data/data_sample=random_date=2021-07-06_sim=A_number=1000"
+
+    id = id_generator()
+    for i in range(4):
+        model_name = f"ff_ensemble_{id}_child[{i}]"
+        reparse_data = i == 0
+        train_single_model(train_dirs, val_dirs,
+                           model_name=model_name, reparse_data=reparse_data)
