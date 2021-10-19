@@ -103,8 +103,8 @@ OUTPUT_KEYS = [
     'comp1.Setpoints.SpVent',
     'comp1.Scr1.Pos',
     'comp1.Scr2.Pos',
-    'comp1.Plant.fractionGroundCover',
-    'comp1.Plant.plantProjection',
+    # 'comp1.Plant.fractionGroundCover',
+    # 'comp1.Plant.plantProjection',
 ]
 ENV_KEYS_TO_INDEX = {key: i for i, key in enumerate(ENV_KEYS)}
 OUTPUT_KEYS_TO_INDEX = {key: i for i, key in enumerate(OUTPUT_KEYS)}
