@@ -8,14 +8,15 @@ KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
     'B': 'C48B-PTmQ-89Kx-jqV5-3zRL',
     'C': 'C48A-ZRJQ-3wcq-rGuC-mEme',
-    'D': 'C48B-PTmQ-89Kx-jqV5-3zRL' 
+    'D': 'C48B-PTmQ-89Kx-jqV5-3zRL',
+    'hack': 'H17-KyEO-iDtD-mVGR'
 }
-URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
+URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
 START_DATE = datetime.date(2021, 3, 4)
 
 
 # TODO: change this to the ***absolute*** path of 'ClimateControlSample.json' on your own machine
-SAMPLE_CONTROL_PATH = "/mnt/d/Codes/Greenhouse-Growing-Challenge/collect_data/ClimateControlSample.json"
+SAMPLE_CONTROL_PATH = "/home/liuys/Greenhouse-Growing-Challenge/data/samples/ClimateControlSample.json"
 
 
 def query_simulator(control, sim_id):
@@ -87,6 +88,7 @@ class ControlParamSimple(object):
     
     def set_endDate(self, num_days:int):
         end_date = self.start_date + datetime.timedelta(days=num_days)
+        self.set_value("simset.@startDate", self.start_date.isoformat())
         self.set_value("simset.@endDate", end_date.isoformat())
 
     def set_heatingTemp(self, heatingTemp_night, heatingTemp_day):
