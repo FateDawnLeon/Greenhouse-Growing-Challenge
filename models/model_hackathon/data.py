@@ -757,18 +757,29 @@ def parse_output(output, keys):
     return output_vals.T # T x NUM_KEYS
 
 
-def prepare_op_traces(data_dirs):
-    op_traces = []
+def prepare_traces(data_dirs, save_dir):
     for data_dir in data_dirs:
         output_dir = os.path.join(data_dir, 'outputs')
-        print(f'extracting OP traces from {data_dir} ...')
+        print(f'preparing traces from {data_dir} ...')
         for name in tqdm(os.listdir(output_dir)):
             output = load_json_data(f'{output_dir}/{name}')
             if output['responsemsg'] != 'ok':
                 continue
-            op_trace = parse_output(output, OUTPUT_KEYS)  # T x OP_DIM -> T could be different for different output files
-            op_traces.append(op_trace)
-    return op_traces
+            
+            ep = parse_output(output, ClimateDatasetDay.EP_KEYS)  # T x EP_DIM
+            op = parse_output(output, ClimateDatasetDay.OP_KEYS)  # T x OP_DIM
+            pl = parse_output(output, PlantDatasetDay.OP_PL_KEYS)  # T x OP_PL_DIM
+
+            ep_trace = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
+            op_trace = op.reshape(-1, 24, op.shape[-1])  # D x 24 x OP_DIM
+            pl_trace = pl.reshape(-1, 24, pl.shape[-1]).mean(axis=1)  # D x OP_PL_DIM
+
+            trace_dir = f"{save_dir}/{name[:-5]}"
+            os.makedirs(trace_dir, exist_ok=True)
+
+            np.save(f"{trace_dir}/ep_trace.npy", ep_trace)
+            np.save(f"{trace_dir}/op_trace.npy", op_trace)
+            np.save(f"{trace_dir}/pl_trace.npy", pl_trace)
 
 
 def compute_mean_std(data_dirs, is_control, keys=None):
