@@ -2,6 +2,7 @@ import os
 import json
 import torch
 import numpy as np
+import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from shutil import copyfile
@@ -15,6 +16,20 @@ def normalize(data, mean, std, eps=1e-8):
 
 def unnormalize(data, mean, std):
     return data * std + mean
+
+
+def normalize_zero2one(arr, range):
+    low, high = range
+    return (arr - low) / (high - low + 1e-8)
+
+
+def unnormalize_zero2one(arr, range):
+    low, high = range
+    return arr * (high - low) + low
+
+
+def make_tensor(arr):
+    return torch.from_numpy(arr).float().unsqueeze(0)
 
 
 def from_numpy(*args, **kwargs):
@@ -36,7 +51,7 @@ def load_json_data(path):
     return data
 
 
-def plot_loss_curve(loss_stats, save_path):
+def plot_loss_curve(loss_stats, save_path, log_scale=False):
     plt.figure(dpi=300)
 
     for split in ['train', 'val']:
@@ -54,6 +69,8 @@ def plot_loss_curve(loss_stats, save_path):
     plt.xlabel('step')
     plt.ylabel('loss')
     plt.legend()
+    if log_scale:
+        plt.yscale('log')
     plt.savefig(save_path)
     plt.close()
 
@@ -84,6 +101,14 @@ def organize_data(bo_result_dir, save_dir):
         copyfile(control_path, f"{save_dir}/controls/{data_id}.json")
         copyfile(output_path, f"{save_dir}/outputs/{data_id}.json")
         print(f"result {data_id} copied to {save_dir}...")
+
+
+def get_output_data_dict(output, keys):
+    return {key: output['data'][key]['data'] for key in keys}
+
+
+def dict_to_dataframe(dict, dtype='float'):
+    return pd.DataFrame(dict, dtype=dtype)
 
 
 if __name__ == '__main__':

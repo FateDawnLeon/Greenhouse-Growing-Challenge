@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import normalize, unnormalize
+from utils import normalize, unnormalize, normalize_zero2one, unnormalize_zero2one, make_tensor
 
 
 def build_mlp(
@@ -101,3 +101,86 @@ class PlantModel(nn.Module):
             op_pl_next = self.forward(op_in_tensor, op_pl_tensor).squeeze().numpy()
 
         return unnormalize(op_pl_next, op_pl_mean, op_pl_std)
+
+
+class ClimateModelDay(nn.Module):
+    def __init__(self, cp_dim, ep_dim, op_dim, ranges):
+        super().__init__()
+        self.cp_dim = cp_dim
+        self.ep_dim = ep_dim
+        self.op_dim = op_dim
+        self.ranges = ranges
+        
+        self.loss_func = nn.MSELoss()
+
+        self.net = build_mlp(
+            input_size=self.cp_dim+self.ep_dim+self.op_dim,
+            output_size=self.op_dim,
+            n_layers=3,
+            hidden_size=128,
+            activation=nn.LeakyReLU(inplace=True)
+        )
+
+    def forward(self, cp, ep, op):  # all inputs should be normalized to [0,1]
+        x = torch.cat([cp, ep, op], dim=1)
+        x = op + self.net(x)
+        return torch.clamp(x, 0, 1)  # all outputs are clamped to lie in [0,1]
+
+    def predict(self, cp, ep, op):  # all inputs are not normalized
+        cp = normalize_zero2one(cp, self.ranges['cp']).flatten()  # 24 x CP_DIM
+        ep = normalize_zero2one(ep, self.ranges['ep']).flatten()  # 24 x EP_DIM
+        op = normalize_zero2one(op, self.ranges['op']).flatten()  # 24 x OP_DIM
+
+        with torch.no_grad():
+            cp = make_tensor(cp)
+            ep = make_tensor(ep)
+            op = make_tensor(op)
+            op_next = self.forward(cp, ep, op).squeeze().numpy()
+
+        return unnormalize_zero2one(op_next.reshape(24, -1), self.ranges['op'])  # all outputs are unnormalized
+
+
+class PlantModelDay(nn.Module):
+    def __init__(self, op_in_dim, op_pl_dim, ranges):
+        super().__init__()
+        self.op_in_dim = op_in_dim
+        self.op_pl_dim = op_pl_dim
+        self.ranges = ranges
+        
+        self.loss_func = nn.MSELoss()
+
+        # class OutputActivation(nn.Module):
+        #     def __init__(self):
+        #         super().__init__()
+        #         self.threshold = torch.tensor([0, -1, 0])
+
+        #     def forward(self, x):
+        #         bs = x.size(0)
+        #         x = x.view(bs, 24, -1)
+        #         x = torch.max(x, self.threshold)
+        #         return x.flatten(1)
+
+        self.net = build_mlp(
+            input_size=self.op_in_dim+self.op_pl_dim,
+            output_size=self.op_pl_dim,
+            n_layers=3,
+            hidden_size=128,
+            activation=nn.LeakyReLU(inplace=True),
+            # output_activation=OutputActivation()
+        )
+
+    def forward(self, op_in, op_pl):  # all inputs should be normalized to [0,1]
+        x = torch.cat([op_in, op_pl], dim=1)
+        x = op_pl + self.net(x)
+        return torch.clamp(x, 0, 1)  # all outputs are clamped to lie in [0,1]
+
+    def predict(self, op_in, op_pl):  # all inputs are not normalized
+        op_in = normalize_zero2one(op_in, self.ranges['op_in']).flatten()  # 24 x EP_DIM
+        op_pl = normalize_zero2one(op_pl, self.ranges['op_pl']).flatten()  # 24 x CP_DIM
+
+        with torch.no_grad():
+            op_in = make_tensor(op_in)
+            op_pl = make_tensor(op_pl)
+            op_pl_next = self.forward(op_in, op_pl).squeeze().numpy()
+
+        return unnormalize_zero2one(op_pl_next.reshape(24, -1), self.ranges['op_pl'])  # all outputs are unnormalized
