@@ -1402,6 +1402,7 @@ class PlantDatasetDay(Dataset):
         "comp1.Plant.shootDryMatterContent",
         "comp1.Plant.qualityLoss"
     ]
+    INDEX_OP_TO_OP_IN = [ClimateDatasetDay.OP_KEYS.index(f) for f in OP_IN_KEYS]
 
     def __init__(self,
         data_dirs,
