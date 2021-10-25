@@ -168,6 +168,54 @@ CONTROL_INFO = OrderedDict([
     ("crp_lettuce.Intkam.management.@plantDensity", 1)
 ])
 
+CONTROL_RL = OrderedDict([
+    ("end", 1),  # {true, false}
+    ("comp1.setpoints.temp.@heatingTemp", 2),  # night:[8, 12], day:[20, 25] 
+    ("comp1.setpoints.temp.@ventOffset", 1),
+    ("comp1.setpoints.ventilation.@startWnd", 1),
+    ("comp1.setpoints.CO2.@setpoint", 2),
+    ("comp1.screens.scr1.@ToutMax", 1),
+    ("comp1.screens.scr1.@closeBelow", 1),
+    ("comp1.screens.scr1.@closeAbove", 1),
+    ("comp1.screens.scr2.@ToutMax", 1),
+    ("comp1.screens.scr2.@closeBelow", 1),
+    ("comp1.screens.scr2.@closeAbove", 1),
+    ("comp1.illumination.lmp1.@hoursLight", 1),  # [0, 10]
+    ("crp_lettuce.Intkam.management.@plantDensity", 1)
+])
+
+CONTROL_BO = OrderedDict([
+    ("simset.@startDate", 1),
+    ("common.CO2dosing.@pureCO2cap", 1),
+    ("comp1.screens.scr1.@enabled", 1),
+    ("comp1.screens.scr1.@material", 3),
+    ("comp1.screens.scr2.@enabled", 1),
+    ("comp1.screens.scr2.@material", 3),
+    ("comp1.illumination.lmp1.@intensity", 1),
+    ("comp1.illumination.lmp1.@maxIglob", 1)
+])
+
+CONTROL_OTHER = OrderedDict([
+    ("comp1.screens.scr1.@lightPollutionPrevention", 1),  # depend on scr1_material
+    ("comp1.screens.scr2.@lightPollutionPrevention", 1),  # depend on scr2_material
+    ("comp1.illumination.lmp1.@endTime", 1),  # depend on sunset and lighthour
+])
+
+CONTROL_FIX = OrderedDict([
+    ("comp1.heatingpipes.pipe1.@maxTemp", 60),
+    ("comp1.heatingpipes.pipe1.@minTemp", 0),
+    ("comp1.heatingpipes.pipe1.@radiationInfluence", "100 300"),
+    ("comp1.setpoints.temp.@radiationInfluence", "50 150 1"),
+    ("comp1.setpoints.temp.@PbandVent", "0 10; 20 5")
+    ("comp1.setpoints.ventilation.@winLeeMin", 0),
+    ("comp1.setpoints.ventilation.@winLeeMax", 100),
+    ("comp1.setpoints.ventilation.@winWndMin", 0),
+    ("comp1.setpoints.ventilation.@winWndMax", 100),
+    ("comp1.setpoints.CO2.@setpIfLamps", 0),
+    ("comp1.setpoints.CO2.@doseCapacity", "20 100; 40 50; 70 25"),
+    ("comp1.illumination.lmp1.@maxPARsum", 50)
+])
+
 # ====================== simulator related ======================
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
