@@ -38,7 +38,6 @@ class GreenhouseSim(gym.Env):
         [0, 200],  # comp1.screens.scr2.@closeBelow
         [1000, 1500],  # comp1.screens.scr2.@closeAbove
         [16, 20],  # comp1.illumination.lmp1.@hoursLight
-        [18, 24],  # comp1.illumination.lmp1.@endTime
         [0, 50],  # crp_lettuce.Intkam.management.@plantDensity
     ], dtype=np.float32)
 

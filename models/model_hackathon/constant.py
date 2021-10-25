@@ -64,7 +64,6 @@ CONTROL_INFO = OrderedDict([
     ("comp1.screens.scr2.@closeBelow", 1),
     ("comp1.screens.scr2.@closeAbove", 1),
     ("comp1.illumination.lmp1.@hoursLight", 1),
-    ("comp1.illumination.lmp1.@endTime", 1),
     ("crp_lettuce.Intkam.management.@plantDensity", 1)
 ])
 
