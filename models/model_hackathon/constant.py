@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import torch
 import datetime
-import os
+import numpy as np
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CITY_NAME = 'Amsterdam'
@@ -69,7 +69,7 @@ CONTROL_INFO = OrderedDict([
 
 CONTROL_RL = OrderedDict([
     ("end", 1),  # {true, false}
-    ("comp1.setpoints.temp.@heatingTemp", 2),  # night:[8, 12], day:[20, 25] 
+    ("comp1.setpoints.temp.@heatingTemp", 2),  # night:[8, 12], day:[20, 25]
     ("comp1.setpoints.temp.@ventOffset", 1),
     ("comp1.setpoints.ventilation.@startWnd", 1),
     ("comp1.setpoints.CO2.@setpoint", 2),
@@ -105,7 +105,7 @@ CONTROL_FIX = OrderedDict([
     ("comp1.heatingpipes.pipe1.@minTemp", 0),
     ("comp1.heatingpipes.pipe1.@radiationInfluence", "100 300"),
     ("comp1.setpoints.temp.@radiationInfluence", "50 150 1"),
-    ("comp1.setpoints.temp.@PbandVent", "0 10; 20 5")
+    ("comp1.setpoints.temp.@PbandVent", "0 10; 20 5"),
     ("comp1.setpoints.ventilation.@winLeeMin", 0),
     ("comp1.setpoints.ventilation.@winLeeMax", 100),
     ("comp1.setpoints.ventilation.@winWndMin", 0),
@@ -126,19 +126,82 @@ URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
 SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 
 # ====================== data related ======================
-COMMON_DATA_DIR = os.path.dirname(os.path.abspath(__file__))
-EP_PATHS = {sim_id: f'{COMMON_DATA_DIR}/EP-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
-# OP_TRACES_PATHS = {sim_id: f'{COMMON_DATA_DIR}/OP_TRACES-SIM={sim_id}.npy' for sim_id in ['A', 'B', 'C', 'D']}
-OP_TRACES_DIR = f'{COMMON_DATA_DIR}/OP_TRACES-SMI=A'
 TRACES_DIR = ''  # TODO
 
 # ====================== runtime related ======================
-EP_PATH = EP_PATHS['C']
-MODEL_PATHS = f'{COMMON_DATA_DIR}/trained_models'
+CP_KEY_RANGES = {
+    "end": [0, 1],  # end
+    "comp1.setpoints.temp.@heatingTemp.night": [10, 15],
+    "comp1.setpoints.temp.@heatingTemp.day": [15, 30],
+    "comp1.setpoints.temp.@ventOffset": [0, 5],
+    "comp1.setpoints.ventilation.@startWnd": [0, 50],
+    "comp1.setpoints.CO2.@setpoint.night": [200, 800],
+    "comp1.setpoints.CO2.@setpoint.day": [800, 1200],
+    "comp1.screens.scr1.@ToutMax": [-20, 30],
+    "comp1.screens.scr1.@closeBelow": [0, 200],
+    "comp1.screens.scr1.@closeAbove": [1000, 1500],
+    "comp1.screens.scr2.@ToutMax": [-20, 30],
+    "comp1.screens.scr2.@closeBelow": [0, 200],
+    "comp1.screens.scr2.@closeAbove": [1000, 1500],
+    "comp1.illumination.lmp1.@hoursLight": [0, 10],
+    "crp_lettuce.Intkam.management.@plantDensity": [0, 50],
+}
+EP_KEY_RANGES = {
+    'common.Iglob.Value': (0, 1000),
+    'common.TOut.Value': (-10, 40),
+    'common.RHOut.Value': (0, 100),
+    'common.Windsp.Value': (0, 10)
+}
+OP_KEY_RANGES = {
+    'comp1.Air.T': (-10, 40),
+    'comp1.Air.RH': (0, 100),
+    'comp1.Air.ppm': (0, 2000),
+    'comp1.PARsensor.Above': (0, 2000),
+    'comp1.Plant.PlantDensity': (0, 100),
+    'comp1.TPipe1.Value': (0, 80),
+    'comp1.ConPipes.TSupPipe1': (0, 80),
+    'comp1.PConPipe1.Value': (0.0, 200),
+    'comp1.ConWin.WinLee': (0, 100.0),
+    'comp1.ConWin.WinWnd': (0, 100.0),
+    'comp1.Setpoints.SpHeat': (0, 30),
+    'comp1.Setpoints.SpVent': (0, 30),
+    'comp1.Scr1.Pos': (0, 1),
+    'comp1.Scr2.Pos': (0, 1),
+    'comp1.Lmp1.ElecUse': (0, 10),
+    'comp1.McPureAir.Value': (0, 1e-5),
+}
+OP_IN_KEY_RANGES = {
+    'comp1.Air.T': (-10, 40),
+    'comp1.Air.RH': (0, 100),
+    'comp1.Air.ppm': (0, 2000),
+    'comp1.PARsensor.Above': (0, 2000),
+    'comp1.Plant.PlantDensity': (0, 100)
+}
+PL_KEY_RANGES = {
+    'comp1.Plant.headFW': (0, 1000),
+    'comp1.Plant.shootDryMatterContent': (0, 0.1),
+    'comp1.Plant.qualityLoss': (0, 15)
+}
+
+def get_low_high(key_ranges):
+    return (
+        np.asarray([v[0] for v in key_ranges.values()], dtype=np.float32),
+        np.asarray([v[1] for v in key_ranges.values()], dtype=np.float32),
+    )
+
+CLIMATE_NORM_DATA = {
+    'cp': get_low_high(CP_KEY_RANGES),
+    'ep': get_low_high(EP_KEY_RANGES),
+    'op': get_low_high(OP_KEY_RANGES),
+}
+PLANT_NORM_DATA = {
+    'op_in': get_low_high(OP_IN_KEY_RANGES),
+    'op_pl': get_low_high(PL_KEY_RANGES),
+}
+
+# ====================== model related ======================
 CLIMATE_MODEL_PATH = ''  # TODO
 PLANT_MODEL_PATH = ''  # TODO
-CLIMATE_NORM_DATA = None  # TODO
-PLANT_NORM_DATA = None  # TODO
 
 # ===================== BO hyper-parameters ======================
 # TODO: temporary, this needs to be updated in BO loop somehow

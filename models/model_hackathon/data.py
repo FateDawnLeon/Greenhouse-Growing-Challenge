@@ -9,7 +9,7 @@ from astral.sun import sun
 from astral.geocoder import lookup, database
 from scipy.interpolate import interp1d
 
-from constant import START_DATE, CITY_NAME, ENV_KEYS, OUTPUT_KEYS
+from constant import START_DATE, CITY_NAME
 from utils import load_json_data, normalize, normalize_zero2one
 
 
@@ -131,6 +131,12 @@ class ControlParser:
         convert = lambda t: float(t) if t.isdigit() else val_map[t]
         kv_list = [[convert(t)] + preprocess(v) for t, v in key_value_pairs]
         return ControlParser.flatten(sorted(kv_list))
+    
+    @staticmethod
+    def schedule2arr_DayNight(schedule, preprocess):
+        val_night = preprocess(schedule['r'])
+        val_day = preprocess(schedule['r+1'])
+        return [val_night, val_day]
 
     def value2arr(self, value, preprocess, valid_dtype):
         if type(value) in valid_dtype:
@@ -831,8 +837,8 @@ class AGCDataset(Dataset):
     def __init__(self, 
         data_dirs, 
         processed_data_name='processed_data', 
-        ep_keys=ENV_KEYS,
-        op_keys=OUTPUT_KEYS,
+        ep_keys=None,
+        op_keys=None,
         force_preprocess=False,
     ):
         super(AGCDataset, self).__init__()
@@ -1271,6 +1277,7 @@ class ClimateDatasetDay(Dataset):
         "comp1.Air.RH",
         "comp1.Air.ppm",
         "comp1.PARsensor.Above",
+        "comp1.Plant.PlantDensity",
         # less important -> indirectly affect plant growth but directly affect costs
         "comp1.TPipe1.Value",
         "comp1.ConPipes.TSupPipe1",
@@ -1413,6 +1420,11 @@ class PlantDatasetDay(Dataset):
         "comp1.Plant.shootDryMatterContent",
         "comp1.Plant.qualityLoss"
     ]
+    OP_PL_INIT_VALUE = {
+        "comp1.Plant.headFW": 0,
+        "comp1.Plant.shootDryMatterContent": 0.055,
+        "comp1.Plant.qualityLoss": 0,
+    }
     INDEX_OP_TO_OP_IN = [ClimateDatasetDay.OP_KEYS.index(f) for f in OP_IN_KEYS]
 
     def __init__(self,
@@ -1424,6 +1436,7 @@ class PlantDatasetDay(Dataset):
         super().__init__()
         self.ranges = ranges
         self.data_name = data_name
+        self.OP_PL_0 = np.array([self.OP_PL_INIT_VALUE[key] for key in self.OP_PL_KEYS])
 
         op_in, op_pl, op_pl_next = [], [], []
         for data_dir in data_dirs:
@@ -1436,20 +1449,16 @@ class PlantDatasetDay(Dataset):
             op_pl.append(data['op_pl'])
             op_pl_next.append(data['op_pl_next'])
 
-        self.op_in = np.concatenate(op_in, axis=0, dtype=np.float32)
-        self.op_pl = np.concatenate(op_pl, axis=0, dtype=np.float32)
-        self.op_pl_next = np.concatenate(op_pl_next, axis=0, dtype=np.float32)
-
-        # self.op_in_normed = self.op_in.reshape(-1, 24 * len(self.OP_IN_KEYS))  # D x (24 x len(OP_IN_KEYS))
-        # self.op_pl_normed = self.op_pl.mean(axis=1)  # D x len(OP_PL_KEYS)
-        # self.op_pl_next_normed = self.op_pl_next.mean(axis=1)  # D x len(OP_PL_KEYS)
+        self.op_in = np.concatenate(op_in, axis=0, dtype=np.float32)  # D x 24 x len(OP_IN_KEYS)
+        self.op_pl = np.concatenate(op_pl, axis=0, dtype=np.float32)  # D x 24 x len(OP_PL_KEYS)
+        self.op_pl_next = np.concatenate(op_pl_next, axis=0, dtype=np.float32)  # D x 24 x len(OP_PL_KEYS)
 
         self.op_in_dim = len(self.OP_IN_KEYS) * 24
         self.op_pl_dim = len(self.OP_PL_KEYS)
 
         self.op_in_normed = normalize_zero2one(self.op_in, ranges['op_in']).reshape(-1, self.op_in_dim)
-        self.op_pl_normed = normalize_zero2one(self.op_pl, ranges['op_pl']).mean(axis=1)
-        self.op_pl_next_normed = normalize_zero2one(self.op_pl_next, ranges['op_pl']).mean(axis=1)
+        self.op_pl_normed = normalize_zero2one(self.op_pl, ranges['op_pl'])[:, 12, :]
+        self.op_pl_next_normed = normalize_zero2one(self.op_pl_next, ranges['op_pl'])[:, 12, :]
 
     def __getitem__(self, index):
         input = (self.op_in_normed[index], self.op_pl_normed[index])
@@ -1486,12 +1495,12 @@ class PlantDatasetDay(Dataset):
             op_pl = op_pl.reshape(-1, 24, op_pl.shape[-1])  # D x 24 x OP_PL_DIM
 
             # assumption: op_in[d+1] + op_pl[d] -> op_pl[d+1]
-            op_in = op_in[1:]
-            op_pl_next = op_pl[1:]
-            op_pl = op_pl[:-1]
+            op_pl_0 = np.ones((1, 24, op_pl.shape[-1])) * self.OP_PL_0
+            op_pl_cur = np.concatenate([op_pl_0, op_pl], axis=0)[:-1]
+            op_pl_next = op_pl
 
             op_in_arr.append(op_in)
-            op_pl_arr.append(op_pl)
+            op_pl_arr.append(op_pl_cur)
             op_pl_next_arr.append(op_pl_next)
         
         op_in_arr = np.concatenate(op_in_arr, axis=0)

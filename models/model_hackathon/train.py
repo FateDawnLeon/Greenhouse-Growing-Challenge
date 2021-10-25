@@ -7,6 +7,7 @@ from torch.optim import SGD, Adam, optimizer, lr_scheduler
 from utils import save_json_data, plot_loss_curve
 from data import ClimateDatasetHour, PlantDatasetHour, ClimateDatasetDay, PlantDatasetDay
 from model import ClimateModel, PlantModel, ClimateModelDay, PlantModelDay
+from constant import PLANT_NORM_DATA
 
 
 OPTIM = {
@@ -28,6 +29,9 @@ MODEL = {
     'plant_day': PlantModelDay,
 }
 
+NORM_DATA = {
+    "plant_day": PLANT_NORM_DATA
+}
 
 def get_batch(dataloader):
     while True:
@@ -100,7 +104,8 @@ if __name__ == '__main__':
     save_json_data(vars(args), f"{args.root_dir}/config.json")
 
     MyDataset = DATASET[args.model]
-    norm_data = MyDataset.get_norm_data(args.train_dirs + args.val_dirs)
+    # norm_data = MyDataset.get_norm_data(args.train_dirs + args.val_dirs)
+    norm_data = NORM_DATA[args.model]
 
     train_dataset = MyDataset(args.train_dirs, norm_data, force_preprocess=args.force_preprocess)
     val_dataset = MyDataset(args.val_dirs, norm_data, force_preprocess=args.force_preprocess)

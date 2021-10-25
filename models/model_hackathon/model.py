@@ -146,19 +146,7 @@ class PlantModelDay(nn.Module):
         self.op_in_dim = op_in_dim
         self.op_pl_dim = op_pl_dim
         self.ranges = ranges
-        
         self.loss_func = nn.MSELoss()
-
-        # class OutputActivation(nn.Module):
-        #     def __init__(self):
-        #         super().__init__()
-        #         self.threshold = torch.tensor([0, -1, 0])
-
-        #     def forward(self, x):
-        #         bs = x.size(0)
-        #         x = x.view(bs, 24, -1)
-        #         x = torch.max(x, self.threshold)
-        #         return x.flatten(1)
 
         self.net = build_mlp(
             input_size=self.op_in_dim+self.op_pl_dim,
@@ -166,7 +154,6 @@ class PlantModelDay(nn.Module):
             n_layers=3,
             hidden_size=128,
             activation=nn.LeakyReLU(inplace=True),
-            # output_activation=OutputActivation()
         )
 
     def forward(self, op_in, op_pl):  # all inputs should be normalized to [0,1]
@@ -183,4 +170,4 @@ class PlantModelDay(nn.Module):
             op_pl = make_tensor(op_pl)
             op_pl_next = self.forward(op_in, op_pl).squeeze().numpy()
 
-        return unnormalize_zero2one(op_pl_next.reshape(24, -1), self.ranges['op_pl'])  # all outputs are unnormalized
+        return unnormalize_zero2one(op_pl_next, self.ranges['op_pl'])  # all outputs are unnormalized
