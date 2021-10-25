@@ -80,13 +80,20 @@ class GreenhouseSim(gym.Env):
         self.num_spacings = 0
 
     @staticmethod
-    def agent_action_to_dict(action: np.ndarray) -> OrderedDict:
-        result = OrderedDict()
+    def agent_action_to_dict(action_arr: np.ndarray) -> OrderedDict:
+        action_dict = OrderedDict()
         idx = 0
         for k, size in CONTROL_INFO.items():
-            result[k] = action[idx:idx + size]
+            action_dict[k] = action_arr[idx:idx + size]
             idx += size
-        return result
+        return action_dict
+
+    @staticmethod
+    def agent_action_to_array(action_dict: OrderedDict) -> np.ndarray:
+        action_arr = np.array([])
+        for _, v in action_dict:
+            action_arr = np.concatenate((action_arr, v))
+        return action_arr
 
     def reset(self, start_day=None):
         # randomly choose a trace
@@ -117,6 +124,16 @@ class GreenhouseSim(gym.Env):
     def step(self, action: np.ndarray):
         action_dict = self.agent_action_to_dict(action)
 
+        # calculate new values for some features
+        plant_density_new = self.plant_density - action_dict['crp_lettuce.Intkam.management.@plantDensity']
+        cum_head_m2_new = self.cum_head_m2 + 1. / plant_density_new
+        num_spacings_new = self.num_spacings + int(action_dict['crp_lettuce.Intkam.management.@plantDensity'] != 0)
+
+        # update @plantDensity from relative to absolute value
+        temp_action_dict = action_dict.copy()
+        temp_action_dict['crp_lettuce.Intkam.management.@plantDensity'] = plant_density_new
+        action = self.agent_action_to_array(temp_action_dict)
+
         # use model to predict next state
         # op_{d+1} = ModelClimate(cp_{d+1}, ep_{d+1}, op_{d})
         op_new = self.climate_model.predict(action, self.ep, self.op)
@@ -124,11 +141,6 @@ class GreenhouseSim(gym.Env):
         op_in_new = op_new[:, PlantDatasetDay.INDEX_OP_TO_OP_IN]
         # pl_{d+1} = ModelPlant(op^in_{d+1}, pl_{d})
         pl_new = self.plant_model(op_in_new, self.pl)
-
-        # calculate new values for some features
-        plant_density_new = self.plant_density - action_dict['crp_lettuce.Intkam.management.@plantDensity']
-        cum_head_m2_new = self.cum_head_m2 + 1. / plant_density_new
-        num_spacings_new = self.num_spacings + int(action_dict['crp_lettuce.Intkam.management.@plantDensity'] != 0)
 
         output_state = np.concatenate((self.ep_trace[self.iter + 1], op_new, pl_new))
 
