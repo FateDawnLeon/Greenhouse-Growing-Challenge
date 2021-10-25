@@ -111,6 +111,10 @@ def dict_to_dataframe(dict, dtype='float'):
     return pd.DataFrame(dict, dtype=dtype)
 
 
+def list_keys_to_index(lst):
+    return {x: i for x in enumerate(lst)}
+
+
 if __name__ == '__main__':
     for i in range(4):
         model_dir = f"trained_models/ff_ensemble_B6OUACGJ_child[{i}]"
