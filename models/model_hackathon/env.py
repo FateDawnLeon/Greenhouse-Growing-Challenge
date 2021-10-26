@@ -38,7 +38,7 @@ class GreenhouseSim(gym.Env):
         [0, 200],  # comp1.screens.scr2.@closeBelow
         [1000, 1500],  # comp1.screens.scr2.@closeAbove
         [0, 10],  # comp1.illumination.lmp1.@hoursLight
-        [0, 50],  # crp_lettuce.Intkam.management.@plantDensity
+        [0, 35],  # crp_lettuce.Intkam.management.@plantDensity
     ], dtype=np.float32)
 
     def __init__(self, training=False, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
