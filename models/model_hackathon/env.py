@@ -5,7 +5,7 @@ import gym
 import numpy as np
 import torch
 
-from constant import CONTROL_INFO, CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, CLIMATE_NORM_DATA, PLANT_NORM_DATA, \
+from constant import CONTROL_RL, CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, CLIMATE_NORM_DATA, PLANT_NORM_DATA, \
     EP_PATH, TRACES_DIR, INIT_PLANT_DENSITY, BO_CONTROLS
 from data import ClimateDatasetDay, PlantDatasetDay
 from model import ClimateModelDay, PlantModelDay
@@ -24,7 +24,7 @@ class GreenhouseSim(gym.Env):
     num_pl = len(PlantDatasetDay.OP_PL_KEYS)
 
     action_range = np.array([
-        [0, 1],  # end
+        [0, 1],  # end (bool)
         [10, 15],  # comp1.setpoints.temp.@heatingTemp - night
         [15, 30],  # comp1.setpoints.temp.@heatingTemp - day
         [0, 5],  # comp1.setpoints.temp.@ventOffset
@@ -38,8 +38,11 @@ class GreenhouseSim(gym.Env):
         [0, 200],  # comp1.screens.scr2.@closeBelow
         [1000, 1500],  # comp1.screens.scr2.@closeAbove
         [0, 10],  # comp1.illumination.lmp1.@hoursLight
-        [0, 35],  # crp_lettuce.Intkam.management.@plantDensity
+        [0, 35],  # crp_lettuce.Intkam.management.@plantDensity - value
+        [0, 1],  # crp_lettuce.Intkam.management.@plantDensity - change (bool)
     ], dtype=np.float32)
+
+    bool_action_idx = [0, 15]
 
     def __init__(self, training=False, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
                  full_ep_path=EP_PATH, traces_dir=TRACES_DIR):
@@ -83,7 +86,7 @@ class GreenhouseSim(gym.Env):
     def agent_action_to_dict(action_arr: np.ndarray) -> OrderedDict:
         action_dict = OrderedDict()
         idx = 0
-        for k, size in CONTROL_INFO.items():
+        for k, size in CONTROL_RL.items():
             action_dict[k] = action_arr[idx:idx + size]
             idx += size
         return action_dict
@@ -121,17 +124,26 @@ class GreenhouseSim(gym.Env):
         state = np.concatenate((self.ep, self.op, self.pl), axis=None)  # flatten
         return state
 
+    def parse_action(self, action: np.ndarray) -> np.ndarray:
+        # force bool on some values
+        action[self.bool_action_idx] = np.round(action[self.bool_action_idx])
+
+        return action
+
     def step(self, action: np.ndarray):
+        action = self.parse_action(action)
         action_dict = self.agent_action_to_dict(action)
 
         # calculate new values for some features
-        plant_density_new = self.plant_density - action_dict['crp_lettuce.Intkam.management.@plantDensity']
+        density_tuple = action_dict['crp_lettuce.Intkam.management.@plantDensity']
+        density_delta = density_tuple[0] if density_tuple[1] else 0.0
+        plant_density_new = self.plant_density - density_delta
         cum_head_m2_new = self.cum_head_m2 + 1. / plant_density_new
-        num_spacings_new = self.num_spacings + int(action_dict['crp_lettuce.Intkam.management.@plantDensity'] != 0)
+        num_spacings_new = self.num_spacings + density_tuple[1]
 
         # update @plantDensity from relative to absolute value
         temp_action_dict = action_dict.copy()
-        temp_action_dict['crp_lettuce.Intkam.management.@plantDensity'] = plant_density_new
+        temp_action_dict['crp_lettuce.Intkam.management.@plantDensity'] = [plant_density_new]
         action = self.agent_action_to_array(temp_action_dict)
 
         # use model to predict next state
@@ -156,7 +168,7 @@ class GreenhouseSim(gym.Env):
         self.cum_head_m2 = cum_head_m2_new
         self.num_spacings = cum_head_m2_new
 
-        done = action[0] or self.iter == len(self.ep_trace) - 1
+        done = action[0].squeeze() or self.iter == len(self.ep_trace) - 1
 
         self.ep = self.ep_trace[self.iter + 1]
         if self.training:

@@ -51,22 +51,6 @@ MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 #     ("crp_lettuce.Intkam.management.@plantDensity", (True, 1))
 # ])
 
-CONTROL_INFO = OrderedDict([
-    ("end", 1),
-    ("comp1.setpoints.temp.@heatingTemp", 2),
-    ("comp1.setpoints.temp.@ventOffset", 1),
-    ("comp1.setpoints.ventilation.@startWnd", 1),
-    ("comp1.setpoints.CO2.@setpoint", 2),
-    ("comp1.screens.scr1.@ToutMax", 1),
-    ("comp1.screens.scr1.@closeBelow", 1),
-    ("comp1.screens.scr1.@closeAbove", 1),
-    ("comp1.screens.scr2.@ToutMax", 1),
-    ("comp1.screens.scr2.@closeBelow", 1),
-    ("comp1.screens.scr2.@closeAbove", 1),
-    ("comp1.illumination.lmp1.@hoursLight", 1),
-    ("crp_lettuce.Intkam.management.@plantDensity", 1)
-])
-
 CONTROL_RL = OrderedDict([
     ("end", 1),  # {true, false}
     ("comp1.setpoints.temp.@heatingTemp", 2),  # night:[8, 12], day:[20, 25]
@@ -80,7 +64,7 @@ CONTROL_RL = OrderedDict([
     ("comp1.screens.scr2.@closeBelow", 1),
     ("comp1.screens.scr2.@closeAbove", 1),
     ("comp1.illumination.lmp1.@hoursLight", 1),  # [0, 10]
-    ("crp_lettuce.Intkam.management.@plantDensity", 1)
+    ("crp_lettuce.Intkam.management.@plantDensity", 2)  # (value, change)
 ])
 
 CONTROL_BO = OrderedDict([
