@@ -1,19 +1,21 @@
-import os
 from collections import OrderedDict
+import os
 
 import gym
 import numpy as np
 import torch
 
-from constant import CONTROL_RL, CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, CLIMATE_NORM_DATA, PLANT_NORM_DATA, \
-    EP_PATH, TRACES_DIR, INIT_PLANT_DENSITY, BO_CONTROLS
+from constant import CONTROL_RL, CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, BO_CONTROL_PATH
+from constant import get_norm_data
 from data import ClimateDatasetDay, PlantDatasetDay
 from model import ClimateModelDay, PlantModelDay
-from utils import list_keys_to_index
+from utils import list_keys_to_index, load_json_data
 
 EP_INDEX = list_keys_to_index(ClimateDatasetDay.EP_KEYS)
 OP_INDEX = list_keys_to_index(ClimateDatasetDay.OP_KEYS)
 PL_INDEX = list_keys_to_index(PlantDatasetDay.OP_PL_KEYS)
+
+BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
 
 
 class GreenhouseSim(gym.Env):
@@ -32,11 +34,12 @@ class GreenhouseSim(gym.Env):
         [200, 800],  # comp1.setpoints.CO2.@setpoint - night
         [800, 1200],  # comp1.setpoints.CO2.@setpoint - day
         [-20, 30],  # comp1.screens.scr1.@ToutMax
-        [0, 200],  # comp1.screens.scr1.@closeBelow
+        [0, 200],  # comp1.screens.scr1.@closeOelow
         [1000, 1500],  # comp1.screens.scr1.@closeAbove
         [-20, 30],  # comp1.screens.scr2.@ToutMax
         [0, 200],  # comp1.screens.scr2.@closeBelow
         [1000, 1500],  # comp1.screens.scr2.@closeAbove
+        [18, 20],  # comp1.illumination.lmp1.@endTime
         [0, 10],  # comp1.illumination.lmp1.@hoursLight
         [0, 35],  # crp_lettuce.Intkam.management.@plantDensity - value
         [0, 1],  # crp_lettuce.Intkam.management.@plantDensity - change (bool)
@@ -65,10 +68,11 @@ class GreenhouseSim(gym.Env):
         self.full_ep_trace = np.load(full_ep_path)
 
         # load model
-        self.climate_model = ClimateModelDay(self.num_cp, self.num_ep, self.num_op, CLIMATE_NORM_DATA)
+        norm_data = get_norm_data()
+        self.climate_model = ClimateModelDay(self.num_cp, self.num_ep, self.num_op, norm_data)
         self.climate_model.load_state_dict(torch.load(climate_model_paths))
         self.climate_model.eval()
-        self.plant_model = PlantModelDay(self.num_op_in, self.num_pl, PLANT_NORM_DATA)
+        self.plant_model = PlantModelDay(self.num_op_in, self.num_pl, norm_data)
         self.plant_model.load_state_dict(torch.load(plant_model_path))
         self.plant_model.eval()
 
@@ -77,10 +81,10 @@ class GreenhouseSim(gym.Env):
         self.op = None
         self.pl = None
 
-        self.iter = 0
-        self.plant_density = INIT_PLANT_DENSITY
-        self.cum_head_m2 = 0
-        self.num_spacings = 0
+        self.iter = None
+        self.plant_density = None
+        self.cum_head_m2 = None
+        self.num_spacings = None
 
     @staticmethod
     def agent_action_to_dict(action_arr: np.ndarray) -> OrderedDict:
@@ -117,7 +121,7 @@ class GreenhouseSim(gym.Env):
         self.pl_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'pl_trace.npy'))
 
         self.iter = 0
-        self.plant_density = INIT_PLANT_DENSITY
+        self.plant_density = BO_CONTROLS['init_plant_density']
         self.cum_head_m2 = 0
         self.num_spacings = 0
 
@@ -142,13 +146,14 @@ class GreenhouseSim(gym.Env):
         num_spacings_new = self.num_spacings + density_tuple[1]
 
         # update @plantDensity from relative to absolute value
-        temp_action_dict = action_dict.copy()
-        temp_action_dict['crp_lettuce.Intkam.management.@plantDensity'] = [plant_density_new]
-        action = self.agent_action_to_array(temp_action_dict)
+        model_action_dict = action_dict.copy()
+        model_action_dict['crp_lettuce.Intkam.management.@plantDensity'] = np.array([plant_density_new])
+        model_action_dict.update(BO_CONTROLS)
+        model_action_dict['day_offset'] = self.iter
 
         # use model to predict next state
         # op_{d+1} = ModelClimate(cp_{d+1}, ep_{d+1}, op_{d})
-        op_new = self.climate_model.predict(action, self.ep, self.op)
+        op_new = self.climate_model.predict(model_action_dict, self.ep, self.op)
         # op^in_{d+1} = select(op_{d+1})
         op_in_new = op_new[:, PlantDatasetDay.INDEX_OP_TO_OP_IN]
         # pl_{d+1} = ModelPlant(op^in_{d+1}, pl_{d})

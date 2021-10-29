@@ -12,47 +12,6 @@ MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== control param related ======================
 
-# map KEYS -> (USE_RL, SIZE)
-# CONTROL_INFO = OrderedDict([
-#     ("end", (True, 1)),
-#     ("comp1.heatingpipes.pipe1.@maxTemp", (False, 1)),
-#     ("comp1.heatingpipes.pipe1.@minTemp", (False, 1)),
-#     ("comp1.heatingpipes.pipe1.@radiationInfluence", (False, 2)),
-#     ("comp1.setpoints.temp.@heatingTemp", (True, 2)),
-#     ("comp1.setpoints.temp.@ventOffset", (True, 1)),
-#     ("comp1.setpoints.temp.@radiationInfluence", (False, 3)),
-#     ("comp1.setpoints.temp.@PbandVent", (False, 4)),
-#     ("comp1.setpoints.ventilation.@startWnd", (True, 1)),
-#     ("comp1.setpoints.ventilation.@winLeeMin", (False, 1)),
-#     ("comp1.setpoints.ventilation.@winLeeMax", (False, 1)),
-#     ("comp1.setpoints.ventilation.@winWndMin", (False, 1)),
-#     ("comp1.setpoints.ventilation.@winWndMax", (False, 1)),
-#     ("common.CO2dosing.@pureCO2cap", (False, 1)),
-#     ("comp1.setpoints.CO2.@setpoint", (True, 2)),
-#     ("comp1.setpoints.CO2.@setpIfLamps", (False, 1)),
-#     ("comp1.setpoints.CO2.@doseCapacity", (False, 6)),
-#     ("comp1.screens.scr1.@enabled", (False, 1)),
-#     ("comp1.screens.scr1.@material", (False, 3)),
-#     ("comp1.screens.scr1.@ToutMax", (True, 1)),
-#     ("comp1.screens.scr1.@closeBelow", (False, 4)),
-#     ("comp1.screens.scr1.@closeAbove", (False, 1)),
-#     ("comp1.screens.scr1.@lightPollutionPrevention", (False, 1)),
-#     ("comp1.screens.scr2.@enabled", (False, 1)),
-#     ("comp1.screens.scr2.@material", (False, 3)),
-#     ("comp1.screens.scr2.@ToutMax", (True, 1)),
-#     ("comp1.screens.scr2.@closeBelow", (False, 4)),
-#     ("comp1.screens.scr2.@closeAbove", (False, 1)),
-#     ("comp1.screens.scr2.@lightPollutionPrevention", (False, 1)),
-#     ("comp1.illumination.lmp1.@enabled", (False, 1)),
-#     ("comp1.illumination.lmp1.@intensity", (False, 1)),
-#     ("comp1.illumination.lmp1.@hoursLight", (True, 1)),
-#     ("comp1.illumination.lmp1.@endTime", (True, 1)),
-#     ("comp1.illumination.lmp1.@maxIglob", (False, 1)),
-#     ("comp1.illumination.lmp1.@maxPARsum", (False, 1)),
-#     ("crp_lettuce.Intkam.management.@plantDensity", (True, 1))
-# ])
-
-
 CONTROL_RL = OrderedDict([
     ("comp1.setpoints.temp.@heatingTemp", 2),  # temp_night, temp_day
     ("comp1.setpoints.temp.@ventOffset", 1),
@@ -64,21 +23,9 @@ CONTROL_RL = OrderedDict([
     ("comp1.screens.scr2.@ToutMax", 1),
     ("comp1.screens.scr2.@closeBelow", 1),
     ("comp1.screens.scr2.@closeAbove", 1),
-    ("comp1.illumination.lmp1.@hoursLight", 1),
     ("comp1.illumination.lmp1.@endTime", 1),
     ("comp1.illumination.lmp1.@hoursLight", 1),  # [0, 10]
     ("crp_lettuce.Intkam.management.@plantDensity", 2)  # (value, change)
-])
-
-CONTROL_BO = OrderedDict([
-    ("simset.@startDate", 1),
-    ("common.CO2dosing.@pureCO2cap", 1),
-    ("comp1.screens.scr1.@enabled", 1),
-    ("comp1.screens.scr1.@material", 3),
-    ("comp1.screens.scr2.@enabled", 1),
-    ("comp1.screens.scr2.@material", 3),
-    ("comp1.illumination.lmp1.@intensity", 1),
-    ("comp1.illumination.lmp1.@maxIglob", 1)
 ])
 
 CONTROL_BO = [
@@ -90,7 +37,6 @@ CONTROL_BO = [
     "comp1.screens.scr2.@material",  # e.g. 'scr_Transparent.par'
     "comp1.illumination.lmp1.@intensity",  # e.g. 100
     "comp1.illumination.lmp1.@maxIglob",  # e.g. 500
-    "crp_lettuce.Intkam.management.@plantDensity",  # e.g. "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
 ]
 
 CONTROL_OTHER = [
@@ -126,6 +72,10 @@ SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 
 # ====================== data related ======================
 TRACES_DIR = ''  # TODO
+EP_PATH = ''  # TODO
+CLIMATE_MODEL_PATH = ''  # TODO
+PLANT_MODEL_PATH = ''  # TODO
+BO_CONTROL_PATH = ''  # TODO
 
 # ====================== runtime related ======================
 dtype = np.float32
@@ -214,7 +164,3 @@ def get_norm_data():
         'pl': get_low_high(PL_KEY_SPACES, PL_KEY_SPACES.keys()),
         'op_in': get_low_high(OP_KEY_SPACES, OP_IN_KEYS),
     }
-
-# ====================== model related ======================
-CLIMATE_MODEL_PATH = ''  # TODO
-PLANT_MODEL_PATH = ''  # TODO
