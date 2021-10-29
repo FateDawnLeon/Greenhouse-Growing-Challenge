@@ -66,6 +66,19 @@ CONTROL_RL = OrderedDict([
     ("comp1.screens.scr2.@closeAbove", 1),
     ("comp1.illumination.lmp1.@hoursLight", 1),
     ("comp1.illumination.lmp1.@endTime", 1),
+    ("comp1.illumination.lmp1.@hoursLight", 1),  # [0, 10]
+    ("crp_lettuce.Intkam.management.@plantDensity", 2)  # (value, change)
+])
+
+CONTROL_BO = OrderedDict([
+    ("simset.@startDate", 1),
+    ("common.CO2dosing.@pureCO2cap", 1),
+    ("comp1.screens.scr1.@enabled", 1),
+    ("comp1.screens.scr1.@material", 3),
+    ("comp1.screens.scr2.@enabled", 1),
+    ("comp1.screens.scr2.@material", 3),
+    ("comp1.illumination.lmp1.@intensity", 1),
+    ("comp1.illumination.lmp1.@maxIglob", 1)
 ])
 
 CONTROL_BO = [
