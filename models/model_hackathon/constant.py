@@ -1,8 +1,9 @@
-from collections import OrderedDict
-
 import torch
 import datetime
 import numpy as np
+
+from collections import OrderedDict
+from gym.spaces import Box
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CITY_NAME = 'Amsterdam'
@@ -51,9 +52,9 @@ MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 #     ("crp_lettuce.Intkam.management.@plantDensity", (True, 1))
 # ])
 
-CONTROL_INFO = OrderedDict([
-    ("end", 1),
-    ("comp1.setpoints.temp.@heatingTemp", 2),
+
+CONTROL_RL = OrderedDict([
+    ("comp1.setpoints.temp.@heatingTemp", 2),  # temp_night, temp_day
     ("comp1.setpoints.temp.@ventOffset", 1),
     ("comp1.setpoints.ventilation.@startWnd", 1),
     ("comp1.setpoints.CO2.@setpoint", 2),
@@ -64,41 +65,25 @@ CONTROL_INFO = OrderedDict([
     ("comp1.screens.scr2.@closeBelow", 1),
     ("comp1.screens.scr2.@closeAbove", 1),
     ("comp1.illumination.lmp1.@hoursLight", 1),
-    ("crp_lettuce.Intkam.management.@plantDensity", 1)
+    ("comp1.illumination.lmp1.@endTime", 1),
 ])
 
-CONTROL_RL = OrderedDict([
-    ("end", 1),  # {true, false}
-    ("comp1.setpoints.temp.@heatingTemp", 2),  # night:[8, 12], day:[20, 25]
-    ("comp1.setpoints.temp.@ventOffset", 1),
-    ("comp1.setpoints.ventilation.@startWnd", 1),
-    ("comp1.setpoints.CO2.@setpoint", 2),
-    ("comp1.screens.scr1.@ToutMax", 1),
-    ("comp1.screens.scr1.@closeBelow", 1),
-    ("comp1.screens.scr1.@closeAbove", 1),
-    ("comp1.screens.scr2.@ToutMax", 1),
-    ("comp1.screens.scr2.@closeBelow", 1),
-    ("comp1.screens.scr2.@closeAbove", 1),
-    ("comp1.illumination.lmp1.@hoursLight", 1),  # [0, 10]
-    ("crp_lettuce.Intkam.management.@plantDensity", 1)
-])
+CONTROL_BO = [
+    "simset.@startDate",  # e.g. '2021-03-05'
+    "common.CO2dosing.@pureCO2cap",  # e.g. 280
+    "comp1.screens.scr1.@enabled",  # e.g. True
+    "comp1.screens.scr1.@material",  # e.g. 'scr_Blackout.par'
+    "comp1.screens.scr2.@enabled",  # e.g. False
+    "comp1.screens.scr2.@material",  # e.g. 'scr_Transparent.par'
+    "comp1.illumination.lmp1.@intensity",  # e.g. 100
+    "comp1.illumination.lmp1.@maxIglob",  # e.g. 500
+    "crp_lettuce.Intkam.management.@plantDensity",  # e.g. "1 90; 7 60; 14 40; 21 30; 28 20; 34 15"
+]
 
-CONTROL_BO = OrderedDict([
-    ("simset.@startDate", 1),
-    ("common.CO2dosing.@pureCO2cap", 1),
-    ("comp1.screens.scr1.@enabled", 1),
-    ("comp1.screens.scr1.@material", 3),
-    ("comp1.screens.scr2.@enabled", 1),
-    ("comp1.screens.scr2.@material", 3),
-    ("comp1.illumination.lmp1.@intensity", 1),
-    ("comp1.illumination.lmp1.@maxIglob", 1)
-])
-
-CONTROL_OTHER = OrderedDict([
-    ("comp1.screens.scr1.@lightPollutionPrevention", 1),  # depend on scr1_material
-    ("comp1.screens.scr2.@lightPollutionPrevention", 1),  # depend on scr2_material
-    ("comp1.illumination.lmp1.@endTime", 1),  # depend on sunset and lighthour
-])
+CONTROL_OTHER = [
+    "comp1.screens.scr1.@lightPollutionPrevention",  # scr1_material == "scr_Blackout.par"
+    "comp1.screens.scr2.@lightPollutionPrevention",  # scr2_material == "scr_Blackout.par"
+]
 
 CONTROL_FIX = OrderedDict([
     ("comp1.heatingpipes.pipe1.@maxTemp", 60),
@@ -120,49 +105,61 @@ KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
     'B': 'C48B-PTmQ-89Kx-jqV5-3zRL',
     'C': 'C48A-ZRJQ-3wcq-rGuC-mEme',
-    'D': 'C48B-PTmQ-89Kx-jqV5-3zRL'
+    'D': 'C48B-PTmQ-89Kx-jqV5-3zRL',
+    'hack': 'H17-KyEO-iDtD-mVGR',
 }
-URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/model.aspx'
+URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
 SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 
 # ====================== data related ======================
 TRACES_DIR = ''  # TODO
 
 # ====================== runtime related ======================
-CP_KEY_RANGES = {
-    "end": [0, 1],  # end
-    "comp1.setpoints.temp.@heatingTemp.night": [10, 15],
-    "comp1.setpoints.temp.@heatingTemp.day": [15, 30],
-    "comp1.setpoints.temp.@ventOffset": [0, 5],
-    "comp1.setpoints.ventilation.@startWnd": [0, 50],
-    "comp1.setpoints.CO2.@setpoint.night": [200, 800],
-    "comp1.setpoints.CO2.@setpoint.day": [800, 1200],
-    "comp1.screens.scr1.@ToutMax": [-20, 30],
-    "comp1.screens.scr1.@closeBelow": [0, 200],
-    "comp1.screens.scr1.@closeAbove": [1000, 1500],
-    "comp1.screens.scr2.@ToutMax": [-20, 30],
-    "comp1.screens.scr2.@closeBelow": [0, 200],
-    "comp1.screens.scr2.@closeAbove": [1000, 1500],
-    "comp1.illumination.lmp1.@hoursLight": [0, 10],
-    "crp_lettuce.Intkam.management.@plantDensity": [0, 50],
+dtype = np.float32
+CP_KEY_SPACES = {
+    "comp1.setpoints.temp.@heatingTemp": Box(
+        low=np.asarray([5, 15], dtype=dtype), high=np.asarray([15, 30], dtype=dtype)),
+    "comp1.setpoints.temp.@ventOffset": Box(
+        low=np.asarray([0], dtype=dtype), high=np.asarray([5], dtype=dtype)),
+    "comp1.setpoints.ventilation.@startWnd": Box(
+        low=np.asarray([0], dtype=dtype), high=np.asarray([50], dtype=dtype)),
+    "comp1.setpoints.CO2.@setpoint": Box(
+        low=np.asarray([0, 400], dtype=dtype), high=np.asarray([400, 1200], dtype=dtype)),
+    "comp1.screens.scr1.@ToutMax": Box(
+        low=np.asarray([-20], dtype=dtype), high=np.asarray([30], dtype=dtype)),
+    "comp1.screens.scr1.@closeBelow": Box(
+        low=np.asarray([0], dtype=dtype), high=np.asarray([200], dtype=dtype)),
+    "comp1.screens.scr1.@closeAbove": Box(
+        low=np.asarray([500], dtype=dtype), high=np.asarray([1500], dtype=dtype)),
+    "comp1.screens.scr2.@ToutMax": Box(
+        low=np.asarray([-20], dtype=dtype), high=np.asarray([30], dtype=dtype)),
+    "comp1.screens.scr2.@closeBelow": Box(
+        low=np.asarray([0], dtype=dtype), high=np.asarray([200], dtype=dtype)),
+    "comp1.screens.scr2.@closeAbove": Box(
+        low=np.asarray([500], dtype=dtype), high=np.asarray([1500], dtype=dtype)),
+    "comp1.illumination.lmp1.@hoursLight": Box(
+        low=np.asarray([0], dtype=dtype), high=np.asarray([18], dtype=dtype)),
+    "comp1.illumination.lmp1.@endTime": Box(
+        low=np.asarray([18], dtype=dtype), high=np.asarray([20], dtype=dtype)),
 }
-EP_KEY_RANGES = {
+EP_KEY_SPACES = {
     'common.Iglob.Value': (0, 1000),
     'common.TOut.Value': (-10, 40),
     'common.RHOut.Value': (0, 100),
-    'common.Windsp.Value': (0, 10)
+    'common.Windsp.Value': (0, 10),
 }
-OP_KEY_RANGES = {
+OP_KEY_SPACES = {
     'comp1.Air.T': (-10, 40),
     'comp1.Air.RH': (0, 100),
     'comp1.Air.ppm': (0, 2000),
     'comp1.PARsensor.Above': (0, 2000),
     'comp1.Plant.PlantDensity': (0, 100),
+    "comp1.Plant.fractionGroundCover": (0, 1),
     'comp1.TPipe1.Value': (0, 80),
     'comp1.ConPipes.TSupPipe1': (0, 80),
-    'comp1.PConPipe1.Value': (0.0, 200),
-    'comp1.ConWin.WinLee': (0, 100.0),
-    'comp1.ConWin.WinWnd': (0, 100.0),
+    'comp1.PConPipe1.Value': (0, 200),
+    'comp1.ConWin.WinLee': (0, 100),
+    'comp1.ConWin.WinWnd': (0, 100),
     'comp1.Setpoints.SpHeat': (0, 30),
     'comp1.Setpoints.SpVent': (0, 30),
     'comp1.Scr1.Pos': (0, 1),
@@ -170,45 +167,41 @@ OP_KEY_RANGES = {
     'comp1.Lmp1.ElecUse': (0, 10),
     'comp1.McPureAir.Value': (0, 1e-5),
 }
-OP_IN_KEY_RANGES = {
-    'comp1.Air.T': (-10, 40),
-    'comp1.Air.RH': (0, 100),
-    'comp1.Air.ppm': (0, 2000),
-    'comp1.PARsensor.Above': (0, 2000),
-    'comp1.Plant.PlantDensity': (0, 100)
-}
-PL_KEY_RANGES = {
+PL_KEY_SPACES = {
     'comp1.Plant.headFW': (0, 1000),
     'comp1.Plant.shootDryMatterContent': (0, 0.1),
-    'comp1.Plant.qualityLoss': (0, 15)
+    'comp1.Plant.qualityLoss': (0, 100),
 }
+OP_IN_KEYS = [
+    'comp1.Air.T',
+    'comp1.Air.RH',
+    'comp1.Air.ppm',
+    'comp1.PARsensor.Above',
+    'comp1.Plant.PlantDensity',
+    "comp1.Plant.fractionGroundCover",
+]
 
-def get_low_high(key_ranges):
-    return (
-        np.asarray([v[0] for v in key_ranges.values()], dtype=np.float32),
-        np.asarray([v[1] for v in key_ranges.values()], dtype=np.float32),
-    )
 
-CLIMATE_NORM_DATA = {
-    'cp': get_low_high(CP_KEY_RANGES),
-    'ep': get_low_high(EP_KEY_RANGES),
-    'op': get_low_high(OP_KEY_RANGES),
-}
-PLANT_NORM_DATA = {
-    'op_in': get_low_high(OP_IN_KEY_RANGES),
-    'op_pl': get_low_high(PL_KEY_RANGES),
-}
+def get_low_high(space, keys):
+    lows, highs = [], []
+    for key in keys:
+        range = space[key]
+        low = range.low if isinstance(range, Box) else np.asarray([range[0]], dtype=dtype)
+        high = range.high if isinstance(range, Box) else np.asarray([range[1]], dtype=dtype)
+        lows.append(low)
+        highs.append(high)
+    return np.concatenate(lows, axis=0), np.concatenate(highs, axis=0)
+
+
+def get_norm_data():
+    return {
+        'cp': get_low_high(CP_KEY_SPACES, CP_KEY_SPACES.keys()),
+        'ep': get_low_high(EP_KEY_SPACES, EP_KEY_SPACES.keys()),
+        'op': get_low_high(OP_KEY_SPACES, OP_KEY_SPACES.keys()),
+        'pl': get_low_high(PL_KEY_SPACES, PL_KEY_SPACES.keys()),
+        'op_in': get_low_high(OP_KEY_SPACES, OP_IN_KEYS),
+    }
 
 # ====================== model related ======================
 CLIMATE_MODEL_PATH = ''  # TODO
 PLANT_MODEL_PATH = ''  # TODO
-
-# ===================== BO hyper-parameters ======================
-# TODO: temporary, this needs to be updated in BO loop somehow
-INIT_PLANT_DENSITY = 90.0
-BO_CONTROLS = {
-    'common.CO2dosing.@pureCO2cap': 280,
-    'comp1.illumination.lmp1.@intensity': 120,
-    'comp1.screens.scr1.@enabled': True,
-    'comp1.screens.scr2.@enabled': True
-}
