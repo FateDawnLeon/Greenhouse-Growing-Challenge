@@ -65,10 +65,10 @@ URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
 SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 
 # ====================== data related ======================
-TRACES_DIR = ''  # TODO
+TRACES_DIR = '/home/leondawn/AGC-data-traces'
 EP_PATH = ''  # TODO
-CLIMATE_MODEL_PATH = ''  # TODO
-PLANT_MODEL_PATH = ''  # TODO
+CLIMATE_MODEL_PATH = '/home/leondawn/AGC-model-weights/climate_model_v2.pth'
+PLANT_MODEL_PATH = '/home/leondawn/AGC-model-weights/plant_model_v2.pth'
 BO_CONTROL_PATH = ''  # TODO
 
 # ====================== runtime related ======================

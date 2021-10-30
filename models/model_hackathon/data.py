@@ -4,6 +4,7 @@ import numpy as np
 
 from torch.utils.data import Dataset
 
+from functools import partial
 from tqdm import tqdm
 from astral.sun import sun
 from astral.geocoder import lookup, database
@@ -21,6 +22,43 @@ class ControlParser:
         self.end_date = datetime.date.fromisoformat(control['simset']['@endDate'])
         self.city = lookup(city_name, database())
         self.num_days = (self.end_date - self.start_date).days
+        self.parser_router = {
+            "comp1.heatingpipes.pipe1.@maxTemp": self.parse_pipe_maxTemp,
+            "comp1.heatingpipes.pipe1.@minTemp": self.parse_pipe_minTemp,
+            "comp1.heatingpipes.pipe1.@radiationInfluence": self.parse_pipe_radInf,
+            "comp1.setpoints.temp.@heatingTemp": self.parse_temp_heatingTemp,
+            "comp1.setpoints.temp.@ventOffset": self.parse_temp_ventOffset,
+            "comp1.setpoints.temp.@radiationInfluence": self.parse_temp_radInf,
+            "comp1.setpoints.temp.@PbandVent": self.parse_temp_PbandVent,
+            "comp1.setpoints.ventilation.@startWnd": self.parse_vent_startWnd,
+            "comp1.setpoints.ventilation.@winLeeMin": self.parse_vent_winLeeMin,
+            "comp1.setpoints.ventilation.@winLeeMax": self.parse_vent_winLeeMax,
+            "comp1.setpoints.ventilation.@winWndMin": self.parse_vent_winWndMin,
+            "comp1.setpoints.ventilation.@winWndMax": self.parse_vent_winWndMax,
+            "common.CO2dosing.@pureCO2cap": self.parse_co2_pureCap,
+            "comp1.setpoints.CO2.@setpoint": self.parse_co2_setpoint,
+            "comp1.setpoints.CO2.@setpIfLamps": self.parse_co2_setpIfLamps,
+            "comp1.setpoints.CO2.@doseCapacity": self.parse_co2_doseCap,
+            "comp1.screens.scr1.@enabled": partial(self.parse_scr_enabled, scr_id=1),
+            "comp1.screens.scr1.@material": partial(self.parse_scr_material, scr_id=1),
+            "comp1.screens.scr1.@ToutMax": partial(self.parse_scr_ToutMax, scr_id=1),
+            "comp1.screens.scr1.@closeBelow": partial(self.parse_scr_closeBelow, scr_id=1),
+            "comp1.screens.scr1.@closeAbove": partial(self.parse_scr_closeAbove, scr_id=1),
+            "comp1.screens.scr1.@lightPollutionPrevention": partial(self.parse_scr_LPP, scr_id=1),
+            "comp1.screens.scr2.@enabled": partial(self.parse_scr_enabled, scr_id=2),
+            "comp1.screens.scr2.@material": partial(self.parse_scr_material, scr_id=2),
+            "comp1.screens.scr2.@ToutMax": partial(self.parse_scr_ToutMax, scr_id=2),
+            "comp1.screens.scr2.@closeBelow": partial(self.parse_scr_closeBelow, scr_id=2),
+            "comp1.screens.scr2.@closeAbove": partial(self.parse_scr_closeAbove, scr_id=2),
+            "comp1.screens.scr2.@lightPollutionPrevention": partial(self.parse_scr_LPP, scr_id=2),
+            "comp1.illumination.lmp1.@enabled": self.parse_lmp1_enabled,
+            "comp1.illumination.lmp1.@intensity": self.parse_lmp1_intensity,
+            "comp1.illumination.lmp1.@hoursLight": self.parse_lmp1_hoursLight,
+            "comp1.illumination.lmp1.@endTime": self.parse_lmp1_endTime,
+            "comp1.illumination.lmp1.@maxIglob": self.parse_lmp1_maxIglob,
+            "comp1.illumination.lmp1.@maxPARsum": self.parse_lmp1_maxPARsum,
+            "crp_lettuce.Intkam.management.@plantDensity": self.parse_plant_density,
+        }
 
     def parse(self):
         assert self.end_date > self.start_date
@@ -65,47 +103,10 @@ class ControlParser:
         ]
         return np.concatenate(cp_list, axis=1, dtype=np.float32)  # D x CP_DIM
 
-    def parse2dict(self):
+    def parse2dict(self, keys):
         assert self.end_date > self.start_date
-        control = self.control
-        
-        return {
-            "comp1.heatingpipes.pipe1.@maxTemp": self.parse_pipe_maxTemp(control),
-            "comp1.heatingpipes.pipe1.@minTemp": self.parse_pipe_minTemp(control),
-            "comp1.heatingpipes.pipe1.@radiationInfluence": self.parse_pipe_radInf(control),
-            "comp1.setpoints.temp.@heatingTemp": self.parse_temp_heatingTemp(control),
-            "comp1.setpoints.temp.@ventOffset": self.parse_temp_ventOffset(control),
-            "comp1.setpoints.temp.@radiationInfluence": self.parse_temp_radInf(control),
-            "comp1.setpoints.temp.@PbandVent": self.parse_temp_PbandVent(control),
-            "comp1.setpoints.ventilation.@startWnd": self.parse_vent_startWnd(control),
-            "comp1.setpoints.ventilation.@winLeeMin": self.parse_vent_winLeeMin(control),
-            "comp1.setpoints.ventilation.@winLeeMax": self.parse_vent_winLeeMax(control),
-            "comp1.setpoints.ventilation.@winWndMin": self.parse_vent_winWndMin(control),
-            "comp1.setpoints.ventilation.@winWndMax": self.parse_vent_winWndMax(control),
-            "common.CO2dosing.@pureCO2cap": self.parse_co2_pureCap(control),
-            "comp1.setpoints.CO2.@setpoint": self.parse_co2_setpoint(control),
-            "comp1.setpoints.CO2.@setpIfLamps": self.parse_co2_setpIfLamps(control),
-            "comp1.setpoints.CO2.@doseCapacity": self.parse_co2_doseCap(control),
-            "comp1.screens.scr1.@enabled": self.parse_scr_enabled(control, 1),
-            "comp1.screens.scr1.@material": self.parse_scr_material(control, 1),
-            "comp1.screens.scr1.@ToutMax": self.parse_scr_ToutMax(control, 1),
-            "comp1.screens.scr1.@closeBelow": self.parse_scr_closeBelow(control, 1),
-            "comp1.screens.scr1.@closeAbove": self.parse_scr_closeAbove(control, 1),
-            "comp1.screens.scr1.@lightPollutionPrevention": self.parse_scr_LPP(control, 1),
-            "comp1.screens.scr2.@enabled": self.parse_scr_enabled(control, 2),
-            "comp1.screens.scr2.@material": self.parse_scr_material(control, 2),
-            "comp1.screens.scr2.@ToutMax": self.parse_scr_ToutMax(control, 2),
-            "comp1.screens.scr2.@closeBelow": self.parse_scr_closeBelow(control, 2),
-            "comp1.screens.scr2.@closeAbove": self.parse_scr_closeAbove(control, 2),
-            "comp1.screens.scr2.@lightPollutionPrevention": self.parse_scr_LPP(control, 2),
-            "comp1.illumination.lmp1.@enabled": self.parse_lmp1_enabled(control),
-            "comp1.illumination.lmp1.@intensity": self.parse_lmp1_intensity(control),
-            "comp1.illumination.lmp1.@hoursLight": self.parse_lmp1_hoursLight(control),
-            "comp1.illumination.lmp1.@endTime": self.parse_lmp1_endTime(control),
-            "comp1.illumination.lmp1.@maxIglob": self.parse_lmp1_maxIglob(control),
-            "comp1.illumination.lmp1.@maxPARsum": self.parse_lmp1_maxPARsum(control),
-            "crp_lettuce.Intkam.management.@plantDensity": self.parse_plant_density(control),
-        }  # {key: value -> shape(D x n_dim)}
+        # {key: value -> shape(D x 24 x num_dim_key)}
+        return {key: self.parser_router[key](self.control) for key in keys}  
 
     @staticmethod
     def get_value(control, key_path):
@@ -138,7 +139,13 @@ class ControlParser:
         convert = lambda t: eval(t, {'r': t_rise, 's': t_set})
         setpoints = [(convert(t), preprocess(v)) for t, v in schedule.items()]
         setpoints = sorted(setpoints)
-        setpoints = [(0, setpoints[0][1])] + setpoints + [(24, setpoints[-1][1])]
+
+        t1, v1 = setpoints[0]
+        t2, v2 = setpoints[-1]
+        if t1 > 0:
+            setpoints.insert(0, (0, v1))
+        if t2 < 24:
+            setpoints.append((24, v2))
 
         x = np.asarray([sp[0] for sp in setpoints])
         y = np.asarray([sp[1] for sp in setpoints])
@@ -756,7 +763,7 @@ class ParseControl(object):
 
 
 def parse_control(control, keys):
-    cp_dict = ControlParser(control).parse2dict()
+    cp_dict = ControlParser(control).parse2dict(keys)
     # for key, arr in cp_dict.items():
     #     print(key, arr.shape)
     cp_list = [cp_dict[key] for key in keys]
@@ -773,22 +780,22 @@ def parse_output(output, keys):
     return output_vals.T # T x NUM_KEYS
 
 
-def prepare_traces(data_dirs, save_dir):
+def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
     for data_dir in data_dirs:
-        output_dir = os.path.join(data_dir, 'outputs')
+        output_dir = os.path.join(data_dir, output_folder)
         print(f'preparing traces from {data_dir} ...')
         for name in tqdm(os.listdir(output_dir)):
             output = load_json_data(f'{output_dir}/{name}')
             if output['responsemsg'] != 'ok':
                 continue
             
-            ep = parse_output(output, ClimateDatasetDay.EP_KEYS)  # T x EP_DIM
-            op = parse_output(output, ClimateDatasetDay.OP_KEYS)  # T x OP_DIM
-            pl = parse_output(output, PlantDatasetDay.OP_PL_KEYS)  # T x OP_PL_DIM
+            ep = parse_output(output, EP_KEYS)  # T x EP_DIM
+            op = parse_output(output, OP_KEYS)  # T x OP_DIM
+            pl = parse_output(output, PL_KEYS)  # T x OP_PL_DIM
 
             ep_trace = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
             op_trace = op.reshape(-1, 24, op.shape[-1])  # D x 24 x OP_DIM
-            pl_trace = pl.reshape(-1, 24, pl.shape[-1]).mean(axis=1)  # D x OP_PL_DIM
+            pl_trace = pl.reshape(-1, 24, pl.shape[-1])[:, 12]  # D x PL_DIM
 
             trace_dir = f"{save_dir}/{name[:-5]}"
             os.makedirs(trace_dir, exist_ok=True)
@@ -828,9 +835,15 @@ def get_param_range(data_dirs, data_folder, parse_func, keys):
         for name in tqdm(filter_jsons(names)):
             path = f"{data_dir}/{data_folder}/{name}"
             arr = parse_func(load_json_data(path), keys)
+            arr = arr.reshape(-1, arr.shape[-1])  # T x PARAM_DIM
             arr_list.append(arr)
     arr = np.concatenate(arr_list, axis=0)
     return arr.min(axis=0), arr.max(axis=0)
+
+
+def get_min_max(arr):
+    arr = arr.reshape(-1, arr.shape[-1])  # S x N_DIM
+    return arr.min(0), arr.max(0)
 
 
 class AGCDataset(Dataset):
@@ -1283,16 +1296,20 @@ class ClimateDatasetDay(Dataset):
         self.data_name = data_name
         self.control_folder = control_folder
         self.output_folder = output_folder
-        
         self.norm_data = norm_data
-        if not self.norm_data:
-            self.norm_data = {
-                'cp': get_param_range(data_dirs, control_folder, parse_control, cp_keys),
-                'ep': get_param_range(data_dirs, output_folder, parse_output, ep_keys),
-                'op': get_param_range(data_dirs, output_folder, parse_output, op_keys),
-            }
-        
         self.preprocess(data_dirs, force_preprocess)
+
+        if not self.norm_data:
+            # self.norm_data = {
+            #     'cp': get_param_range(data_dirs, control_folder, parse_control, cp_keys),
+            #     'ep': get_param_range(data_dirs, output_folder, parse_output, ep_keys),
+            #     'op': get_param_range(data_dirs, output_folder, parse_output, op_keys),
+            # }
+            self.norm_data = {
+                'cp': get_min_max(self.cp),
+                'ep': get_min_max(self.ep),
+                'op': get_min_max(np.concatenate([self.op, self.op_next], axis=0)),
+            }
 
         self.cp_normed = normalize_zero2one(self.cp, self.norm_data['cp'])  # D x 24 x CP_DIM
         self.ep_normed = normalize_zero2one(self.ep, self.norm_data['ep'])  # D x 24 x EP_DIM
@@ -1407,66 +1424,87 @@ class PlantDatasetDay(Dataset):
         super().__init__()
         self.op_in_keys = op_in_keys
         self.pl_keys = pl_keys
+        self.pd_keys = ["crp_lettuce.Intkam.management.@plantDensity"]
         self.data_name = data_name
         self.control_folder = control_folder
         self.output_folder = output_folder
         self.pl_init = np.asarray([PL_INIT_VALUE[key] for key in self.pl_keys])
-
         self.norm_data = norm_data
+        self.preprocess(data_dirs, force_preprocess)
+
         if not self.norm_data:
+            # self.norm_data = {
+            #     'pd': get_param_range(data_dirs, control_folder, parse_control, self.pd_keys),
+            #     'op_in': get_param_range(data_dirs, output_folder, parse_output, op_in_keys),
+            #     'pl': get_param_range(data_dirs, output_folder, parse_output, pl_keys),
+            # }
             self.norm_data = {
-                'op_in': get_param_range(data_dirs, output_folder, parse_output, op_in_keys),
-                'pl': get_param_range(data_dirs, output_folder, parse_output, pl_keys),
+                'pd': get_min_max(self.pd),
+                'op_in': get_min_max(self.op_in),
+                'pl': get_min_max(np.concatenate([self.pl, self.pl_next], axis=0)),
             }
 
-        self.preprocess(data_dirs, force_preprocess)
-        
+        self.pd_normed = normalize_zero2one(self.pd, self.norm_data['pd'])  # D x 24 x OP_IN_DIM
         self.op_in_normed = normalize_zero2one(self.op_in, self.norm_data['op_in'])  # D x 24 x OP_IN_DIM
         self.pl_normed = normalize_zero2one(self.pl, self.norm_data['pl'])  # D x 24 x PL_DIM
         self.pl_next_normed = normalize_zero2one(self.pl_next, self.norm_data['pl'])  # D x 24 x PL_DIM
 
+        self.pd_normed = self.pd_normed.astype(np.float32)
         self.op_in_normed = self.op_in_normed.astype(np.float32)
         self.pl_normed = self.pl_normed.astype(np.float32)
         self.pl_next_normed = self.pl_next_normed.astype(np.float32)
 
     def __getitem__(self, index):
         op_in = self.op_in_normed[index].flatten()  # n_dim = 24 x OP_IN_DIM
-        pl = self.pl_normed[index, 12]  # n_dim = PL_DIM
-        pl_next = self.pl_next_normed[index, 12]  # n_dim = PL_DIM
-        return (op_in, pl), pl_next
+        pd = self.pd_normed[index, 12].flatten()  # n_dim = 1
+        pl = self.pl_normed[index, 12].flatten()  # n_dim = PL_DIM
+        pl_next = self.pl_next_normed[index, 12].flatten()  # n_dim = PL_DIM
+        return (pd, op_in, pl), pl_next
 
     def __len__(self):
         return self.op_in_normed.shape[0]
 
     def preprocess(self, data_dirs, force_preprocess):
-        op_in, pl, pl_next = [], [], []
+        pd, op_in, pl, pl_next = [], [], [], []
         for data_dir in data_dirs:
             data_path = f'{data_dir}/{self.data_name}.npz'
             if not os.path.exists(data_path) or force_preprocess:
                 self.preprocess_dir(data_dir)
             data = np.load(data_path)
 
+            pd.append(data['pd'])
             op_in.append(data['op_in'])
             pl.append(data['pl'])
             pl_next.append(data['pl_next'])
 
+        self.pd = np.concatenate(pd, axis=0)  # D x 24 x 1
         self.op_in = np.concatenate(op_in, axis=0)  # D x 24 x OP_IN_DIM
         self.pl = np.concatenate(pl, axis=0)  # D x 24 x PL_DIM
         self.pl_next = np.concatenate(pl_next, axis=0)  # D x 24 x PL_DIM
 
     def preprocess_dir(self, data_dir):
+        control_dir = os.path.join(data_dir, self.control_folder)
         output_dir = os.path.join(data_dir, self.output_folder)
+
+        assert os.path.exists(control_dir)
         assert os.path.exists(output_dir)
-        names = os.listdir(output_dir)
+
+        cp_names = os.listdir(control_dir)
+        op_names = os.listdir(output_dir)
+        names = list(set(cp_names).intersection(set(op_names)))
 
         print(f'preprocessing data @ {data_dir} ...')
 
-        op_in_arr, pl_arr, pl_next_arr = [], [], []
+        pd_arr, op_in_arr, pl_arr, pl_next_arr = [], [], [], []
         for name in tqdm(filter_jsons(names)):
             output = load_json_data(os.path.join(output_dir, name))
+            control = load_json_data(os.path.join(control_dir, name))
 
             if output['responsemsg'] != 'ok':
                 continue
+
+            # ============ Parse PlantDensity ===============
+            pd = parse_control(control, self.pd_keys)  # D x 24 x 1
 
             # ============ Parse Inside Params ==============
             op_in = parse_output(output, self.op_in_keys)  # T x OP_IN_DIM
@@ -1476,23 +1514,25 @@ class PlantDatasetDay(Dataset):
             pl = parse_output(output, self.pl_keys)  # T x PL_DIM
             pl_init = np.repeat(self.pl_init.reshape(1, pl.shape[-1]), 24, axis=0)  # 24 x PL_DIM
             pl = np.concatenate([pl_init, pl], axis=0)  # (T+24) x PL_DIM
-            pl = pl.reshape(-1, 24, pl.shape[-1])  # (D+1) x 24 x OP_PL_DIM
+            pl = pl.reshape(-1, 24, pl.shape[-1])  # (D+1) x 24 x PL_DIM
 
             # assumption: op_in[d+1] + pl[d] -> pl[d+1]
-            pl_next = pl[1:]
-            pl = pl[:-1]
+            pl_next = pl[1:]  # D x 24 x PL_DIM
+            pl = pl[:-1]  # D x 24 x PL_DIM
 
+            pd_arr.append(pd)
             op_in_arr.append(op_in)
             pl_arr.append(pl)
             pl_next_arr.append(pl_next)
         
+        pd_arr = np.concatenate(pd_arr, axis=0)
         op_in_arr = np.concatenate(op_in_arr, axis=0)
         pl_arr = np.concatenate(pl_arr, axis=0)
         pl_next_arr = np.concatenate(pl_next_arr, axis=0)
 
         np.savez_compressed(
             f'{data_dir}/{self.data_name}.npz', 
-            op_in=op_in_arr, pl=pl_arr, pl_next=pl_next_arr)
+            pd=pd_arr, op_in=op_in_arr, pl=pl_arr, pl_next=pl_next_arr)
 
     def get_meta_data(self):
         return {
@@ -1500,3 +1540,14 @@ class PlantDatasetDay(Dataset):
             'pl_dim': self.pl.shape[-1],
             'norm_data': self.norm_data,
         }
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data-dirs', type=str, nargs="+", required=True)
+    parser.add_argument('--save-dir', type=str, required=True)
+    parser.add_argument('--output-folder', type=str, default="outputs")
+    args = parser.parse_args()
+
+    prepare_traces(args.data_dirs, args.save_dir, args.output_folder)
