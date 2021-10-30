@@ -86,7 +86,7 @@ ACTION_RARAM_SPACE = {
     "comp1.screens.scr2.@closeAbove": ([500], [1500]),
     "comp1.illumination.lmp1.@hoursLight": ([0], [18]),
     "comp1.illumination.lmp1.@endTime": ([18], [20]),
-    "crp_lettuce.Intkam.management.@plantDensity": ([0, 0], [1, 35]),  # [change_min, value_min], [change_max, value_max]
+    "crp_lettuce.Intkam.management.@plantDensity": ([0, 0], [35, 1]),  # [value_min, change_min], [value_max, change_max]
 }
 
 MODEL_PARAM_SPACE = {
@@ -122,8 +122,6 @@ MODEL_PARAM_SPACE = {
     'comp1.Air.RH': ([0], [100]),
     'comp1.Air.ppm': ([0], [1200]),
     'comp1.PARsensor.Above': ([0], [2000]),
-    'comp1.Plant.PlantDensity': ([0], [100]),
-    "comp1.Plant.fractionGroundCover": ([0], [1]),
     'comp1.TPipe1.Value': ([0], [60]),
     'comp1.ConPipes.TSupPipe1': ([0], [60]),
     'comp1.PConPipe1.Value': ([0], [200]),
@@ -137,6 +135,8 @@ MODEL_PARAM_SPACE = {
     'comp1.McPureAir.Value': ([0], [1e-5]),
     # PL params
     'comp1.Plant.headFW': ([0], [1000]),
+    'comp1.Plant.PlantDensity': ([0], [100]),
+    "comp1.Plant.fractionGroundCover": ([0], [1]),
     'comp1.Plant.shootDryMatterContent': ([0], [0.1]),
     'comp1.Plant.qualityLoss': ([0], [100]),
 }
@@ -176,8 +176,6 @@ OP_KEYS = [
     "comp1.Air.RH",
     "comp1.Air.ppm",
     "comp1.PARsensor.Above",
-    "comp1.Plant.PlantDensity",
-    "comp1.Plant.fractionGroundCover",
     "comp1.TPipe1.Value",
     "comp1.ConPipes.TSupPipe1",
     "comp1.PConPipe1.Value",
@@ -195,16 +193,16 @@ OP_IN_KEYS = [
     "comp1.Air.RH",
     "comp1.Air.ppm",
     "comp1.PARsensor.Above",
-    "comp1.Plant.PlantDensity",
-    "comp1.Plant.fractionGroundCover",
 ]
 PL_KEYS = [
     "comp1.Plant.headFW",
+    "comp1.Plant.fractionGroundCover",
     "comp1.Plant.shootDryMatterContent",
     "comp1.Plant.qualityLoss",
 ]
 PL_INIT_VALUE = {
     "comp1.Plant.headFW": 0,
+    "comp1.Plant.fractionGroundCover": 0,
     "comp1.Plant.shootDryMatterContent": 0.055,
     "comp1.Plant.qualityLoss": 0,
 }
