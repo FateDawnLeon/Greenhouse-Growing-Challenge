@@ -38,7 +38,6 @@ CONTROL_BO = [
     "comp1.illumination.lmp1.@maxIglob",  # e.g. 500
 ]
 
-
 CONTROL_FIX = OrderedDict([
     ("comp1.heatingpipes.pipe1.@maxTemp", 60),
     ("comp1.heatingpipes.pipe1.@minTemp", 0),
@@ -209,7 +208,6 @@ PL_INIT_VALUE = {
     "comp1.Plant.shootDryMatterContent": 0.055,
     "comp1.Plant.qualityLoss": 0,
 }
-
 
 
 def get_range(keys, space):

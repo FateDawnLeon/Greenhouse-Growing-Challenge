@@ -2,12 +2,11 @@ import os
 import torch
 import argparse
 
-from torch.utils.data import DataLoader
-from torch.optim import SGD, Adam, optimizer, lr_scheduler
+from torch.utils.data import DataLoader, random_split
+from torch.optim import SGD, Adam, lr_scheduler
 from utils import save_json_data, plot_loss_curve
-from data import ClimateDatasetHour, PlantDatasetHour, ClimateDatasetDay, PlantDatasetDay
-from model import ClimateModel, PlantModel, ClimateModelDay, PlantModelDay
-from constant import PLANT_NORM_DATA
+from data import ClimateDatasetDay, PlantDatasetDay
+from model import ClimateModelDay, PlantModelDay
 
 
 OPTIM = {
@@ -16,22 +15,15 @@ OPTIM = {
 }
 
 DATASET = {
-    'climate_hour': ClimateDatasetHour,
-    'plant_hour': PlantDatasetHour,
     'climate_day': ClimateDatasetDay,
     'plant_day': PlantDatasetDay,
 }
 
 MODEL = {
-    'climate_hour': ClimateModel,
-    'plant_hour': PlantModel,
     'climate_day': ClimateModelDay,
     'plant_day': PlantModelDay,
 }
 
-NORM_DATA = {
-    "plant_day": PLANT_NORM_DATA
-}
 
 def get_batch(dataloader):
     while True:
@@ -43,9 +35,9 @@ def get_lr(optimizer):
         return param_group['lr']
 
 
-def get_dataloader(dataset, is_train=True):
+def get_dataloader(batch_size, dataset, is_train=True):
     return DataLoader(dataset,
-            batch_size=args.batch_size,
+            batch_size=batch_size,
             num_workers=8,
             shuffle=is_train,
             pin_memory=True,
@@ -74,12 +66,21 @@ def validate(model, val_loader, criterion):
     return running_loss / len(val_loader.dataset)
 
 
+def split_dataset(dataset, val_ratio):
+    num_all = len(dataset)
+    num_train = round(num_all * (1 - val_ratio))
+    num_val = num_all - num_train
+    return random_split(dataset, [num_train, num_val], generator=torch.Generator().manual_seed(42))
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root-dir', type=str, required=True)
-    parser.add_argument('--train-dirs', nargs='+', required=True)
-    parser.add_argument('--val-dirs', nargs='+', required=True)
+    parser.add_argument('--data-dirs', nargs='+', required=True)
     parser.add_argument('--model', type=str, required=True)
+    parser.add_argument('--val-ratio', type=float, default=0.2)
+    parser.add_argument('--control-folder', type=str, default="controls")
+    parser.add_argument('--output-folder', type=str, default="outputs")
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--lr-patience', type=int, default=5)
     parser.add_argument('--min-lr', type=float, default=1e-5)
@@ -103,17 +104,18 @@ if __name__ == '__main__':
     os.makedirs(f'{args.root_dir}/checkpoints', exist_ok=True)
     save_json_data(vars(args), f"{args.root_dir}/config.json")
 
-    MyDataset = DATASET[args.model]
-    # norm_data = MyDataset.get_norm_data(args.train_dirs + args.val_dirs)
-    norm_data = NORM_DATA[args.model]
+    dataset = DATASET[args.model](
+        data_dirs=args.data_dirs, 
+        force_preprocess=args.force_preprocess,
+        control_folder=args.control_folder,
+        output_folder=args.output_folder)
+    norm_data = dataset.norm_data
 
-    train_dataset = MyDataset(args.train_dirs, norm_data, force_preprocess=args.force_preprocess)
-    val_dataset = MyDataset(args.val_dirs, norm_data, force_preprocess=args.force_preprocess)
+    train_dataset, val_dataset = split_dataset(dataset, args.val_ratio)
+    iter_loader = get_batch(get_dataloader(args.batch_size, train_dataset))
+    val_loader = get_dataloader(args.batch_size, val_dataset, is_train=False)
 
-    iter_loader = get_batch(get_dataloader(train_dataset))
-    val_loader = get_dataloader(val_dataset, is_train=False)
-
-    model = MODEL[args.model](**train_dataset.meta_data)
+    model = MODEL[args.model](**dataset.get_meta_data())
 
     if args.finetune:
         ckpt = torch.load(args.ckpt_path)

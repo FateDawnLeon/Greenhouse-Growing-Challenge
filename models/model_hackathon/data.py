@@ -9,12 +9,13 @@ from astral.sun import sun
 from astral.geocoder import lookup, database
 from scipy.interpolate import interp1d
 
-from constant import START_DATE, CITY_NAME
+from constant import CITY_NAME, MATERIALS, PL_INIT_VALUE
+from constant import CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS
 from utils import load_json_data, normalize, normalize_zero2one
 
 
 class ControlParser:
-    def __init__(self, control, city_name='Amsterdam'):
+    def __init__(self, control, city_name=CITY_NAME):
         self.control = control
         self.start_date = datetime.date.fromisoformat(control['simset']['@startDate'])
         self.end_date = datetime.date.fromisoformat(control['simset']['@endDate'])
@@ -104,7 +105,7 @@ class ControlParser:
             "comp1.illumination.lmp1.@maxIglob": self.parse_lmp1_maxIglob(control),
             "comp1.illumination.lmp1.@maxPARsum": self.parse_lmp1_maxPARsum(control),
             "crp_lettuce.Intkam.management.@plantDensity": self.parse_plant_density(control),
-        }  # {key: value(n_dim x D)}
+        }  # {key: value -> shape(D x n_dim)}
 
     @staticmethod
     def get_value(control, key_path):
@@ -124,28 +125,35 @@ class ControlParser:
         h_s = s['sunset'].hour + s['sunset'].minute / 60
         return h_r, h_s
 
-    @staticmethod
-    def schedule2arr(schedule, t_rise, t_set, preprocess):
-        key_value_pairs = list(schedule.items())
-        val_map = {'r': t_rise, 's': t_set}
-        convert = lambda t: float(t) if t.isdigit() else val_map[t]
-        kv_list = [[convert(t)] + preprocess(v) for t, v in key_value_pairs]
-        return ControlParser.flatten(sorted(kv_list))
+    # @staticmethod
+    # def schedule2arr(schedule, t_rise, t_set, preprocess):
+    #     key_value_pairs = list(schedule.items())
+    #     locals = {'r': t_rise, 's': t_set}
+    #     convert = lambda t: eval(t, locals)
+    #     kv_list = [[convert(t)] + preprocess(v) for t, v in key_value_pairs]
+    #     return ControlParser.flatten(sorted(kv_list))
     
     @staticmethod
-    def schedule2arr_DayNight(schedule, preprocess):
-        val_night = preprocess(schedule['r'])
-        val_day = preprocess(schedule['r+1'])
-        return [val_night, val_day]
+    def schedule2list(schedule, t_rise, t_set, preprocess):
+        convert = lambda t: eval(t, {'r': t_rise, 's': t_set})
+        setpoints = [(convert(t), preprocess(v)) for t, v in schedule.items()]
+        setpoints = sorted(setpoints)
+        setpoints = [(0, setpoints[0][1])] + setpoints + [(24, setpoints[-1][1])]
+
+        x = np.asarray([sp[0] for sp in setpoints])
+        y = np.asarray([sp[1] for sp in setpoints])
+        f = interp1d(x, y, axis=0)
+
+        return f(np.arange(24)).tolist()  # 24 x N_dim
 
     def value2arr(self, value, preprocess, valid_dtype):
         if type(value) in valid_dtype:
-            cp_arr = [preprocess(value)] * self.num_days
+            cp_list = [[preprocess(value)] * 24] * self.num_days
         elif type(value) == dict:
-            cp_arr = self.dict_value2arr(value, valid_dtype, preprocess)
-        return np.asarray(cp_arr, dtype=np.float32)  # D x N_dim
+            cp_list = self.dict_value2list(value, valid_dtype, preprocess)
+        return np.asarray(cp_list)  # D x 24 x N_dim
 
-    def dict_value2arr(self, value, valid_dtype, preprocess):
+    def dict_value2list(self, value, valid_dtype, preprocess):
         offset_vals = []
         for date, day_value in value.items():
             day, month = date.split('-')
@@ -155,9 +163,9 @@ class ControlParser:
             
             t_rise, t_set = self.get_sun_rise_and_set(dateinfo, self.city)
             if type(day_value) in valid_dtype:
-                val = preprocess(day_value)
+                val = [preprocess(day_value)] * 24
             elif type(day_value) == dict:
-                val = self.schedule2arr(day_value, t_rise, t_set, preprocess)
+                val = self.schedule2list(day_value, t_rise, t_set, preprocess)
             else:
                 raise ValueError(f"invalid data type of {day_value}")
 
@@ -174,7 +182,7 @@ class ControlParser:
         for i in range(offset_last, self.num_days):
             arr[i] = val
 
-        return arr  # D x N_dim
+        return arr  # D x 24 x N_dim
     
     def parse_pipe_maxTemp(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@maxTemp")
@@ -292,15 +300,14 @@ class ControlParser:
     def parse_scr_enabled(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@enabled")
         valid_dtype = [bool]
-        preprocess = lambda x: [float(x)]
+        preprocess = lambda x: [x==True, x==False]
         return self.value2arr(value, preprocess, valid_dtype)
     
     def parse_scr_material(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@material")
         valid_dtype = [str]
         def preprocess(s):
-            choices = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
-            return [float(s==c) for c in choices]
+            return [float(s==c) for c in MATERIALS]
         return self.value2arr(value, preprocess, valid_dtype)
     
     def parse_scr_ToutMax(self, control, scr_id):
@@ -311,14 +318,8 @@ class ControlParser:
     
     def parse_scr_closeBelow(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@closeBelow")
-        valid_dtype = [int, float, str]
-        def preprocess(s):
-            if type(s) == str:
-                numbers = [[float(x) for x in y.split()] for y in s.split(';')]
-            else:
-                val = float(s)
-                numbers = [[0, val], [10, val]]
-            return self.flatten(numbers)
+        valid_dtype = [int, float]
+        preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_scr_closeAbove(self, control, scr_id):
@@ -372,12 +373,12 @@ class ControlParser:
     def parse_plant_density(self, control):
         value = self.get_value(control, "crp_lettuce.Intkam.management.@plantDensity")
         setpoints = self.parse_plant_density_to_setpoints(value)
-        arr = np.zeros((self.num_days, 1))
+        arr = np.zeros((self.num_days, 24, 1))
         for day, density in setpoints:
             offset = day - 1
             if offset >= self.num_days:
                 break
-            arr[offset:, 0] = density
+            arr[offset:, :, 0] = density
         return arr
 
     def parse_plant_density_to_setpoints(self, pd_str):
@@ -483,6 +484,10 @@ class ParseControl(object):
             cp_arr = self.dict_value2arr(value, valid_dtype, preprocess, interpolate)
         return np.asarray(cp_arr).T  # N x num_hours
 
+    def get_setpoints(value_dict):
+        pass
+
+
     def dict_value2arr(self, value, valid_dtype, preprocess, interpolate):
         result = [None] * self.num_hours
         for date, day_value in value.items():
@@ -520,6 +525,7 @@ class ParseControl(object):
         return f(range(self.num_hours))
     
     def parse_pipe_maxTemp(self, control):
+        # sourcery skip: class-extract-method
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@maxTemp")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
@@ -749,8 +755,12 @@ class ParseControl(object):
         return setpoints
 
 
-def parse_control(control, start_date=START_DATE, city_name=CITY_NAME):
-    return ParseControl(start_date, city_name).parse(control)
+def parse_control(control, keys):
+    cp_dict = ControlParser(control).parse2dict()
+    # for key, arr in cp_dict.items():
+    #     print(key, arr.shape)
+    cp_list = [cp_dict[key] for key in keys]
+    return np.concatenate(cp_list, axis=-1)  # D x 24 x CP_DIM
 
 
 def parse_output(output, keys):
@@ -805,32 +815,22 @@ def compute_mean_std(data_dirs, is_control, keys=None):
     return np.mean(data, axis=0), np.std(data, axis=0)
 
 
-def get_control_range(data_dirs):
-    cp_list = []
-    for data_dir in data_dirs:
-        print(f"collecting control param ranges @ {data_dir}")
-        names = os.listdir(f"{data_dir}/controls")
-        for name in tqdm(names):
-            control_path = f"{data_dir}/controls/{name}"
-            control = load_json_data(control_path)
-            cp = parse_control(control)
-            cp_list.append(cp)
-    cp = np.concatenate(cp_list, axis=0)
-    return cp.min(axis=0), cp.max(axis=0)
+def filter_jsons(filenames):
+    return list(filter(lambda s: s.endswith('.json'), filenames))
 
 
-def get_output_range(data_dirs, keys):
-    op_list = []
+def get_param_range(data_dirs, data_folder, parse_func, keys):
+    arr_list = []
+    print(f"collecting ranges for {keys}")
     for data_dir in data_dirs:
-        print(f"collecting output param ranges @ {data_dir}")
-        names = os.listdir(f"{data_dir}/controls")
-        for name in tqdm(names):
-            output_path = f"{data_dir}/outputs/{name}"
-            output = load_json_data(output_path)
-            op = parse_output(output, keys)
-            op_list.append(op)
-    op = np.concatenate(op_list, axis=0)
-    return op.min(axis=0), op.max(axis=0)
+        print(f"collecting param ranges @ {data_dir}")
+        names = os.listdir(f"{data_dir}/{data_folder}")
+        for name in tqdm(filter_jsons(names)):
+            path = f"{data_dir}/{data_folder}/{name}"
+            arr = parse_func(load_json_data(path), keys)
+            arr_list.append(arr)
+    arr = np.concatenate(arr_list, axis=0)
+    return arr.min(axis=0), arr.max(axis=0)
 
 
 class AGCDataset(Dataset):
@@ -1107,8 +1107,8 @@ class ClimateDatasetHour(Dataset):
                 cp_list.append(parse_control(cp))
             for name in os.listdir(f"{data_dir}/outputs"):
                 output = load_json_data(f"{data_dir}/outputs/{name}")
-                ep = parse_output(output, GreenhouseClimateDataset.EP_KEYS)
-                op_in = parse_output(output, GreenhouseClimateDataset.OP_IN_KEYS)
+                ep = parse_output(output, ClimateDatasetHour.EP_KEYS)
+                op_in = parse_output(output, ClimateDatasetHour.OP_IN_KEYS)
                 ep_list.append(ep) 
                 op_in_list.append(op_in)
         
@@ -1150,7 +1150,7 @@ class PlantDatasetHour(Dataset):
         self.op_pl_keys = op_pl_keys or self.OP_PL_KEYS
         self.data_name = data_name
 
-        op_in, op_pl, op_pl_next = [], [], []
+        op_in, pl, pl_next = [], [], []
         for data_dir in data_dirs:
             data_path = f'{data_dir}/{data_name}.npz'
             if not os.path.exists(data_path) or force_preprocess:
@@ -1158,23 +1158,23 @@ class PlantDatasetHour(Dataset):
             data = np.load(data_path)
 
             op_in.append(data['op_in'])
-            op_pl.append(data['op_pl'])
-            op_pl_next.append(data['op_pl_next'])
+            pl.append(data['pl'])
+            pl_next.append(data['pl_next'])
 
         self.op_in = np.concatenate(op_in, axis=0, dtype=np.float32)
-        self.op_pl = np.concatenate(op_pl, axis=0, dtype=np.float32)
-        self.op_pl_next = np.concatenate(op_pl_next, axis=0, dtype=np.float32)
+        self.pl = np.concatenate(pl, axis=0, dtype=np.float32)
+        self.pl_next = np.concatenate(pl_next, axis=0, dtype=np.float32)
 
         op_in_mean, op_in_std = norm_data['op_in_mean'], norm_data['op_in_std']
         op_pl_mean, op_pl_std = norm_data['op_pl_mean'], norm_data['op_pl_std']
         
         self.op_in_normed = normalize(self.op_in, op_in_mean, op_in_std)
-        self.op_pl_normed = normalize(self.op_pl, op_pl_mean, op_pl_std)
-        self.op_pl_next_normed = normalize(self.op_pl_next, op_pl_mean, op_pl_std)
+        self.pl_normed = normalize(self.pl, op_pl_mean, op_pl_std)
+        self.pl_next_normed = normalize(self.pl_next, op_pl_mean, op_pl_std)
 
     def __getitem__(self, index):
-        input = (self.op_in_normed[index], self.op_pl_normed[index])
-        target = self.op_pl_next_normed[index] 
+        input = (self.op_in_normed[index], self.pl_normed[index])
+        target = self.pl_next_normed[index] 
         return input, target
 
     def __len__(self):
@@ -1186,7 +1186,7 @@ class PlantDatasetHour(Dataset):
     
     @property
     def op_pl_dim(self):
-        return self.op_pl.shape[1]
+        return self.pl.shape[1]
 
     @property
     def meta_data(self):
@@ -1198,8 +1198,8 @@ class PlantDatasetHour(Dataset):
     def get_data(self):
         return {
             'op_in': self.op_in, 
-            'op_pl': self.op_pl, 
-            'op_pl_next': self.op_pl_next
+            'pl': self.pl, 
+            'pl_next': self.pl_next
         }
 
     def preprocess_data(self, data_dir):
@@ -1225,7 +1225,7 @@ class PlantDatasetHour(Dataset):
             in_climate_vals = parse_output(output, self.op_in_keys) # env_vals: T x EP_DIM
             plant_vals = parse_output(output, self.op_pl_keys) # output_vals: T x OP_DIM
 
-            # assumption: op_in[t] + op_pl[t] -> op_pl[t+1]
+            # assumption: op_in[t] + pl[t] -> pl[t+1]
             op_in_vals = in_climate_vals[:-1]
             op_pl_vals = plant_vals[:-1]
             op_pl_next_vals = plant_vals[1:]
@@ -1242,7 +1242,7 @@ class PlantDatasetHour(Dataset):
 
         np.savez_compressed(
             f'{data_dir}/{self.data_name}.npz', 
-            op_in=op_in_arr, op_pl=op_pl_arr, op_pl_next=op_pl_next_arr)
+            op_in=op_in_arr, pl=op_pl_arr, pl_next=op_pl_next_arr)
 
     @staticmethod
     def get_norm_data(norm_data_dirs):
@@ -1251,94 +1251,90 @@ class PlantDatasetHour(Dataset):
             for name in os.listdir(f"{data_dir}/outputs"):
                 output = load_json_data(f"{data_dir}/outputs/{name}")
                 op_in = parse_output(output, PlantDatasetHour.OP_IN_KEYS)
-                op_pl = parse_output(output, PlantDatasetHour.OP_PL_KEYS)
+                pl = parse_output(output, PlantDatasetHour.OP_PL_KEYS)
                 op_in_list.append(op_in)
-                op_pl_list.append(op_pl)
+                op_pl_list.append(pl)
         
         op_in = np.concatenate(op_in_list, axis=0)
-        op_pl = np.concatenate(op_pl_list, axis=0)
+        pl = np.concatenate(op_pl_list, axis=0)
         
         return {
             'op_in_mean': np.mean(op_in, axis=0), 'op_in_std': np.std(op_in, axis=0),
-            'op_pl_mean': np.mean(op_pl, axis=0), 'op_pl_std': np.std(op_pl, axis=0),
+            'op_pl_mean': np.mean(pl, axis=0), 'op_pl_std': np.std(pl, axis=0),
         }
 
 
 class ClimateDatasetDay(Dataset):
-    EP_KEYS = [
-        'common.Iglob.Value',
-        'common.TOut.Value',
-        'common.RHOut.Value',
-        'common.Windsp.Value',
-    ]
-    OP_KEYS = [
-        # most important -> directly affect plant growth
-        "comp1.Air.T",
-        "comp1.Air.RH",
-        "comp1.Air.ppm",
-        "comp1.PARsensor.Above",
-        "comp1.Plant.PlantDensity",
-        # less important -> indirectly affect plant growth but directly affect costs
-        "comp1.TPipe1.Value",
-        "comp1.ConPipes.TSupPipe1",
-        "comp1.PConPipe1.Value",
-        "comp1.ConWin.WinLee",
-        "comp1.ConWin.WinWnd",
-        "comp1.Setpoints.SpHeat",
-        "comp1.Setpoints.SpVent",
-        "comp1.Scr1.Pos",
-        "comp1.Scr2.Pos",
-        "comp1.Lmp1.ElecUse",
-        "comp1.McPureAir.Value",
-    ]
-
     def __init__(self, 
         data_dirs, 
-        ranges, 
+        norm_data=None,
+        cp_keys=CP_KEYS,
+        ep_keys=EP_KEYS,
+        op_keys=OP_KEYS,
         force_preprocess=False, 
-        data_name="climate_data_day"
+        data_name="climate_data_day",
+        control_folder="controls",
+        output_folder="outputs",
     ) -> None:
         super().__init__()
+        self.cp_keys = cp_keys
+        self.ep_keys = ep_keys
+        self.op_keys = op_keys
         self.data_name = data_name
-        self.ranges = ranges
+        self.control_folder = control_folder
+        self.output_folder = output_folder
+        
+        self.norm_data = norm_data
+        if not self.norm_data:
+            self.norm_data = {
+                'cp': get_param_range(data_dirs, control_folder, parse_control, cp_keys),
+                'ep': get_param_range(data_dirs, output_folder, parse_output, ep_keys),
+                'op': get_param_range(data_dirs, output_folder, parse_output, op_keys),
+            }
+        
+        self.preprocess(data_dirs, force_preprocess)
 
+        self.cp_normed = normalize_zero2one(self.cp, self.norm_data['cp'])  # D x 24 x CP_DIM
+        self.ep_normed = normalize_zero2one(self.ep, self.norm_data['ep'])  # D x 24 x EP_DIM
+        self.op_normed = normalize_zero2one(self.op, self.norm_data['op'])  # D x 24 x OP_DIM
+        self.op_next_normed = normalize_zero2one(self.op_next, self.norm_data['op'])  # D x 24 x OP_DIM
+
+        self.cp_normed = self.cp_normed.astype(np.float32)
+        self.ep_normed = self.ep_normed.astype(np.float32)
+        self.op_normed = self.op_normed.astype(np.float32)
+        self.op_next_normed = self.op_next_normed.astype(np.float32)
+
+    def __getitem__(self, index):
+        cp = self.cp_normed[index].flatten()  # n_dim = 24 x CP_DIM
+        ep = self.ep_normed[index].flatten()  # n_dim = 24 x EP_DIM
+        op = self.op_normed[index].flatten()  # n_dim = 24 x OP_DIM
+        op_next = self.op_next_normed[index].flatten()  # n_dim = 24 x OP_DIM
+        return (cp, ep, op), op_next
+
+    def __len__(self):
+        return self.cp_normed.shape[0]
+
+    def preprocess(self, data_dirs, force_preprocess):
         cp, ep, op, op_next = [], [], [], []
         for data_dir in data_dirs:
-            data_path = f'{data_dir}/{data_name}.npz'
+            data_path = f'{data_dir}/{self.data_name}.npz'
             if not os.path.exists(data_path) or force_preprocess:
-                self.preprocess_data(data_dir)
+                self.preprocess_dir(data_dir)
+            
             data = np.load(data_path)
-
             cp.append(data['cp'])  # D_i x 24 x CP_DIM
             ep.append(data['ep'])  # D_i x 24 x EP_DIM
             op.append(data['op'])  # D_i x 24 x OP_DIM
             op_next.append(data['op_next'])  # D_i x 24 x OP_DIM
 
-        self.cp = np.concatenate(cp, axis=0, dtype=np.float32)  # SUM(D_i) x 24 x CP_DIM
-        self.ep = np.concatenate(ep, axis=0, dtype=np.float32)  # SUM(D_i) x 24 x EP_DIM
-        self.op = np.concatenate(op, axis=0, dtype=np.float32)  # SUM(D_i) x 24 x OP_DIM
-        self.op_next = np.concatenate(op_next, axis=0, dtype=np.float32)  # SUM(D_i) x 24 x OP_DIM
+        self.cp = np.concatenate(cp, axis=0)  # SUM(D_i) x 24 x CP_DIM
+        self.ep = np.concatenate(ep, axis=0)  # SUM(D_i) x 24 x EP_DIM
+        self.op = np.concatenate(op, axis=0)  # SUM(D_i) x 24 x OP_DIM
+        self.op_next = np.concatenate(op_next, axis=0)  # SUM(D_i) x 24 x OP_DIM
 
-        self.cp_dim = self.cp.shape[-1] * 24
-        self.ep_dim = self.ep.shape[-1] * 24
-        self.op_dim = self.op.shape[-1] * 24
-
-        self.cp_normed = normalize_zero2one(self.cp, ranges['cp']).reshape(-1, self.cp_dim)
-        self.ep_normed = normalize_zero2one(self.ep, ranges['ep']).reshape(-1, self.ep_dim)
-        self.op_normed = normalize_zero2one(self.op, ranges['op']).reshape(-1, self.op_dim)
-        self.op_next_normed = normalize_zero2one(self.op_next, ranges['op']).reshape(-1, self.op_dim)
-
-    def __getitem__(self, index):
-        input = (self.cp_normed[index], self.ep_normed[index], self.op_normed[index])
-        target = self.op_next_normed[index]
-        return input, target
-
-    def __len__(self):
-        return self.cp_normed.shape[0]
-
-    def preprocess_data(self, data_dir):
-        control_dir = os.path.join(data_dir, 'controls')
-        output_dir = os.path.join(data_dir, 'outputs')
+    def preprocess_dir(self, data_dir):
+        control_dir = os.path.join(data_dir, self.control_folder)
+        output_dir = os.path.join(data_dir, self.output_folder)
 
         assert os.path.exists(control_dir)
         assert os.path.exists(output_dir)
@@ -1350,30 +1346,29 @@ class ClimateDatasetDay(Dataset):
         print(f'preprocessing data @ {data_dir} ...')
 
         cp_arr, ep_arr, op_arr, op_next_arr = [], [], [], []
-        for name in tqdm(names):
+        for name in tqdm(filter_jsons(names)):
             control = load_json_data(os.path.join(control_dir, name))
             output = load_json_data(os.path.join(output_dir, name))
 
             if output['responsemsg'] != 'ok':
                 continue
 
-            cp = parse_control(control) # T x CP_DIM
-            ep = parse_output(output, self.EP_KEYS) # T x EP_DIM
-            op = parse_output(output, self.OP_KEYS) # T x OP_DIM
+            # ========= Parse CP params =========
+            cp = parse_control(control, self.cp_keys) # D x 24 x CP_DIM
+            
+            # ========= Parse EP params =========
+            ep = parse_output(output, self.ep_keys) # T x EP_DIM
+            ep = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
 
-            cp_dim = cp.shape[1]
-            ep_dim = ep.shape[1]
-            op_dim = op.shape[1]
-
-            cp = cp.reshape(-1, 24, cp_dim)  # D x 24 x CP_DIM
-            ep = ep.reshape(-1, 24, ep_dim)  # D x 24 x EP_DIM
-            op = op.reshape(-1, 24, op_dim)  # D x 24 x OP_DIM
+            # ========= Parse OP params ==========
+            op = parse_output(output, self.op_keys) # T x OP_DIM
+            op_init = np.repeat(op[:1], 24, axis=0) # 24 x OP_DIM
+            op = np.concatenate([op_init, op], axis=0)  # (T+24) x OP_DIM
+            op = op.reshape(-1, 24, op.shape[-1])  # (D+1) x 24 x OP_DIM
 
             # assumption: cp[d+1] + ep[d+1] + op[d] -> op[d+1]
-            cp = cp[1:]
-            ep = ep[1:]
-            op_next = op[1:]
-            op = op[:-1]
+            op_next = op[1:]  # D x 24 x OP_DIM
+            op = op[:-1]  # D x 24 x OP_DIM
 
             cp_arr.append(cp)
             ep_arr.append(ep)
@@ -1389,139 +1384,121 @@ class ClimateDatasetDay(Dataset):
             f'{data_dir}/{self.data_name}.npz', 
             cp=cp, ep=ep, op=op, op_next=op_next)
 
-    @staticmethod
-    def get_norm_data(data_dirs):
+    def get_meta_data(self):
         return {
-            'cp': get_control_range(data_dirs),
-            'ep': get_output_range(data_dirs, ClimateDatasetDay.EP_KEYS),
-            'op': get_output_range(data_dirs, ClimateDatasetDay.OP_KEYS),
-        }
-
-    @property
-    def meta_data(self):
-        return {
-            'cp_dim': self.cp_dim,
-            'ep_dim': self.ep_dim,
-            'op_dim': self.op_dim,
-            'ranges': self.ranges,
+            'cp_dim': self.cp.shape[-1] * 24,
+            'ep_dim': self.ep.shape[-1] * 24,
+            'op_dim': self.op.shape[-1] * 24,
+            'norm_data': self.norm_data,
         }
 
 
 class PlantDatasetDay(Dataset):
-    OP_IN_KEYS = [
-        "comp1.Air.T",
-        "comp1.Air.RH",
-        "comp1.Air.ppm",
-        "comp1.PARsensor.Above",
-        "comp1.Plant.PlantDensity",
-    ]
-    OP_PL_KEYS = [
-        "comp1.Plant.headFW",
-        "comp1.Plant.shootDryMatterContent",
-        "comp1.Plant.qualityLoss"
-    ]
-    OP_PL_INIT_VALUE = {
-        "comp1.Plant.headFW": 0,
-        "comp1.Plant.shootDryMatterContent": 0.055,
-        "comp1.Plant.qualityLoss": 0,
-    }
-    INDEX_OP_TO_OP_IN = [ClimateDatasetDay.OP_KEYS.index(f) for f in OP_IN_KEYS]
+    INDEX_OP_TO_OP_IN = [OP_KEYS.index(f) for f in OP_IN_KEYS]
 
     def __init__(self,
         data_dirs,
-        ranges, 
+        norm_data=None,
+        op_in_keys=OP_IN_KEYS,
+        pl_keys=PL_KEYS,
         force_preprocess=False,
         data_name="plant_data_day",
+        control_folder="controls",
+        output_folder="outputs",
     ) -> None:
         super().__init__()
-        self.ranges = ranges
+        self.op_in_keys = op_in_keys
+        self.pl_keys = pl_keys
         self.data_name = data_name
-        self.OP_PL_0 = np.array([self.OP_PL_INIT_VALUE[key] for key in self.OP_PL_KEYS])
+        self.control_folder = control_folder
+        self.output_folder = output_folder
+        self.pl_init = np.asarray([PL_INIT_VALUE[key] for key in self.pl_keys])
 
-        op_in, op_pl, op_pl_next = [], [], []
+        self.norm_data = norm_data
+        if not self.norm_data:
+            self.norm_data = {
+                'op_in': get_param_range(data_dirs, output_folder, parse_output, op_in_keys),
+                'pl': get_param_range(data_dirs, output_folder, parse_output, pl_keys),
+            }
+
+        self.preprocess(data_dirs, force_preprocess)
+        
+        self.op_in_normed = normalize_zero2one(self.op_in, self.norm_data['op_in'])  # D x 24 x OP_IN_DIM
+        self.pl_normed = normalize_zero2one(self.pl, self.norm_data['pl'])  # D x 24 x PL_DIM
+        self.pl_next_normed = normalize_zero2one(self.pl_next, self.norm_data['pl'])  # D x 24 x PL_DIM
+
+        self.op_in_normed = self.op_in_normed.astype(np.float32)
+        self.pl_normed = self.pl_normed.astype(np.float32)
+        self.pl_next_normed = self.pl_next_normed.astype(np.float32)
+
+    def __getitem__(self, index):
+        op_in = self.op_in_normed[index].flatten()  # n_dim = 24 x OP_IN_DIM
+        pl = self.pl_normed[index, 12]  # n_dim = PL_DIM
+        pl_next = self.pl_next_normed[index, 12]  # n_dim = PL_DIM
+        return (op_in, pl), pl_next
+
+    def __len__(self):
+        return self.op_in_normed.shape[0]
+
+    def preprocess(self, data_dirs, force_preprocess):
+        op_in, pl, pl_next = [], [], []
         for data_dir in data_dirs:
-            data_path = f'{data_dir}/{data_name}.npz'
+            data_path = f'{data_dir}/{self.data_name}.npz'
             if not os.path.exists(data_path) or force_preprocess:
-                self.preprocess_data(data_dir)
+                self.preprocess_dir(data_dir)
             data = np.load(data_path)
 
             op_in.append(data['op_in'])
-            op_pl.append(data['op_pl'])
-            op_pl_next.append(data['op_pl_next'])
+            pl.append(data['pl'])
+            pl_next.append(data['pl_next'])
 
-        self.op_in = np.concatenate(op_in, axis=0, dtype=np.float32)  # D x 24 x len(OP_IN_KEYS)
-        self.op_pl = np.concatenate(op_pl, axis=0, dtype=np.float32)  # D x 24 x len(OP_PL_KEYS)
-        self.op_pl_next = np.concatenate(op_pl_next, axis=0, dtype=np.float32)  # D x 24 x len(OP_PL_KEYS)
+        self.op_in = np.concatenate(op_in, axis=0)  # D x 24 x OP_IN_DIM
+        self.pl = np.concatenate(pl, axis=0)  # D x 24 x PL_DIM
+        self.pl_next = np.concatenate(pl_next, axis=0)  # D x 24 x PL_DIM
 
-        self.op_in_dim = len(self.OP_IN_KEYS) * 24
-        self.op_pl_dim = len(self.OP_PL_KEYS)
-
-        self.op_in_normed = normalize_zero2one(self.op_in, ranges['op_in']).reshape(-1, self.op_in_dim)
-        self.op_pl_normed = normalize_zero2one(self.op_pl, ranges['op_pl'])[:, 12, :]
-        self.op_pl_next_normed = normalize_zero2one(self.op_pl_next, ranges['op_pl'])[:, 12, :]
-
-    def __getitem__(self, index):
-        input = (self.op_in_normed[index], self.op_pl_normed[index])
-        target = self.op_pl_next_normed[index] 
-        return input, target
-
-    def __len__(self):
-        return self.op_in.shape[0]
-
-    def preprocess_data(self, data_dir):
-        control_dir = os.path.join(data_dir, 'controls')
-        output_dir = os.path.join(data_dir, 'outputs')
-
-        assert os.path.exists(control_dir)
+    def preprocess_dir(self, data_dir):
+        output_dir = os.path.join(data_dir, self.output_folder)
         assert os.path.exists(output_dir)
-
-        cp_names = os.listdir(control_dir)
-        op_names = os.listdir(output_dir)
-        names = list(set(cp_names).intersection(set(op_names)))
+        names = os.listdir(output_dir)
 
         print(f'preprocessing data @ {data_dir} ...')
 
-        op_in_arr, op_pl_arr, op_pl_next_arr = [], [], []
-        for name in tqdm(names):
+        op_in_arr, pl_arr, pl_next_arr = [], [], []
+        for name in tqdm(filter_jsons(names)):
             output = load_json_data(os.path.join(output_dir, name))
 
             if output['responsemsg'] != 'ok':
                 continue
 
-            op_in = parse_output(output, self.OP_IN_KEYS) # T x OP_IN_DIM
-            op_pl = parse_output(output, self.OP_PL_KEYS) # T x OP_PL_DIM
-
+            # ============ Parse Inside Params ==============
+            op_in = parse_output(output, self.op_in_keys)  # T x OP_IN_DIM
             op_in = op_in.reshape(-1, 24, op_in.shape[-1])  # D x 24 x OP_IN_DIM
-            op_pl = op_pl.reshape(-1, 24, op_pl.shape[-1])  # D x 24 x OP_PL_DIM
+            
+            # ============ Parse Plant Params ==============
+            pl = parse_output(output, self.pl_keys)  # T x PL_DIM
+            pl_init = np.repeat(self.pl_init.reshape(1, pl.shape[-1]), 24, axis=0)  # 24 x PL_DIM
+            pl = np.concatenate([pl_init, pl], axis=0)  # (T+24) x PL_DIM
+            pl = pl.reshape(-1, 24, pl.shape[-1])  # (D+1) x 24 x OP_PL_DIM
 
-            # assumption: op_in[d+1] + op_pl[d] -> op_pl[d+1]
-            op_pl_0 = np.ones((1, 24, op_pl.shape[-1])) * self.OP_PL_0
-            op_pl_cur = np.concatenate([op_pl_0, op_pl], axis=0)[:-1]
-            op_pl_next = op_pl
+            # assumption: op_in[d+1] + pl[d] -> pl[d+1]
+            pl_next = pl[1:]
+            pl = pl[:-1]
 
             op_in_arr.append(op_in)
-            op_pl_arr.append(op_pl_cur)
-            op_pl_next_arr.append(op_pl_next)
+            pl_arr.append(pl)
+            pl_next_arr.append(pl_next)
         
         op_in_arr = np.concatenate(op_in_arr, axis=0)
-        op_pl_arr = np.concatenate(op_pl_arr, axis=0)
-        op_pl_next_arr = np.concatenate(op_pl_next_arr, axis=0)
+        pl_arr = np.concatenate(pl_arr, axis=0)
+        pl_next_arr = np.concatenate(pl_next_arr, axis=0)
 
         np.savez_compressed(
             f'{data_dir}/{self.data_name}.npz', 
-            op_in=op_in_arr, op_pl=op_pl_arr, op_pl_next=op_pl_next_arr)
+            op_in=op_in_arr, pl=pl_arr, pl_next=pl_next_arr)
 
-    @property
-    def meta_data(self):
+    def get_meta_data(self):
         return {
-            'op_in_dim': self.op_in_dim,
-            'op_pl_dim': self.op_pl_dim,
-            'ranges': self.ranges,
-        }
-
-    @staticmethod
-    def get_norm_data(norm_data_dirs):
-        return {
-            'op_in': get_output_range(norm_data_dirs, PlantDatasetDay.OP_IN_KEYS),
-            'op_pl': get_output_range(norm_data_dirs, PlantDatasetDay.OP_PL_KEYS),
+            'op_in_dim': self.op_in.shape[-1] * 24,
+            'pl_dim': self.pl.shape[-1],
+            'norm_data': self.norm_data,
         }
