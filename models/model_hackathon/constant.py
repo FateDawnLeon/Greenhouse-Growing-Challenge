@@ -72,7 +72,7 @@ PLANT_MODEL_PATH = ''  # TODO
 BO_CONTROL_PATH = ''  # TODO
 
 # ====================== runtime related ======================
-ACTION_RARAM_SPACE = {
+ACTION_PARAM_SPACE = {
     "end": ([0], [1]),
     "comp1.setpoints.temp.@heatingTemp": ([0, 15], [15, 30]),  # [N_min, D_min], [N_max, D_max]
     "comp1.setpoints.temp.@ventOffset": ([0], [5]),
@@ -88,6 +88,7 @@ ACTION_RARAM_SPACE = {
     "comp1.illumination.lmp1.@endTime": ([18], [20]),
     "crp_lettuce.Intkam.management.@plantDensity": ([0, 0], [35, 1]),  # [value_min, change_min], [value_max, change_max]
 }
+BOOL_ACTION_IDX = [0, 15]
 
 MODEL_PARAM_SPACE = {
     # CP params -> RL
@@ -206,6 +207,8 @@ PL_INIT_VALUE = {
     "comp1.Plant.shootDryMatterContent": 0.055,
     "comp1.Plant.qualityLoss": 0,
 }
+
+INDEX_OP_TO_OP_IN = [OP_KEYS.index(f) for f in OP_IN_KEYS]
 
 
 def get_range(keys, space):
