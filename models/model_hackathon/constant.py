@@ -11,19 +11,19 @@ MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== control param related ======================
 CONTROL_RL = OrderedDict([
-    # temp_night[10,15], temp_day[15,30]
-    ("comp1.setpoints.temp.@heatingTemp", 2),
-    ("comp1.setpoints.temp.@ventOffset", 1),  # [0, 5]
-    ("comp1.setpoints.ventilation.@startWnd", 1),  # [0, 50]
-    ("comp1.setpoints.CO2.@setpoint", 2),
+    ("end", 1)
+    ("comp1.setpoints.temp.@heatingTemp", 2), # (night, day)
+    ("comp1.setpoints.temp.@ventOffset", 1), 
+    ("comp1.setpoints.ventilation.@startWnd", 1),
+    ("comp1.setpoints.CO2.@setpoint", 2), # (night, day)
     ("comp1.screens.scr1.@ToutMax", 1),
     ("comp1.screens.scr1.@closeBelow", 1),
     ("comp1.screens.scr1.@closeAbove", 1),
     ("comp1.screens.scr2.@ToutMax", 1),
     ("comp1.screens.scr2.@closeBelow", 1),
     ("comp1.screens.scr2.@closeAbove", 1),
-    ("comp1.illumination.lmp1.@endTime", 1),  # [18, 20]
-    ("comp1.illumination.lmp1.@hoursLight", 1),  # [0, 18]
+    ("comp1.illumination.lmp1.@endTime", 1), 
+    ("comp1.illumination.lmp1.@hoursLight", 1),
     ("crp_lettuce.Intkam.management.@plantDensity", 2)  # (value, change)
 ])
 
@@ -36,6 +36,7 @@ CONTROL_BO = [
     "comp1.screens.scr2.@material",  # e.g. 'scr_Transparent.par'
     "comp1.illumination.lmp1.@intensity",  # e.g. 100
     "comp1.illumination.lmp1.@maxIglob",  # e.g. 500
+    "init_plant_density" # e.g. 90, 85, 80
 ]
 
 CONTROL_FIX = OrderedDict([
@@ -49,7 +50,7 @@ CONTROL_FIX = OrderedDict([
     ("comp1.setpoints.ventilation.@winWndMin", 0),
     ("comp1.setpoints.ventilation.@winWndMax", 100),
     ("comp1.setpoints.CO2.@setpIfLamps", 0),
-    ("comp1.setpoints.CO2.@doseCapacity", "20 100; 40 50; 70 25"),
+    ("comp1.setpoints.CO2.@doseCapacity", "100"),
     ("comp1.illumination.lmp1.@maxPARsum", 50)
 ])
 
@@ -65,11 +66,13 @@ URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
 SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 
 # ====================== data related ======================
-TRACES_DIR = '/home/leondawn/AGC-data-traces'
+import os
+RUNTIME_DATA_DIR = f'{os.path.dirname(os.path.abspath(__file__))}/runtime_data'
+TRACES_DIR = f'{RUNTIME_DATA_DIR}/traces'
 EP_PATH = ''  # TODO
-CLIMATE_MODEL_PATH = '/home/leondawn/AGC-model-weights/climate_model_v2.pth'
-PLANT_MODEL_PATH = '/home/leondawn/AGC-model-weights/plant_model_v2.pth'
-BO_CONTROL_PATH = ''  # TODO
+CLIMATE_MODEL_PATH = f'{RUNTIME_DATA_DIR}/climate_model_v2.pth'
+PLANT_MODEL_PATH = f'{RUNTIME_DATA_DIR}/plant_model_v2.pth'
+BO_CONTROL_PATH = f'{RUNTIME_DATA_DIR}/BO.json'
 
 # ====================== runtime related ======================
 ACTION_PARAM_SPACE = {
@@ -77,7 +80,7 @@ ACTION_PARAM_SPACE = {
     "comp1.setpoints.temp.@heatingTemp": ([0, 15], [15, 30]),  # [N_min, D_min], [N_max, D_max]
     "comp1.setpoints.temp.@ventOffset": ([0], [5]),
     "comp1.setpoints.ventilation.@startWnd": ([0], [100]),
-    "comp1.setpoints.CO2.@setpoint": ([0, 400], [400, 1200]),  # [N_min, D_min], [N_max, D_max]
+    "comp1.setpoints.CO2.@setpoint": ([0, 600], [600, 1200]),  # [N_min, D_min], [N_max, D_max]
     "comp1.screens.scr1.@ToutMax": ([-20], [30]),
     "comp1.screens.scr1.@closeBelow": ([0], [200]),
     "comp1.screens.scr1.@closeAbove": ([500], [1500]),
@@ -92,10 +95,10 @@ BOOL_ACTION_IDX = [0, 15]
 
 MODEL_PARAM_SPACE = {
     # CP params -> RL
-    "comp1.setpoints.temp.@heatingTemp": ([0, 0, 0, 0, 0, 0, 0, 0], [24, 30, 24, 30, 24, 30, 24, 30]),
+    "comp1.setpoints.temp.@heatingTemp": ([0], [30]),
     "comp1.setpoints.temp.@ventOffset": ([0], [5]),
     "comp1.setpoints.ventilation.@startWnd": ([0], [100]),
-    "comp1.setpoints.CO2.@setpoint": ([0, 0, 0, 0, 0, 0, 0, 0], [24, 1200, 24, 1200, 24, 1200, 24, 1200]),
+    "comp1.setpoints.CO2.@setpoint": ([0], [1200]),
     "comp1.screens.scr1.@ToutMax": ([-20], [30]),
     "comp1.screens.scr1.@closeBelow": ([0], [200]),
     "comp1.screens.scr1.@closeAbove": ([500], [1500]),

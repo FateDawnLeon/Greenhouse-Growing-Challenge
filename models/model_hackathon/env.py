@@ -5,9 +5,9 @@ import gym
 import numpy as np
 import torch
 
-from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, BO_CONTROL_PATH
+from constant import CLIMATE_MODEL_PATH, CP_KEYS, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, BO_CONTROL_PATH
 from constant import EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, INDEX_OP_TO_OP_IN
-from constant import get_norm_data, get_range
+from constant import get_range
 from model import ClimateModelDay, PlantModelDay
 from utils import list_keys_to_index, load_json_data
 
@@ -19,40 +19,43 @@ BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
 
 
 class GreenhouseSim(gym.Env):
-    num_cp = 16
+    num_cp = (len(CP_KEYS) + 6) * 24
     num_ep = len(EP_KEYS) * 24
     num_op = len(OP_KEYS) * 24
     num_op_in = len(OP_IN_KEYS) * 24
     num_pl = len(PL_KEYS)
 
-    def __init__(self, training=False, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
+    def __init__(self, training=True, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
                  full_ep_path=EP_PATH, traces_dir=TRACES_DIR):
         action_lo, action_hi = get_range(ACTION_PARAM_SPACE.keys(), ACTION_PARAM_SPACE)
         self.action_space = gym.spaces.Box(low=action_lo, high=action_hi)
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
-                                                shape=(self.num_ep + self.num_op + self.num_pl,))
+                                                shape=(self.num_ep + self.num_op + self.num_pl + 1,))
 
         self.training = training
 
-        # load initial state distribution
-        # traces dir: TRACES_DIR/{IDX}/ep_trace.npy
-        #             TRACES_DIR/{IDX}/op_trace.npy
-        #             TRACES_DIR/{IDX}/pl_trace.npy
-        self.trace_paths = [f'{traces_dir}/{f}' for f in os.listdir(traces_dir) if os.path.isdir(f)]
-        self.ep_trace = None
-        self.op_trace = None
-        self.pl_trace = None
-
-        # load full ep trace
-        self.full_ep_trace = np.load(full_ep_path)
+        if self.training:
+            # load initial state distribution
+            # traces dir: TRACES_DIR/{IDX}/ep_trace.npy
+            #             TRACES_DIR/{IDX}/op_trace.npy
+            #             TRACES_DIR/{IDX}/pl_trace.npy
+            self.trace_paths = [f'{traces_dir}/{f}' for f in os.listdir(traces_dir) if os.path.isdir(f)]
+            self.ep_trace = None
+            self.op_trace = None
+            self.pl_trace = None
+        else:
+            # load full ep trace
+            self.full_ep_trace = np.load(full_ep_path)
 
         # load model
-        norm_data = get_norm_data()
-        self.climate_model = ClimateModelDay(self.num_cp, self.num_ep, self.num_op, norm_data)
-        self.climate_model.load_state_dict(torch.load(climate_model_paths))
+        climate_model_ckpt = torch.load(climate_model_paths)
+        self.climate_model = ClimateModelDay(self.num_cp, self.num_ep, self.num_op, climate_model_ckpt['norm_data'])
+        self.climate_model.load_state_dict(climate_model_ckpt['state_dict'])
         self.climate_model.eval()
-        self.plant_model = PlantModelDay(self.num_op_in, self.num_pl, norm_data)
-        self.plant_model.load_state_dict(torch.load(plant_model_path))
+
+        plant_model_ckpt = torch.load(plant_model_path)
+        self.plant_model = PlantModelDay(self.num_op_in, self.num_pl, plant_model_ckpt['norm_data'])
+        self.plant_model.load_state_dict(plant_model_ckpt['state_dict'])
         self.plant_model.eval()
 
         # state features definition
@@ -83,18 +86,20 @@ class GreenhouseSim(gym.Env):
             action_arr = np.concatenate((action_arr, v))
         return action_arr
 
-    def reset(self, start_day=None):
+    def reset(self):
         # randomly choose a trace
         trace_idx = np.random.choice(len(self.trace_paths))
 
         # EP trace: shape (num_days, 24, NUM_EP_PARAMS)
-        if start_day is None:
+        if self.training:
             self.ep_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'ep_trace.npy'))
         else:
+            start_day = BO_CONTROLS['simset.@startDate'] # TODO: offset to "2021-02-05"
             self.ep_trace = self.full_ep_trace[start_day:]
+
         self.ep = self.ep_trace[0]
-        self.op = np.zeros(self.num_op)
-        self.pl = np.zeros(self.num_pl)
+        self.op = np.zeros(self.num_op) # TODO: model first day expand zeros
+        self.pl = np.zeros(self.num_pl) # TODO: init date from constant
 
         # OP trace: shape (num_days, 24, NUM_OP_PARAMS)
         self.op_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'op_trace.npy'))
@@ -106,7 +111,7 @@ class GreenhouseSim(gym.Env):
         self.cum_head_m2 = 0
         self.num_spacings = 0
 
-        state = np.concatenate((self.ep, self.op, self.pl), axis=None)  # flatten
+        state = np.concatenate((self.ep, self.op, self.pl, self.plant_density), axis=None)  # flatten
         return state
 
     @staticmethod
@@ -135,13 +140,13 @@ class GreenhouseSim(gym.Env):
 
         # use model to predict next state
         # op_{d+1} = ModelClimate(cp_{d+1}, ep_{d+1}, op_{d})
-        op_new = self.climate_model.predict(model_action_dict, self.ep, self.op)
+        op_new = self.climate_model.predict(model_action_dict, self.ep, self.op) #TODO: parse action dict to model input
         # op^in_{d+1} = select(op_{d+1})
         op_in_new = op_new[:, INDEX_OP_TO_OP_IN]
         # pl_{d+1} = ModelPlant(op^in_{d+1}, pl_{d})
-        pl_new = self.plant_model.predict(np.array([plant_density_new]), op_in_new, self.pl)
+        pl_new = self.plant_model.predict(np.array([plant_density_new]), op_in_new, self.pl) #TODO: parse action dict to model input
 
-        output_state = np.concatenate((self.ep_trace[self.iter + 1], op_new, pl_new))
+        output_state = np.concatenate((self.ep_trace[self.iter + 1], op_new, pl_new, np.array([plant_density_new])))
 
         # compute reward
         gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new)
@@ -171,7 +176,7 @@ class GreenhouseSim(gym.Env):
 
         info = {
             # only meaningful if SELF.TRAINING = True
-            'real_next_state': np.concatenate((self.ep, self.op, self.pl), axis=None)
+            'real_next_state': np.concatenate((self.ep, self.op, self.pl, ), axis=None) # TODO: next true plant density? need pd traces
         }
 
         return output_state, reward, done, info
@@ -224,7 +229,7 @@ class GreenhouseSim(gym.Env):
         cost_screen = (int(BO_CONTROLS['comp1.screens.scr1.@enabled'])
                        + int(BO_CONTROLS['comp1.screens.scr2.@enabled'])) * 0.75 / 365
         # spacing changes
-        if action_dict['crp_lettuce.Intkam.management.@plantDensity'] != 0:
+        if action_dict['crp_lettuce.Intkam.management.@plantDensity'][1]:
             cost_spacing = (it - 1) * 1.5 / 365
         else:
             cost_spacing = 0

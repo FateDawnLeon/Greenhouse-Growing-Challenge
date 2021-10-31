@@ -112,7 +112,7 @@ def dict_to_dataframe(dict, dtype='float'):
 
 
 def list_keys_to_index(lst):
-    return {x: i for x in enumerate(lst)}
+    return {x: i for i, x in enumerate(lst)}
 
 
 if __name__ == '__main__':
