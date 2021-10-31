@@ -15,6 +15,85 @@ from constant import CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS
 from utils import load_json_data, normalize, normalize_zero2one
 
 
+class ActionParser:
+    def __init__(self, action_dict, city_name=CITY_NAME):
+        self.action_dict = action_dict
+        start_date = action_dict['simset.@startDate']
+        start_date = datetime.date.fromisoformat(start_date)
+        day_offset = action_dict['day_offset']
+        self.date = start_date + datetime.timedelta(days=day_offset)
+        self.city = lookup(city_name, database())
+        
+        self.parser_router = {
+            # RL params
+            "comp1.setpoints.temp.@heatingTemp": self.parse_setpoint,
+            "comp1.setpoints.temp.@ventOffset": self.parse_other,
+            "comp1.setpoints.ventilation.@startWnd": self.parse_other,
+            "comp1.setpoints.CO2.@setpoint": self.parse_setpoint,
+            "comp1.screens.scr1.@ToutMax": self.parse_other,
+            "comp1.screens.scr1.@closeBelow": self.parse_other,
+            "comp1.screens.scr1.@closeAbove": self.parse_other,
+            "comp1.screens.scr2.@ToutMax": self.parse_other,
+            "comp1.screens.scr2.@closeBelow": self.parse_other,
+            "comp1.screens.scr2.@closeAbove": self.parse_other,
+            "comp1.illumination.lmp1.@hoursLight": self.parse_other,
+            "comp1.illumination.lmp1.@endTime": self.parse_other,
+            "crp_lettuce.Intkam.management.@plantDensity": self.parse_other,
+            # BO params
+            "common.CO2dosing.@pureCO2cap": self.parse_other,  # e.g. 280
+            "comp1.screens.scr1.@enabled": self.parse_enable,  # e.g. True
+            "comp1.screens.scr1.@material": self.parse_material,  # e.g. 'scr_Blackout.par'
+            "comp1.screens.scr2.@enabled": self.parse_enable,  # e.g. False
+            "comp1.screens.scr2.@material": self.parse_material,  # e.g. 'scr_Transparent.par'
+            "comp1.illumination.lmp1.@intensity": self.parse_other,  # e.g. 100
+            "comp1.illumination.lmp1.@maxIglob": self.parse_other,  # e.g. 500
+        }
+
+    def parse(self):
+        cp_vals = [self.parser_router[key](key) for key in CP_KEYS]
+        return np.concatenate(cp_vals, axis=1)
+
+    def parse_setpoint(self, key):
+        v_night, v_day = self.action_dict[key]
+
+        end_time = self.action_dict['comp1.illumination.lmp1.@endTime'].item()
+        hours_light = self.action_dict['comp1.illumination.lmp1.@hoursLight'].item()
+
+        t_rise, _ = ControlParser.get_sun_rise_and_set(self.date, self.city)
+        t_start = min(t_rise, end_time - hours_light)
+        t_end = end_time
+
+        setpoints = [(t_start, v_night), (t_start+1, v_day), (t_end-1, v_day), (t_end, v_night)]
+        
+        t1, v1 = setpoints[0]
+        t2, v2 = setpoints[-1]
+        if t1 > 0:
+            setpoints.insert(0, (0, v1))
+        if t2 < 24:
+            setpoints.append((24, v2))
+
+        x = np.asarray([sp[0] for sp in setpoints])
+        y = np.asarray([sp[1] for sp in setpoints])
+        f = interp1d(x, y, axis=0)
+
+        return f(np.arange(24)).reshape(24, 1)  # 24 x 1
+
+    def parse_enable(self, key):
+        enable = self.action_dict[key]
+        val = [float(enable==flag) for flag in (True, False)]
+        return np.repeat([val], 24, axis=0)  # 24 x 2
+
+    def parse_material(self, key):
+        material = self.action_dict[key]
+        val = [float(material==x) for x in MATERIALS]
+        return np.repeat([val], 24, axis=0)  # 24 x 3
+
+    def parse_other(self, key):
+        val = self.action_dict[key]
+        val = np.asarray(val).reshape(1, 1)
+        return np.repeat(val, 24, axis=0)  # 24 x 1
+
+
 class ControlParser:
     def __init__(self, control, city_name=CITY_NAME):
         self.control = control
@@ -780,6 +859,10 @@ def parse_output(output, keys):
     return output_vals.T # T x NUM_KEYS
 
 
+def parse_action(action_dict):
+    return ActionParser(action_dict).parse()
+
+
 def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
     for data_dir in data_dirs:
         output_dir = os.path.join(data_dir, output_folder)
@@ -791,11 +874,13 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             
             ep = parse_output(output, EP_KEYS)  # T x EP_DIM
             op = parse_output(output, OP_KEYS)  # T x OP_DIM
-            pl = parse_output(output, PL_KEYS)  # T x OP_PL_DIM
+            pl = parse_output(output, PL_KEYS)  # T x PL_DIM
+            pd = parse_output(output, ["crp_lettuce.Intkam.management.@plantDensity"])  # T x 1
 
             ep_trace = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
             op_trace = op.reshape(-1, 24, op.shape[-1])  # D x 24 x OP_DIM
             pl_trace = pl.reshape(-1, 24, pl.shape[-1])[:, 12]  # D x PL_DIM
+            pd_trace = pl.reshape(-1, 24, pd.shape[-1])[:, 12]  # D x 1
 
             trace_dir = f"{save_dir}/{name[:-5]}"
             os.makedirs(trace_dir, exist_ok=True)
@@ -803,6 +888,7 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             np.save(f"{trace_dir}/ep_trace.npy", ep_trace)
             np.save(f"{trace_dir}/op_trace.npy", op_trace)
             np.save(f"{trace_dir}/pl_trace.npy", pl_trace)
+            np.save(f"{trace_dir}/pd_trace.npy", pd_trace)
 
 
 def compute_mean_std(data_dirs, is_control, keys=None):

@@ -106,7 +106,7 @@ class PlantModel(nn.Module):
 
 
 class ClimateModelDay(nn.Module):
-    def __init__(self, cp_dim, ep_dim, op_dim, norm_data):
+    def __init__(self, cp_dim, ep_dim, op_dim, norm_data, version='v2'):
         super().__init__()
         self.cp_dim = cp_dim
         self.ep_dim = ep_dim
@@ -122,10 +122,31 @@ class ClimateModelDay(nn.Module):
             activation=nn.LeakyReLU(inplace=True)
         )
 
-    def forward(self, cp, ep, op):
+        if version == 'v2':
+            self.forward = self.forward_v2
+        elif version == 'v2.1':
+            self.forward = self.forward_v2_1
+        elif version == 'v2.2':
+            self.forward = self.forward_v2_2
+        else:
+            raise NotImplementedError(f"version {version} not implemented!")
+
+    def forward_v2(self, cp, ep, op):
         # all inputs and outputs should be normalized to [0,1]
         x = torch.cat([cp, ep, op], dim=1)
         x = op + self.net(x)
+        return torch.clamp(x, 0, 1)
+
+    def forward_v2_1(self, cp, ep, op):
+        # all inputs and outputs should be normalized to [0,1]
+        x = torch.cat([cp, ep, op], dim=1)
+        x = self.net(x)
+        return torch.sigmoid(x)
+    
+    def forward_v2_2(self, cp, ep, op):
+        # all inputs and outputs should be normalized to [0,1]
+        x = torch.cat([cp, ep, op], dim=1)
+        x = self.net(x)
         return torch.clamp(x, 0, 1)
 
     def predict(self, cp, ep, op):

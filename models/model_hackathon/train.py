@@ -75,18 +75,19 @@ def split_dataset(dataset, val_ratio):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root-dir', type=str, required=True)
-    parser.add_argument('--data-dirs', nargs='+', required=True)
-    parser.add_argument('--model', type=str, required=True)
-    parser.add_argument('--val-ratio', type=float, default=0.2)
-    parser.add_argument('--control-folder', type=str, default="controls")
-    parser.add_argument('--output-folder', type=str, default="outputs")
+    parser.add_argument('-R', '--root-dir', type=str, required=True)
+    parser.add_argument('-DD', '--data-dirs', nargs='+', required=True)
+    parser.add_argument('-M', '--model', type=str, required=True)
+    parser.add_argument('-MV', '--model-version', type=str, default='v2')
+    parser.add_argument('-VR', '--val-ratio', type=float, default=0.2)
+    parser.add_argument('-CF', '--control-folder', type=str, default="controls")
+    parser.add_argument('-OF', '--output-folder', type=str, default="outputs")
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--lr-patience', type=int, default=5)
-    parser.add_argument('--min-lr', type=float, default=1e-5)
+    parser.add_argument('-LP', '--lr-patience', type=int, default=5)
+    parser.add_argument('-ML', '--min-lr', type=float, default=1e-5)
     parser.add_argument('--wd', type=float, default=0)
-    parser.add_argument('--max-iters', type=int, default=20000)
-    parser.add_argument('--batch-size', type=int, default=100)
+    parser.add_argument('-MI', '--max-iters', type=int, default=20000)
+    parser.add_argument('-BS', '--batch-size', type=int, default=100)
     parser.add_argument('--log-interval', type=int, default=100)
     parser.add_argument('--val-interval', type=int, default=1000)
     parser.add_argument('--optimizer', type=str, default='adam')
@@ -115,7 +116,9 @@ if __name__ == '__main__':
     iter_loader = get_batch(get_dataloader(args.batch_size, train_dataset))
     val_loader = get_dataloader(args.batch_size, val_dataset, is_train=False)
 
-    model = MODEL[args.model](**dataset.get_meta_data())
+    model_config = dataset.get_meta_data()
+    model_config['version'] = args.model_version
+    model = MODEL[args.model](**model_config)
 
     if args.finetune:
         ckpt = torch.load(args.ckpt_path)
