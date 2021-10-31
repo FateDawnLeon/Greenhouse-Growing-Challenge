@@ -69,9 +69,9 @@ SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 import os
 RUNTIME_DATA_DIR = f'{os.path.dirname(os.path.abspath(__file__))}/runtime_data'
 TRACES_DIR = f'{RUNTIME_DATA_DIR}/traces'
-EP_PATH = ''  # TODO
-CLIMATE_MODEL_PATH = f'{RUNTIME_DATA_DIR}/climate_model_v2.pth'
-PLANT_MODEL_PATH = f'{RUNTIME_DATA_DIR}/plant_model_v2.pth'
+EP_PATH = ''  # TODO:
+CLIMATE_MODEL_PATH = f'{RUNTIME_DATA_DIR}/climate_model_v2_RL1000.pth'
+PLANT_MODEL_PATH = f'{RUNTIME_DATA_DIR}/plant_model_v2_RL1000.pth'
 BO_CONTROL_PATH = f'{RUNTIME_DATA_DIR}/BO.json'
 
 # ====================== runtime related ======================
@@ -174,7 +174,7 @@ EP_KEYS = [
     'common.TOut.Value',
     'common.RHOut.Value',
     'common.Windsp.Value',
-]
+] # 4
 OP_KEYS = [
     "comp1.Air.T",
     "comp1.Air.RH",
@@ -191,7 +191,7 @@ OP_KEYS = [
     "comp1.Scr2.Pos",
     "comp1.Lmp1.ElecUse",
     "comp1.McPureAir.Value",
-]
+] # 15
 OP_IN_KEYS = [
     "comp1.Air.T",
     "comp1.Air.RH",
@@ -203,7 +203,7 @@ PL_KEYS = [
     "comp1.Plant.fractionGroundCover",
     "comp1.Plant.shootDryMatterContent",
     "comp1.Plant.qualityLoss",
-]
+] # 4
 PL_INIT_VALUE = {
     "comp1.Plant.headFW": 0,
     "comp1.Plant.fractionGroundCover": 0,
