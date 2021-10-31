@@ -880,7 +880,7 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             ep_trace = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
             op_trace = op.reshape(-1, 24, op.shape[-1])  # D x 24 x OP_DIM
             pl_trace = pl.reshape(-1, 24, pl.shape[-1])[:, 12]  # D x PL_DIM
-            pd_trace = pl.reshape(-1, 24, pd.shape[-1])[:, 12]  # D x 1
+            pd_trace = pd.reshape(-1, 24, pd.shape[-1])[:, 12]  # D x 1
 
             trace_dir = f"{save_dir}/{name[:-5]}"
             os.makedirs(trace_dir, exist_ok=True)
