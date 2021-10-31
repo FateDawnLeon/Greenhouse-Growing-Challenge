@@ -875,7 +875,7 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             ep = parse_output(output, EP_KEYS)  # T x EP_DIM
             op = parse_output(output, OP_KEYS)  # T x OP_DIM
             pl = parse_output(output, PL_KEYS)  # T x PL_DIM
-            pd = parse_output(output, ["crp_lettuce.Intkam.management.@plantDensity"])  # T x 1
+            pd = parse_output(output, ["comp1.Plant.PlantDensity"])  # T x 1
 
             ep_trace = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
             op_trace = op.reshape(-1, 24, op.shape[-1])  # D x 24 x OP_DIM

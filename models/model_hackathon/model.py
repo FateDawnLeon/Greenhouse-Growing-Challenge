@@ -171,7 +171,7 @@ class ClimateModelDay(nn.Module):
 
 
 class PlantModelDay(nn.Module):
-    def __init__(self, op_in_dim, pl_dim, norm_data):
+    def __init__(self, op_in_dim, pl_dim, norm_data, version="v2"):
         super().__init__()
         self.op_in_dim = op_in_dim
         self.pl_dim = pl_dim
