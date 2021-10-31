@@ -1465,7 +1465,8 @@ class ClimateDatasetDay(Dataset):
 
             # ========= Parse OP params ==========
             op = parse_output(output, self.op_keys) # T x OP_DIM
-            op_init = np.repeat(op[:1], 24, axis=0) # 24 x OP_DIM
+            # op_init = np.repeat(op[:1], 24, axis=0) # 24 x OP_DIM
+            op_init = np.zeros((24, op.shape[-1])) # 24 x OP_DIM
             op = np.concatenate([op_init, op], axis=0)  # (T+24) x OP_DIM
             op = op.reshape(-1, 24, op.shape[-1])  # (D+1) x 24 x OP_DIM
 
