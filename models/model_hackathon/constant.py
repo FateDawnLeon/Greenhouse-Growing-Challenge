@@ -11,7 +11,7 @@ MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== control param related ======================
 CONTROL_RL = OrderedDict([
-    ("end", 1)
+    ("end", 1),
     ("comp1.setpoints.temp.@heatingTemp", 2), # (night, day)
     ("comp1.setpoints.temp.@ventOffset", 1), 
     ("comp1.setpoints.ventilation.@startWnd", 1),

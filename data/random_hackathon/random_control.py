@@ -21,6 +21,7 @@ class ControlParamSampleSpace(object):
         self.light_intensity = round(random.uniform(0, 500),1)
         self.light_maxIglob = round(random.uniform(0, 500),1)
         self.change_amount = round(random.uniform(1, 35),1)
+        self.start_density = random.choice([80, 85, 90])
 
     def sample_control_params(self):
         startdate, startdate_gap = self.sample_startdate()
@@ -227,7 +228,7 @@ class ControlParamSampleSpace(object):
         return 0
 
     def sample_CO2_doseCapacity(self):
-        return "20 100; 40 50; 70 25"
+        return "100"
 
     def sample_illumination_enabled(self):
         return True
@@ -377,7 +378,7 @@ class ControlParamSampleSpace(object):
     # density decrease everyday by change_amount with probability=prob
     def sample_plantDensity(self, duration):
         import numpy as np
-        start_density = 90
+        start_density = self.start_density
         density_min = 5
         change_amount = self.change_amount
         change_prob = 0.1
