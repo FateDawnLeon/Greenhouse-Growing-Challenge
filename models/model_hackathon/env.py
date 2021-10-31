@@ -1,12 +1,14 @@
 from collections import OrderedDict
+from datetime import datetime
 import os
 
 import gym
 import numpy as np
 import torch
 
-from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, BO_CONTROL_PATH, PL_INIT_VALUE,\
-    CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS, PL_INIT_VALUE, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, INDEX_OP_TO_OP_IN
+from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, BO_CONTROL_PATH, \
+    CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS, PL_INIT_VALUE, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, \
+    INDEX_OP_TO_OP_IN, EARLIEST_START_DATE
 from constant import get_range
 from model import ClimateModelDay, PlantModelDay
 from data import parse_action
@@ -18,7 +20,11 @@ PL_INDEX = list_keys_to_index(PL_KEYS)
 
 BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
 
+
 class GreenhouseSim(gym.Env):
+    MIN_PD = 5
+    MIN_FW = 210
+
     num_cp = (len(CP_KEYS) + 6) * 24
     num_ep = len(EP_KEYS) * 24
     num_op = len(OP_KEYS) * 24
@@ -106,7 +112,8 @@ class GreenhouseSim(gym.Env):
             # PD trace: shape (num_days, 1)
             self.pd_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'pd_trace.npy'))
         else:
-            start_day = BO_CONTROLS['simset.@startDate'] # TODO: offset to "2021-02-05"
+            start_day = datetime.strptime(BO_CONTROLS['simset.@startDate'], '%Y-%m-%d').date()
+            start_day = (start_day - EARLIEST_START_DATE).days
             self.ep_trace = self.full_ep_trace[start_day:]
 
         self.ep = self.ep_trace[0]
@@ -115,8 +122,7 @@ class GreenhouseSim(gym.Env):
         self.pd = BO_CONTROLS['init_plant_density']
 
         self.iter = 0
-        # self.cum_head_m2 = 0 # TODO: avg_head_m2 = num_days / cum_head_m2； division by zero
-        self.cum_head_m2 = 0.1 
+        self.cum_head_m2 = 1. / BO_CONTROLS['init_plant_density']
         self.num_spacings = 0
 
         state = np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None)  # flatten
@@ -136,7 +142,10 @@ class GreenhouseSim(gym.Env):
         # calculate new values for some features
         density_tuple = action_dict['crp_lettuce.Intkam.management.@plantDensity']
         density_delta = density_tuple[0] if density_tuple[1] else 0.0
-        plant_density_new = self.pd - density_delta # TODO: could be negtive
+        plant_density_new = self.pd - density_delta
+        plant_density_new = np.maximum(plant_density_new, self.MIN_PD)
+        if plant_density_new == self.pd:
+            action_dict['crp_lettuce.Intkam.management.@plantDensity'][1] = 0
         cum_head_m2_new = self.cum_head_m2 + 1. / plant_density_new
         num_spacings_new = self.num_spacings + density_tuple[1]
 
@@ -154,7 +163,8 @@ class GreenhouseSim(gym.Env):
         # pl_{d+1} = ModelPlant(pd_{d+1}, op^in_{d+1}, pl_{d})
         pl_new = self.plant_model.predict(np.array([plant_density_new]), op_in_new, self.pl)
 
-        output_state = np.concatenate((self.ep_trace[self.iter + 1], op_new, pl_new, np.array([plant_density_new])), axis=None)
+        output_state = np.concatenate((self.ep_trace[self.iter + 1], op_new, pl_new, np.array([plant_density_new])),
+                                      axis=None)
 
         # compute reward
         gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new)
@@ -167,11 +177,9 @@ class GreenhouseSim(gym.Env):
         # update those features
         self.cum_head_m2 = cum_head_m2_new
         self.num_spacings = cum_head_m2_new
-        
-        if self.training: # TODO: correct?
-            done = self.iter == len(self.ep_trace) - 2
-        else:
-            done = action[0].squeeze() or self.iter == len(self.ep_trace) - 2
+
+        done = action[0].squeeze() and pl_new[PL_INDEX['comp1.Plant.headFW']] > self.MIN_FW
+        done = done or self.iter == len(self.ep_trace) - 2
 
         self.ep = self.ep_trace[self.iter + 1]
         if self.training:
@@ -227,7 +235,6 @@ class GreenhouseSim(gym.Env):
         num_days = it + 1
         avg_head_m2 = num_days / cum_head_m2
         price *= avg_head_m2
-
         return price
 
     @staticmethod

@@ -6,23 +6,23 @@ from collections import OrderedDict
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CITY_NAME = 'Amsterdam'
-START_DATE = datetime.date(2021, 3, 4)
+EARLIEST_START_DATE = datetime.date(2021, 2, 5)
 MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== control param related ======================
 CONTROL_RL = OrderedDict([
     ("end", 1),
-    ("comp1.setpoints.temp.@heatingTemp", 2), # (night, day)
-    ("comp1.setpoints.temp.@ventOffset", 1), 
+    ("comp1.setpoints.temp.@heatingTemp", 2),  # (night, day)
+    ("comp1.setpoints.temp.@ventOffset", 1),
     ("comp1.setpoints.ventilation.@startWnd", 1),
-    ("comp1.setpoints.CO2.@setpoint", 2), # (night, day)
+    ("comp1.setpoints.CO2.@setpoint", 2),  # (night, day)
     ("comp1.screens.scr1.@ToutMax", 1),
     ("comp1.screens.scr1.@closeBelow", 1),
     ("comp1.screens.scr1.@closeAbove", 1),
     ("comp1.screens.scr2.@ToutMax", 1),
     ("comp1.screens.scr2.@closeBelow", 1),
     ("comp1.screens.scr2.@closeAbove", 1),
-    ("comp1.illumination.lmp1.@endTime", 1), 
+    ("comp1.illumination.lmp1.@endTime", 1),
     ("comp1.illumination.lmp1.@hoursLight", 1),
     ("crp_lettuce.Intkam.management.@plantDensity", 2)  # (value, change)
 ])
@@ -36,7 +36,7 @@ CONTROL_BO = [
     "comp1.screens.scr2.@material",  # e.g. 'scr_Transparent.par'
     "comp1.illumination.lmp1.@intensity",  # e.g. 100
     "comp1.illumination.lmp1.@maxIglob",  # e.g. 500
-    "init_plant_density" # e.g. 90, 85, 80
+    "init_plant_density"  # e.g. 90, 85, 80
 ]
 
 CONTROL_FIX = OrderedDict([
@@ -67,6 +67,7 @@ SAMPLE_CONTROL_JSON_PATH = './ClimateControlSample.json'
 
 # ====================== data related ======================
 import os
+
 RUNTIME_DATA_DIR = f'{os.path.dirname(os.path.abspath(__file__))}/runtime_data'
 TRACES_DIR = f'{RUNTIME_DATA_DIR}/traces'
 EP_PATH = ''  # TODO:
@@ -89,7 +90,8 @@ ACTION_PARAM_SPACE = {
     "comp1.screens.scr2.@closeAbove": ([500], [1500]),
     "comp1.illumination.lmp1.@hoursLight": ([0], [18]),
     "comp1.illumination.lmp1.@endTime": ([18], [20]),
-    "crp_lettuce.Intkam.management.@plantDensity": ([0, 0], [35, 1]),  # [value_min, change_min], [value_max, change_max]
+    "crp_lettuce.Intkam.management.@plantDensity": ([0, 0], [35, 1]),
+    # [value_min, change_min], [value_max, change_max]
 }
 BOOL_ACTION_IDX = [0, 15]
 
@@ -174,7 +176,7 @@ EP_KEYS = [
     'common.TOut.Value',
     'common.RHOut.Value',
     'common.Windsp.Value',
-] # 4
+]  # 4
 OP_KEYS = [
     "comp1.Air.T",
     "comp1.Air.RH",
@@ -191,7 +193,7 @@ OP_KEYS = [
     "comp1.Scr2.Pos",
     "comp1.Lmp1.ElecUse",
     "comp1.McPureAir.Value",
-] # 15
+]  # 15
 OP_IN_KEYS = [
     "comp1.Air.T",
     "comp1.Air.RH",
@@ -203,7 +205,7 @@ PL_KEYS = [
     "comp1.Plant.fractionGroundCover",
     "comp1.Plant.shootDryMatterContent",
     "comp1.Plant.qualityLoss",
-] # 4
+]  # 4
 PL_INIT_VALUE = {
     "comp1.Plant.headFW": 0,
     "comp1.Plant.fractionGroundCover": 0,
