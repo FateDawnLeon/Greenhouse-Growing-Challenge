@@ -263,18 +263,18 @@ class GreenhouseSim(gym.Env):
         # electricity cost
         # peak_hour = ep[EP_INDEX['common.Economics.PeakHour']] # TODO: NO PeakHour prediction
         peak_hour = 0
-        electricity = op[OP_INDEX['comp1.Lmp1.ElecUse']]
+        electricity = op[:, OP_INDEX['comp1.Lmp1.ElecUse']]
         if peak_hour > 0.5:
             cost_elec = electricity / 1000 * 0.1
         else:
             cost_elec = electricity / 1000 * 0.06
         # heating cost
-        pipe_value = op[OP_INDEX['comp1.PConPipe1.Value']]
+        pipe_value = op[:, OP_INDEX['comp1.PConPipe1.Value']]
         cost_heating = pipe_value / 1000 * 0.03
         # CO2 cost
-        pure_air_value = op[OP_INDEX['comp1.McPureAir.Value']]
+        pure_air_value = op[:, OP_INDEX['comp1.McPureAir.Value']]
         cost_var_co2 = pure_air_value * 3600 * 0.12
 
-        cost_total = cost_elec + cost_heating + cost_var_co2
+        cost_total = np.sum(cost_elec + cost_heating + cost_var_co2)
 
         return cost_total, (cost_elec, cost_heating, cost_var_co2)
