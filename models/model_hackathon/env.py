@@ -171,8 +171,7 @@ class GreenhouseSim(gym.Env):
         gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2)
         fixed_cost, _ = self.fixed_cost(action_dict, self.iter + 1, num_spacings_new)
         variable_cost, _ = self.variable_cost(self.ep_trace[self.iter], op_new)
-        # reward = gain_curr - gain_prev - fixed_cost - variable_cost # TODO: reward is a vector
-        reward = 0
+        reward = gain_curr - gain_prev - fixed_cost - variable_cost
 
         # update those features
         self.cum_head_m2 = cum_head_m2_new

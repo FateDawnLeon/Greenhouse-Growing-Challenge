@@ -93,7 +93,7 @@ ACTION_PARAM_SPACE = {
     "crp_lettuce.Intkam.management.@plantDensity": ([0, 0], [35, 1]),
     # [value_min, change_min], [value_max, change_max]
 }
-BOOL_ACTION_IDX = [0, 15]
+BOOL_ACTION_IDX = [0, -1]
 
 MODEL_PARAM_SPACE = {
     # CP params -> RL
