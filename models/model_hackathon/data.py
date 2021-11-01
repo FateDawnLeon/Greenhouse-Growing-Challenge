@@ -534,7 +534,7 @@ def dump_actions(path: str, actions: np.ndarray):
     """
     with open(BO_CONTROL_PATH) as f:
         bo_actions = json.load(f)
-    actions = actions.astype(np.float)
+    actions = actions.astype(float)
 
     result = NestedDefaultDict()
     start_date = datetime.datetime.strptime(bo_actions['simset.@startDate'], '%Y-%m-%d').date()
@@ -545,7 +545,7 @@ def dump_actions(path: str, actions: np.ndarray):
     for i, action in enumerate(actions):
         date = start_date + datetime.timedelta(days=i)
         action_dict = agent_action_to_dict(action)
-        for k, v in action_dict:
+        for k, v in action_dict.items():
             if k == 'end':
                 continue
             elif k == 'crp_lettuce.Intkam.management.@plantDensity':
@@ -557,16 +557,19 @@ def dump_actions(path: str, actions: np.ndarray):
             elif k in ('comp1.setpoints.temp.@heatingTemp', 'comp1.setpoints.CO2.@setpoint'):
                 city_info = lookup(CITY_NAME, database())
                 t_rise, _ = ControlParser.get_sun_rise_and_set(date, city_info)
-                end_time = action_dict['comp1.illumination.lmp1.@endTime']
-                hours_light = action_dict['comp1.illumination.lmp1.@hoursLight']
+                end_time = action_dict['comp1.illumination.lmp1.@endTime'].item()
+                hours_light = action_dict['comp1.illumination.lmp1.@hoursLight'].item()
+
                 t_start = min(t_rise, end_time - hours_light)
                 t_end = end_time
                 v = {
-                    t_start: v[0],
-                    t_start + 1: v[1],
-                    t_end - 1: v[1],
-                    t_end: v[0]
+                    str(t_start): v[0],
+                    str(t_start + 1): v[1],
+                    str(t_end - 1): v[1],
+                    str(t_end): v[0]
                 }
+            else:
+                v = v.item()
 
             # store into result
             result[k][date.strftime('%d-%m')] = v
@@ -575,7 +578,7 @@ def dump_actions(path: str, actions: np.ndarray):
     result['crp_lettuce.Intkam.management.@plantDensity'] = '; '.join(plant_densities)
 
     # add BO controls
-    for k, v in bo_actions:
+    for k, v in bo_actions.items():
         if k != 'init_plant_density':
             result[k] = v
     sim_len = actions.shape[0]
@@ -583,10 +586,10 @@ def dump_actions(path: str, actions: np.ndarray):
     result['simset.@endDate'] = end_date.strftime('%Y-%m-%d')
 
     # add fixed controls
-    for k, v in CONTROL_FIX:
+    for k, v in CONTROL_FIX.items():
         result[k] = v
 
-    save_json_data(result, path)
+    save_json_data(result.to_dict(), path)
 
 
 # =========== Deprecated: don't use! ===============
