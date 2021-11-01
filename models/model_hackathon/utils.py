@@ -135,7 +135,7 @@ class NestedDefaultDict:
         return d
 
     def __setitem__(self, key, value):
-        tokens = key.split('.')
+        tokens = key.split(self.separator)
         d = self.d
         for token in tokens[:-1]:
             d = d[token]
