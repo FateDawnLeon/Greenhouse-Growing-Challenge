@@ -8,10 +8,9 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from shutil import copyfile
+
 matplotlib.use('agg')
 plt.ioff()
-
-from addict import Dict
 
 
 def normalize(data, mean, std, eps=1e-8):

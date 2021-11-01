@@ -11,7 +11,7 @@ from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, 
     INDEX_OP_TO_OP_IN, EARLIEST_START_DATE
 from constant import get_range
 from model import ClimateModelDay, PlantModelDay
-from data import parse_action
+from data import parse_action, agent_action_to_dict, agent_action_to_array
 from utils import list_keys_to_index, load_json_data
 
 EP_INDEX = list_keys_to_index(EP_KEYS)
@@ -79,24 +79,6 @@ class GreenhouseSim(gym.Env):
         self.cum_head_m2 = None
         self.num_spacings = None
 
-    @staticmethod
-    def agent_action_to_dict(action_arr: np.ndarray) -> OrderedDict:
-        action_dict = OrderedDict()
-        idx = 0
-        for k, item in ACTION_PARAM_SPACE.items():
-            # item is a 2-tuple
-            size = len(item[0])
-            action_dict[k] = action_arr[idx:idx + size]
-            idx += size
-        return action_dict
-
-    @staticmethod
-    def agent_action_to_array(action_dict: OrderedDict) -> np.ndarray:
-        action_arr = np.array([])
-        for _, v in action_dict.items():
-            action_arr = np.concatenate((action_arr, v), axis=None)
-        return action_arr
-
     def reset(self):
         # randomly choose a trace
         trace_idx = np.random.choice(len(self.trace_paths))
@@ -118,7 +100,7 @@ class GreenhouseSim(gym.Env):
 
         self.ep = self.ep_trace[0]
         self.op = np.zeros((24, self.num_op // 24))
-        self.pl = self.agent_action_to_array(PL_INIT_VALUE)
+        self.pl = agent_action_to_array(PL_INIT_VALUE)
         self.pd = BO_CONTROLS['init_plant_density']
 
         self.iter = 0
@@ -137,7 +119,7 @@ class GreenhouseSim(gym.Env):
 
     def step(self, action: np.ndarray):
         action = self.bool_action(action)
-        action_dict = self.agent_action_to_dict(action)
+        action_dict = agent_action_to_dict(action)
 
         # calculate new values for some features
         density_tuple = action_dict['crp_lettuce.Intkam.management.@plantDensity']

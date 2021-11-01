@@ -1,7 +1,8 @@
-import os
+from collections import OrderedDict
 import datetime
 import json
 import numpy as np
+import os
 
 from tqdm import tqdm
 from functools import partial
@@ -12,8 +13,7 @@ from torch.utils.data import Dataset
 
 from constant import CITY_NAME, MATERIALS, PL_INIT_VALUE
 from constant import CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS
-from constant import BO_CONTROL_PATH, CONTROL_FIX
-from env import GreenhouseSim
+from constant import ACTION_PARAM_SPACE, BO_CONTROL_PATH, CONTROL_FIX
 from utils import load_json_data, save_json_data, normalize, normalize_zero2one, NestedDefaultDict
 
 
@@ -506,6 +506,24 @@ class ControlParser:
         assert sorted(densities, reverse=True) == densities  # densities must be descending
 
 
+def agent_action_to_dict(action_arr: np.ndarray) -> OrderedDict:
+    action_dict = OrderedDict()
+    idx = 0
+    for k, item in ACTION_PARAM_SPACE.items():
+        # item is a 2-tuple
+        size = len(item[0])
+        action_dict[k] = action_arr[idx:idx + size]
+        idx += size
+    return action_dict
+
+
+def agent_action_to_array(action_dict: OrderedDict) -> np.ndarray:
+    action_arr = np.array([])
+    for _, v in action_dict.items():
+        action_arr = np.concatenate((action_arr, v), axis=None)
+    return action_arr
+
+
 def dump_actions(path: str, actions: np.ndarray):
     """
     Create a json file at PATH representing ACTIONS.
@@ -526,7 +544,7 @@ def dump_actions(path: str, actions: np.ndarray):
     # append RL actions to result
     for i, action in enumerate(actions):
         date = start_date + datetime.timedelta(days=i)
-        action_dict = GreenhouseSim.agent_action_to_dict(action)
+        action_dict = agent_action_to_dict(action)
         for k, v in action_dict:
             if k == 'end':
                 continue
