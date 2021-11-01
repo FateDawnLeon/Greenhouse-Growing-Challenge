@@ -6,7 +6,7 @@ import gym
 import numpy as np
 import torch
 
-from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, EP_PATH, TRACES_DIR, BO_CONTROL_PATH, \
+from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, FULL_EP_PATH, FULL_PEAKHOUR_PATH, TRACES_DIR, BO_CONTROL_PATH, \
     CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS, PL_INIT_VALUE, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, \
     INDEX_OP_TO_OP_IN, EARLIEST_START_DATE
 from constant import get_range
@@ -20,7 +20,6 @@ PL_INDEX = list_keys_to_index(PL_KEYS)
 
 BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
 
-
 class GreenhouseSim(gym.Env):
     MIN_PD = 5
     MIN_FW = 210
@@ -32,7 +31,7 @@ class GreenhouseSim(gym.Env):
     num_pl = len(PL_KEYS)
 
     def __init__(self, training=True, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
-                 full_ep_path=EP_PATH, traces_dir=TRACES_DIR):
+                 full_ep_path=FULL_EP_PATH, full_peakhour_path=FULL_PEAKHOUR_PATH, traces_dir=TRACES_DIR):
         action_lo, action_hi = get_range(ACTION_PARAM_SPACE.keys(), ACTION_PARAM_SPACE)
         self.action_space = gym.spaces.Box(low=action_lo, high=action_hi)
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf,
@@ -43,17 +42,21 @@ class GreenhouseSim(gym.Env):
         if self.training:
             # load initial state distribution
             # traces dir: TRACES_DIR/{IDX}/ep_trace.npy
+            #             TRACES_DIR/{IDX}/peakhour_trace.npy
             #             TRACES_DIR/{IDX}/op_trace.npy
             #             TRACES_DIR/{IDX}/pl_trace.npy
-
+            #             TRACES_DIR/{IDX}/pd_trace.npy
             self.trace_paths = [f'{traces_dir}/{f}' for f in os.listdir(traces_dir) if os.path.isdir(f'{traces_dir}/{f}')]
-            self.ep_trace = None
             self.op_trace = None
             self.pl_trace = None
             self.pd_trace = None
         else:
-            # load full ep trace
+            # load full ep&peakhour trace
             self.full_ep_trace = np.load(full_ep_path)
+            self.full_peakhour_trace = np.load(full_peakhour_path)
+
+        self.ep_trace = None
+        self.peakhour_trace = None
 
         # self._max_episode_steps = self.full_ep_trace.shape[0] - 1 TODO: get _max_episode_steps from full ep trace
         self._max_episode_steps = 66
@@ -80,13 +83,13 @@ class GreenhouseSim(gym.Env):
         self.num_spacings = None
 
     def reset(self):
-        # randomly choose a trace
-        trace_idx = np.random.choice(len(self.trace_paths))
-
-        # EP trace: shape (num_days, 24, NUM_EP_PARAMS)
         if self.training:
+            # randomly choose a trace
+            trace_idx = np.random.choice(len(self.trace_paths))
             # EP trace: shape (num_days, 24, NUM_EP_PARAMS)
             self.ep_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'ep_trace.npy'))
+            # PEAKHOUR trace: shape (num_days, 1)
+            self.peakhour_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'peakhour_trace.npy'))
             # OP trace: shape (num_days, 24, NUM_OP_PARAMS)
             self.op_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'op_trace.npy'))
             # PL trace: shape (num_days, NUM_PL_PARAMS)
@@ -97,6 +100,7 @@ class GreenhouseSim(gym.Env):
             start_day = datetime.strptime(BO_CONTROLS['simset.@startDate'], '%Y-%m-%d').date()
             start_day = (start_day - EARLIEST_START_DATE).days
             self.ep_trace = self.full_ep_trace[start_day:]
+            self.peakhour_trace = self.full_peakhour_trace[start_day:]
 
         self.ep = self.ep_trace[0]
         self.op = np.zeros((24, self.num_op // 24))
@@ -152,7 +156,7 @@ class GreenhouseSim(gym.Env):
         gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new)
         gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2)
         fixed_cost, _ = self.fixed_cost(action_dict, self.iter + 1, num_spacings_new)
-        variable_cost, _ = self.variable_cost(self.ep_trace[self.iter], op_new)
+        variable_cost, _ = self.variable_cost(self.peakhour_trace[self.iter], op_new)
         reward = gain_curr - gain_prev - fixed_cost - variable_cost
 
         # update those features
@@ -240,12 +244,10 @@ class GreenhouseSim(gym.Env):
         return cost_total, (cost_occupation, cost_fix_co2, cost_lamp, cost_screen, cost_spacing)
 
     @staticmethod
-    def variable_cost(ep, op):
+    def variable_cost(peakhour, op):
         # electricity cost
-        # peak_hour = ep[EP_INDEX['common.Economics.PeakHour']] # TODO: NO PeakHour prediction
-        peak_hour = 0
         electricity = op[:, OP_INDEX['comp1.Lmp1.ElecUse']]
-        if peak_hour > 0.5:
+        if peakhour > 0.5:
             cost_elec = electricity / 1000 * 0.1
         else:
             cost_elec = electricity / 1000 * 0.06
