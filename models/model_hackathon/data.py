@@ -584,6 +584,7 @@ def dump_actions(path: str, actions: np.ndarray):  # sourcery no-metrics
     sim_len = actions.shape[0]
     end_date = start_date + datetime.timedelta(days=sim_len)
     result['simset.@endDate'] = end_date.strftime('%Y-%m-%d')
+    result['comp1.illumination.lmp1.@enabled'] = (result['comp1.illumination.lmp1.@intensity'] > 0)
     result['comp1.screens.scr1.@lightPollutionPrevention'] = (
             result['comp1.screens.scr1.@material'] == 'scr_Blackout.par')
     result['comp1.screens.scr2.@lightPollutionPrevention'] = (

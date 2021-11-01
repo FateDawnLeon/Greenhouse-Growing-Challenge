@@ -39,6 +39,12 @@ CONTROL_BO = [
     "init_plant_density"  # e.g. 90, 85, 80
 ]
 
+CONTROL_BO_RELATED = [
+    "comp1.illumination.lmp1.@enabled",  # = (comp1.illumination.lmp1.@intensity > 0)
+    "comp1.screens.scr1.@lightPollutionPrevention",  # = (comp1.screens.scr1.@material == "scr_Blackout.par")
+    "comp1.screens.scr2.@lightPollutionPrevention",  # = (comp1.screens.scr2.@material == "scr_Blackout.par")
+]
+
 CONTROL_FIX = OrderedDict([
     ("comp1.heatingpipes.pipe1.@maxTemp", 60),
     ("comp1.heatingpipes.pipe1.@minTemp", 0),
