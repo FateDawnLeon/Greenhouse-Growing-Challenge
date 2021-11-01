@@ -125,7 +125,7 @@ class GreenhouseSim(gym.Env):
         self.cum_head_m2 = 1. / BO_CONTROLS['init_plant_density']
         self.num_spacings = 0
 
-        state = np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None)  # flatten
+        state = np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None, dtype=np.float32)  # flatten
         return state
 
     @staticmethod
@@ -164,7 +164,7 @@ class GreenhouseSim(gym.Env):
         pl_new = self.plant_model.predict(np.array([plant_density_new]), op_in_new, self.pl)
 
         output_state = np.concatenate((self.ep_trace[self.iter + 1], op_new, pl_new, np.array([plant_density_new])),
-                                      axis=None)
+                                      axis=None, dtype=np.float32)
 
         # compute reward
         gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new)
@@ -196,7 +196,7 @@ class GreenhouseSim(gym.Env):
 
         info = {
             # only meaningful if SELF.TRAINING = True
-            'real_next_state': np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None)
+            'real_next_state': np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None, dtype=np.float32)
         }
 
         return output_state, reward, done, info
