@@ -78,8 +78,8 @@ RUNTIME_DATA_DIR = f'{os.path.dirname(os.path.abspath(__file__))}/runtime_data'
 TRACES_DIR = f'{RUNTIME_DATA_DIR}/traces'
 FULL_EP_PATH = ''  # TODO:
 FULL_PEAKHOUR_PATH = ''  # TODO:
-CLIMATE_MODEL_PATH = f'{RUNTIME_DATA_DIR}/climate_model_v2_RL1000.pth'
-PLANT_MODEL_PATH = f'{RUNTIME_DATA_DIR}/plant_model_v2_RL1000.pth'
+CLIMATE_MODEL_PATH = f'{RUNTIME_DATA_DIR}/climate_model_v2.1_Batch5_FixBO.pth'
+PLANT_MODEL_PATH = f'{RUNTIME_DATA_DIR}/plant_model_v2_Batch5_FixBO.pth'
 BO_CONTROL_PATH = f'{RUNTIME_DATA_DIR}/BO.json'
 
 # ====================== runtime related ======================

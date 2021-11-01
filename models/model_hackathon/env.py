@@ -88,8 +88,8 @@ class GreenhouseSim(gym.Env):
             trace_idx = np.random.choice(len(self.trace_paths))
             # EP trace: shape (num_days, 24, NUM_EP_PARAMS)
             self.ep_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'ep_trace.npy'))
-            # PEAKHOUR trace: shape (num_days, 1)
-            self.peakhour_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'peakhour_trace.npy'))
+            # PEAKHOUR trace: shape (num_days, 24, 1)
+            self.peakhour_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'ph_trace.npy'))
             # OP trace: shape (num_days, 24, NUM_OP_PARAMS)
             self.op_trace = np.load(os.path.join(self.trace_paths[trace_idx], 'op_trace.npy'))
             # PL trace: shape (num_days, NUM_PL_PARAMS)
@@ -247,7 +247,7 @@ class GreenhouseSim(gym.Env):
     def variable_cost(peakhour, op):
         # electricity cost
         electricity = op[:, OP_INDEX['comp1.Lmp1.ElecUse']]
-        if peakhour > 0.5:
+        if np.where(peakhour.squeeze() > 0.5):
             cost_elec = electricity / 1000 * 0.1
         else:
             cost_elec = electricity / 1000 * 0.06
