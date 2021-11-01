@@ -524,7 +524,7 @@ def agent_action_to_array(action_dict: OrderedDict) -> np.ndarray:
     return action_arr
 
 
-def dump_actions(path: str, actions: np.ndarray):
+def dump_actions(path: str, actions: np.ndarray):  # sourcery no-metrics
     """
     Create a json file at PATH representing ACTIONS.
     Parameters

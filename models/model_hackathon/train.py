@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import SGD, Adam, lr_scheduler
 from utils import save_json_data, plot_loss_curve
 from data import ClimateDatasetDay, PlantDatasetDay
-from model import ClimateModelDay, PlantModelDay
+from model import MODEL_CLASS
 
 
 OPTIM = {
@@ -17,11 +17,6 @@ OPTIM = {
 DATASET = {
     'climate_day': ClimateDatasetDay,
     'plant_day': PlantDatasetDay,
-}
-
-MODEL = {
-    'climate_day': ClimateModelDay,
-    'plant_day': PlantModelDay,
 }
 
 
@@ -118,7 +113,7 @@ if __name__ == '__main__':
 
     model_config = dataset.get_meta_data()
     model_config['version'] = args.model_version
-    model = MODEL[args.model](**model_config)
+    model = MODEL_CLASS[args.model][args.model_version](**model_config)
 
     if args.finetune:
         ckpt = torch.load(args.ckpt_path)

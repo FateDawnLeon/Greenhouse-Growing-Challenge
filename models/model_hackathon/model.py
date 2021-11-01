@@ -24,6 +24,79 @@ def build_mlp(
     return nn.Sequential(*layers)
 
 
+class Encoder(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=2):
+        super(Encoder, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+
+        self.lstm = nn.LSTM(input_size, hidden_size,
+                            num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+
+        out, _ = self.lstm(x, (h0, c0))
+        return self.fc(out[:, -1, :])
+
+
+class Encoder2(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=2):
+        super(Encoder2, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, proj_size=output_size)
+
+    def forward(self, x):
+        _, (h_n, c_n) = self.lstm(x)
+        return h_n, c_n
+
+
+class Decoder(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=2):
+        super(Decoder, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+
+        self.lstm = nn.LSTM(input_size, hidden_size,
+                            num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x, f):
+        f = f.unsqueeze(1).expand(-1, 24, -1)
+        x = torch.cat([x, f], dim=-1)
+
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+
+        out, _ = self.lstm(x, (h0, c0))  # N x L x hidden_size
+        return self.fc(out)  # N x L x output_size
+
+
+class Decoder2(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=2):
+        super(Decoder2, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, proj_size=output_size)
+
+    def forward(self, x, hidden):
+        out, _ = self.lstm(x, hidden)  # N x L x output_size
+        return out
+
+
 class ClimateModel(nn.Module):
     def __init__(self, cp_dim, ep_dim, op_in_dim, criterion=nn.MSELoss()):
         super().__init__()
@@ -142,7 +215,7 @@ class ClimateModelDay(nn.Module):
         x = torch.cat([cp, ep, op], dim=1)
         x = self.net(x)
         return torch.sigmoid(x)
-    
+
     def forward_v2_2(self, cp, ep, op):
         # all inputs and outputs should be normalized to [0,1]
         x = torch.cat([cp, ep, op], dim=1)
@@ -210,3 +283,105 @@ class PlantModelDay(nn.Module):
             pl_next = self.forward(pd, op_in, pl).squeeze().numpy()  # PL_DIM
 
         return unnormalize_zero2one(pl_next, self.norm_data['pl'])  # PL_DIM
+
+
+class ClimateModelDayV3(nn.Module):
+    def __init__(self, cp_dim, ep_dim, op_dim, norm_data, version='v3'):
+        super(ClimateModelDayV3, self).__init__()
+        self.cp_dim = cp_dim // 24
+        self.ep_dim = ep_dim // 24
+        self.op_dim = op_dim // 24
+        self.norm_data = norm_data
+
+        self.encoder_feature_size = 32
+
+        self.encoder = Encoder(
+            input_size=self.op_dim,
+            hidden_size=32,
+            output_size=self.encoder_feature_size,
+            num_layers=2
+        )
+
+        self.decoder = Decoder(
+            input_size=self.cp_dim + self.ep_dim + self.encoder_feature_size,
+            hidden_size=64,
+            output_size=self.op_dim,
+            num_layers=2
+        )
+
+    def forward(self, cp, ep, op):
+        cp = cp.view(-1, 24, self.cp_dim)  # B x 24 x CP_DIM
+        ep = ep.view(-1, 24, self.ep_dim)  # B x 24 x EP_DIM
+        op = op.view(-1, 24, self.op_dim)  # B x 24 x OP_DIM
+        
+        f = self.encoder(op)  # B x feature_size
+        x = torch.cat([cp, ep], dim=-1)  # B x 24 x (CP_DIM + EP_DIM)
+        x = self.decoder(x, f)  # B x 24 x OP_DIM
+        x = x.view(-1, 24 * self.op_dim)  # B x 24OP_DIM
+
+        return torch.clamp(x, 0, 1)
+
+
+class ClimateModelDayV4(nn.Module):
+    def __init__(self, cp_dim, ep_dim, op_dim, norm_data, version='v4'):
+        super(ClimateModelDayV4, self).__init__()
+        self.cp_dim = cp_dim // 24
+        self.ep_dim = ep_dim // 24
+        self.op_dim = op_dim // 24
+        self.norm_data = norm_data
+
+        hidden_size = 128
+
+        self.encoder = Encoder2(
+            input_size=self.op_dim,
+            hidden_size=hidden_size,
+            output_size=self.op_dim,
+            num_layers=2
+        )
+
+        self.decoder = Decoder2(
+            input_size=self.cp_dim + self.ep_dim,
+            hidden_size=hidden_size,
+            output_size=self.op_dim,    
+            num_layers=2
+        )
+
+        if version == 'v4':
+            self.forward = self.forward_0
+        elif version == 'v4.1':
+            self.forward = self.forward_1
+        else:
+            raise NotImplementedError
+
+    def feature(self, cp, ep, op):
+        cp = cp.view(-1, 24, self.cp_dim)  # B x 24 x CP_DIM
+        ep = ep.view(-1, 24, self.ep_dim)  # B x 24 x EP_DIM
+        op = op.view(-1, 24, self.op_dim)  # B x 24 x OP_DIM
+        
+        h_n, c_n = self.encoder(op)  # num_layers x N x OP_DIM, num_layers x N x hidden_size
+        x = torch.cat([cp, ep], dim=-1)  # B x 24 x (CP_DIM + EP_DIM)
+        x = self.decoder(x, (h_n, c_n))  # B x 24 x OP_DIM
+        return x.flatten(1)  # B x 24OP_DIM
+
+    def forward_0(self, cp, ep, op):
+        x = self.feature(cp, ep, op)
+        return torch.clamp(x, 0, 1)
+    
+    def forward_1(self, cp, ep, op):
+        x = self.feature(cp, ep, op)
+        return torch.sigmoid(x)
+
+
+MODEL_CLASS = {
+    'climate_day': {
+        'v2': ClimateModelDay,
+        'v2.1': ClimateModelDay,
+        'v2.2': ClimateModelDay,
+        'v3': ClimateModelDayV3,
+        'v4': ClimateModelDayV4,
+        'v4.1': ClimateModelDayV4,
+    },
+    'plant_day': {
+        'v2': PlantModelDay,
+    }
+}
