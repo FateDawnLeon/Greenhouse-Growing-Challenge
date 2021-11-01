@@ -1,6 +1,6 @@
 import random
 
-from data.random_hackathon.get_time import get_sun_rise_and_set
+from get_time import get_sun_rise_and_set
 from utils import ControlParams
 import datetime
 from astral.geocoder import lookup, database
@@ -20,7 +20,6 @@ class ControlParamSampleSpace(object):
         self.scr2_material = random.choice(["scr_Blackout.par", "scr_Transparent.par", "scr_Shade.par"])
         self.light_intensity = round(random.uniform(0, 500),1)
         self.light_maxIglob = round(random.uniform(0, 500),1)
-        self.change_amount = round(random.uniform(1, 35),1)
         self.start_density = random.choice([80, 85, 90])
 
     def sample_control_params(self):
@@ -159,7 +158,7 @@ class ControlParamSampleSpace(object):
             starttime_a = get_sun_rise_and_set(cur, city)[0]
             starttime_b = float(self.sample_illumination_endTime().get(key)) -float(self.sample_illumination_hoursLight().get(key))
             starttime = min(starttime_a, starttime_b)
-            endtime = get_sun_rise_and_set(cur, city)[1]
+            endtime = float(self.sample_illumination_endTime().get(key))
             heatingTemp[key] =  {
                 str(starttime): heatingTemp_night,
                 str(starttime+1): heatingTemp_day,
@@ -210,7 +209,7 @@ class ControlParamSampleSpace(object):
             starttime_a = get_sun_rise_and_set(cur, city)[0]
             starttime_b = float(self.sample_illumination_endTime().get(key)) -float(self.sample_illumination_hoursLight().get(key))
             starttime = min(starttime_a, starttime_b)
-            endtime = get_sun_rise_and_set(cur, city)[1]
+            endtime = float(self.sample_illumination_endTime().get(key))
             CO2_setpoint[key] =  {
                 str(starttime): CO2_setpoint_night,
                 str(starttime+1): CO2_setpoint_day,
@@ -218,9 +217,6 @@ class ControlParamSampleSpace(object):
                 str(endtime): CO2_setpoint_night
             }
         return CO2_setpoint
-
-
-
 
     # def sample_CO2_setpIfLamps(self, min=1100, max=1200):
     #     return random.randrange(min, max, step=10)
@@ -236,7 +232,7 @@ class ControlParamSampleSpace(object):
     # def sample_illumination_intensity(self, min=0, max=10):
     #     return random.randrange(min, max, step=1)
     def sample_illumination_intensity(self):
-        return 180
+        return self.light_intensity
 
     def sample_illumination_hoursLight(self, min=0, max=18):
         start = self.start
@@ -380,7 +376,6 @@ class ControlParamSampleSpace(object):
         import numpy as np
         start_density = self.start_density
         density_min = 5
-        change_amount = self.change_amount
         change_prob = 0.1
 
         start = self.start
@@ -390,6 +385,7 @@ class ControlParamSampleSpace(object):
         density = [start_density]
         for i in range(num_days-1):
             if random.uniform(0,1) < change_prob:
+                change_amount = round(random.uniform(0, 35),1)
                 next_density = density[i] - change_amount
                 if next_density < density_min: break
                 density.append(next_density)
@@ -424,7 +420,7 @@ class ControlParamSampleSpace(object):
         ]
         # material = random.choice(types)
         material = self.scr1_material
-        lightPollutionPrevention = material != "scr_Transparent.par"
+        lightPollutionPrevention = material == "scr_Blackout.par"
         return material, lightPollutionPrevention
 
     def sample_screen2_material_lpp(self):
