@@ -1,5 +1,6 @@
 import os
 import datetime
+import json
 import numpy as np
 
 from tqdm import tqdm
@@ -11,7 +12,9 @@ from torch.utils.data import Dataset
 
 from constant import CITY_NAME, MATERIALS, PL_INIT_VALUE
 from constant import CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS
-from utils import load_json_data, normalize, normalize_zero2one
+from constant import BO_CONTROL_PATH, CONTROL_FIX
+from env import GreenhouseSim
+from utils import load_json_data, save_json_data, normalize, normalize_zero2one, NestedDefaultDict
 
 
 class ActionParser:
@@ -22,7 +25,7 @@ class ActionParser:
         day_offset = action_dict['day_offset']
         self.date = start_date + datetime.timedelta(days=day_offset)
         self.city = lookup(city_name, database())
-        
+
         self.parser_router = {
             # RL params
             "comp1.setpoints.temp.@heatingTemp": self.parse_setpoint,
@@ -62,8 +65,8 @@ class ActionParser:
         t_start = min(t_rise, end_time - hours_light)
         t_end = end_time
 
-        setpoints = [(t_start, v_night), (t_start+1, v_day), (t_end-1, v_day), (t_end, v_night)]
-        
+        setpoints = [(t_start, v_night), (t_start + 1, v_day), (t_end - 1, v_day), (t_end, v_night)]
+
         t1, v1 = setpoints[0]
         t2, v2 = setpoints[-1]
         if t1 > 0:
@@ -79,12 +82,12 @@ class ActionParser:
 
     def parse_enable(self, key):
         enable = self.action_dict[key]
-        val = [float(enable==flag) for flag in (True, False)]
+        val = [float(enable == flag) for flag in (True, False)]
         return np.repeat([val], 24, axis=0)  # 24 x 2
 
     def parse_material(self, key):
         material = self.action_dict[key]
-        val = [float(material==x) for x in MATERIALS]
+        val = [float(material == x) for x in MATERIALS]
         return np.repeat([val], 24, axis=0)  # 24 x 3
 
     def parse_other(self, key):
@@ -141,7 +144,7 @@ class ControlParser:
     def parse(self):
         assert self.end_date > self.start_date
         control = self.control
-        
+
         cp_list = [
             self.parse_pipe_maxTemp(control),
             self.parse_pipe_minTemp(control),
@@ -184,11 +187,11 @@ class ControlParser:
     def parse2dict(self, keys):
         assert self.end_date > self.start_date
         # {key: value -> shape(D x 24 x num_dim_key)}
-        return {key: self.parser_router[key](self.control) for key in keys}  
+        return {key: self.parser_router[key](self.control) for key in keys}
 
     @staticmethod
     def get_value(control, key_path):
-        value = control        
+        value = control
         for key in key_path.split('.'):
             value = value[key]
         return value
@@ -211,7 +214,7 @@ class ControlParser:
     #     convert = lambda t: eval(t, locals)
     #     kv_list = [[convert(t)] + preprocess(v) for t, v in key_value_pairs]
     #     return ControlParser.flatten(sorted(kv_list))
-    
+
     @staticmethod
     def schedule2list(schedule, t_rise, t_set, preprocess):
         convert = lambda t: eval(t, {'r': t_rise, 's': t_set})
@@ -245,7 +248,7 @@ class ControlParser:
             day, month = int(day), int(month)
             dateinfo = datetime.date(2021, month, day)
             offset = max(0, (dateinfo - self.start_date).days)
-            
+
             t_rise, t_set = self.get_sun_rise_and_set(dateinfo, self.city)
             if type(day_value) in valid_dtype:
                 val = [preprocess(day_value)] * 24
@@ -260,66 +263,72 @@ class ControlParser:
         arr = [None] * self.num_days
         offset_last = 0
         for offset, val in offset_vals:
-            for i in range(offset_last, offset+1):
+            for i in range(offset_last, offset + 1):
                 arr[i] = val
             offset_last = offset
-        
+
         for i in range(offset_last, self.num_days):
             arr[i] = val
 
         return arr  # D x 24 x N_dim
-    
+
     def parse_pipe_maxTemp(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@maxTemp")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_pipe_minTemp(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@minTemp")
         preprocess = lambda x: [x]
         valid_dtype = [int, float]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_pipe_radInf(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@radiationInfluence")
         valid_dtype = [str]
+
         def preprocess(s):
             numbers = [float(x) for x in s.split()]
             if len(numbers) == 1:
                 numbers *= 2
             return numbers
+
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_temp_heatingTemp(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@heatingTemp")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_temp_ventOffset(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@ventOffset")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_temp_radInf(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@radiationInfluence")
         valid_dtype = [str]
+
         def preprocess(s):
             numbers = [float(x) for x in s.split()]
             if len(numbers) == 1:
                 assert numbers[0] == 0
                 numbers *= 3
             return numbers
+
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_temp_PbandVent(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@PbandVent")
         valid_dtype = [str]
+
         def preprocess(s):
             numbers = [[float(x) for x in y.split()] for y in s.split(';')]
             return self.flatten(numbers)
+
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_vent_startWnd(self, control):
@@ -327,52 +336,53 @@ class ControlParser:
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winLeeMin(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winLeeMin")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winLeeMax(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winLeeMax")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winWndMin(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winWndMin")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winWndMax(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winWndMax")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_pureCap(self, control):
         value = self.get_value(control, "common.CO2dosing.@pureCO2cap")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_setpoint(self, control):
         value = self.get_value(control, "comp1.setpoints.CO2.@setpoint")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_setpIfLamps(self, control):
         value = self.get_value(control, "comp1.setpoints.CO2.@setpIfLamps")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_doseCap(self, control):
         value = self.get_value(control, "comp1.setpoints.CO2.@doseCapacity")
         valid_dtype = [str]
+
         def preprocess(s):
             if ';' in s:
                 numbers = [[float(x) for x in y.split()] for y in s.split(';')]
@@ -380,27 +390,30 @@ class ControlParser:
                 val = float(s)
                 numbers = [[25, val], [50, val], [75, val]]
             return self.flatten(numbers)
+
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_scr_enabled(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@enabled")
         valid_dtype = [bool]
-        preprocess = lambda x: [x==True, x==False]
+        preprocess = lambda x: [x == True, x == False]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_material(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@material")
         valid_dtype = [str]
+
         def preprocess(s):
-            return [float(s==c) for c in MATERIALS]
+            return [float(s == c) for c in MATERIALS]
+
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_ToutMax(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@ToutMax")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_closeBelow(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@closeBelow")
         valid_dtype = [int, float]
@@ -412,13 +425,13 @@ class ControlParser:
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_LPP(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@lightPollutionPrevention")
         valid_dtype = [bool]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_enabled(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@enabled")
         valid_dtype = [bool]
@@ -430,31 +443,31 @@ class ControlParser:
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_hoursLight(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@hoursLight")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_endTime(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@endTime")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_maxIglob(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@maxIglob")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_maxPARsum(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@maxPARsum")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_plant_density(self, control):
         value = self.get_value(control, "crp_lettuce.Intkam.management.@plantDensity")
         setpoints = self.parse_plant_density_to_setpoints(value)
@@ -469,7 +482,7 @@ class ControlParser:
     def parse_plant_density_to_setpoints(self, pd_str):
         assert type(pd_str) == str
         day_density_strs = pd_str.strip().split(';')
-        
+
         setpoints = []
         for day_density in day_density_strs:
             try:
@@ -477,7 +490,7 @@ class ControlParser:
                 day, density = int(day), float(density)
             except:
                 raise ValueError(f'"{day_density}" has invalid format or data types')
-            
+
             assert day >= 1
             assert 1 <= density <= 90
             setpoints.append((day, density))
@@ -485,12 +498,77 @@ class ControlParser:
         self.check_plant_density(setpoints)
         return setpoints
 
-    def check_plant_density(self, setpoints): 
+    def check_plant_density(self, setpoints):
         days = [sp[0] for sp in setpoints]
         densities = [sp[1] for sp in setpoints]
         assert days[0] == 1  # must start with the 1st day
         assert sorted(days) == days  # days must be ascending
         assert sorted(densities, reverse=True) == densities  # densities must be descending
+
+
+def dump_actions(path: str, actions: np.ndarray):
+    """
+    Create a json file at PATH representing ACTIONS.
+    Parameters
+    ----------
+    path: save file location.
+    actions: shape (D, N_DIMS), the action history.
+    """
+    with open(BO_CONTROL_PATH) as f:
+        bo_actions = json.load(f)
+    actions = actions.astype(np.float)
+
+    result = NestedDefaultDict()
+    start_date = datetime.datetime.strptime(bo_actions['simset.@startDate'], '%Y-%m-%d').date()
+    pd = bo_actions['init_plant_density']
+    plant_densities = []
+
+    # append RL actions to result
+    for i, action in enumerate(actions):
+        date = start_date + datetime.timedelta(days=i)
+        action_dict = GreenhouseSim.agent_action_to_dict(action)
+        for k, v in action_dict:
+            if k == 'end':
+                continue
+            elif k == 'crp_lettuce.Intkam.management.@plantDensity':
+                pd_delta = v[0] if v[1] else 0
+                if i == 0 or v[1]:
+                    pd -= pd_delta
+                    plant_densities.append(f'{i + 1} {pd}')
+                continue
+            elif k in ('comp1.setpoints.temp.@heatingTemp', 'comp1.setpoints.CO2.@setpoint'):
+                city_info = lookup(CITY_NAME, database())
+                t_rise, _ = ControlParser.get_sun_rise_and_set(date, city_info)
+                end_time = action_dict['comp1.illumination.lmp1.@endTime']
+                hours_light = action_dict['comp1.illumination.lmp1.@hoursLight']
+                t_start = min(t_rise, end_time - hours_light)
+                t_end = end_time
+                v = {
+                    t_start: v[0],
+                    t_start + 1: v[1],
+                    t_end - 1: v[1],
+                    t_end: v[0]
+                }
+
+            # store into result
+            result[k][date.strftime('%d-%m')] = v
+
+    # parse plant density
+    result['crp_lettuce.Intkam.management.@plantDensity'] = '; '.join(plant_densities)
+
+    # add BO controls
+    for k, v in bo_actions:
+        if k != 'init_plant_density':
+            result[k] = v
+    sim_len = actions.shape[0]
+    end_date = start_date + datetime.timedelta(days=sim_len)
+    result['simset.@endDate'] = end_date.strftime('%Y-%m-%d')
+
+    # add fixed controls
+    for k, v in CONTROL_FIX:
+        result[k] = v
+
+    save_json_data(result, path)
 
 
 # =========== Deprecated: don't use! ===============
@@ -505,7 +583,7 @@ class ParseControl(object):
         assert end_date > self.start_date
         num_days = (end_date - self.start_date).days
         self.num_hours = num_days * 24
-        
+
         cp_list = [
             self.parse_pipe_maxTemp(control),
             self.parse_pipe_minTemp(control),
@@ -547,7 +625,7 @@ class ParseControl(object):
 
     @staticmethod
     def get_value(control, key_path):
-        value = control        
+        value = control
         for key in key_path.split('.'):
             value = value[key]
         return value
@@ -565,14 +643,13 @@ class ParseControl(object):
 
     def value2arr(self, value, preprocess, valid_dtype, interpolate='previous'):
         if type(value) in valid_dtype:
-            cp_arr = [preprocess(value)] * self.num_hours # 1 x num_hours
+            cp_arr = [preprocess(value)] * self.num_hours  # 1 x num_hours
         elif type(value) == dict:
             cp_arr = self.dict_value2arr(value, valid_dtype, preprocess, interpolate)
         return np.asarray(cp_arr).T  # N x num_hours
 
     def get_setpoints(value_dict):
         pass
-
 
     def dict_value2arr(self, value, valid_dtype, preprocess, interpolate):
         result = [None] * self.num_hours
@@ -583,85 +660,91 @@ class ParseControl(object):
             day_offset = (dateinfo - self.start_date).days
             h_start = day_offset * 24
             r, s = self.get_sun_rise_and_set(dateinfo, self.city)
-            
+
             if type(day_value) in valid_dtype:
-                result[h_start:h_start+24] = [preprocess(day_value)] * 24
+                result[h_start:h_start + 24] = [preprocess(day_value)] * 24
             elif type(day_value) == dict:
                 cp_arr_day = [None] * 24
                 for hour, hour_value in day_value.items():
                     h_cur = round(eval(hour, {'r': r, 's': s}))
                     cp_arr_day[h_cur] = preprocess(hour_value)
-                result[h_start:h_start+24] = cp_arr_day
+                result[h_start:h_start + 24] = cp_arr_day
             else:
                 raise ValueError
 
         # interpolate missing time hours
-        points = [(i,v) for i, v in enumerate(result) if v is not None]
+        points = [(i, v) for i, v in enumerate(result) if v is not None]
         x = [p[0] for p in points]
         y = [p[1] for p in points]
 
         if x[0] > 0:
             x.insert(0, 0)
             y.insert(0, y[0])
-        if x[-1] < self.num_hours-1:
-            x.append(self.num_hours-1)
+        if x[-1] < self.num_hours - 1:
+            x.append(self.num_hours - 1)
             y.append(y[-1])
         f = interp1d(x, y, kind=interpolate, axis=0)
 
         return f(range(self.num_hours))
-    
+
     def parse_pipe_maxTemp(self, control):
         # sourcery skip: class-extract-method
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@maxTemp")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
-    
+
     def parse_pipe_minTemp(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@minTemp")
         preprocess = lambda x: [x]
         valid_dtype = [int, float]
         return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
-    
+
     def parse_pipe_radInf(self, control):
         value = self.get_value(control, "comp1.heatingpipes.pipe1.@radiationInfluence")
         valid_dtype = [str]
+
         def preprocess(s):
             numbers = [float(x) for x in s.split()]
             if len(numbers) == 1:
                 numbers *= 2
             return numbers
+
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_temp_heatingTemp(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@heatingTemp")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
-    
+
     def parse_temp_ventOffset(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@ventOffset")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype, interpolate='linear')
-    
+
     def parse_temp_radInf(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@radiationInfluence")
         valid_dtype = [str]
+
         def preprocess(s):
             numbers = [float(x) for x in s.split()]
             if len(numbers) == 1:
                 assert numbers[0] == 0
                 numbers *= 3
             return numbers
+
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_temp_PbandVent(self, control):
         value = self.get_value(control, "comp1.setpoints.temp.@PbandVent")
         valid_dtype = [str]
+
         def preprocess(s):
             numbers = [[float(x) for x in y.split()] for y in s.split(';')]
             return self.flatten(numbers)
+
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_vent_startWnd(self, control):
@@ -669,52 +752,53 @@ class ParseControl(object):
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winLeeMin(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winLeeMin")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winLeeMax(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winLeeMax")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winWndMin(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winWndMin")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_vent_winWndMax(self, control):
         value = self.get_value(control, "comp1.setpoints.ventilation.@winWndMax")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_pureCap(self, control):
         value = self.get_value(control, "common.CO2dosing.@pureCO2cap")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_setpoint(self, control):
         value = self.get_value(control, "comp1.setpoints.CO2.@setpoint")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_setpIfLamps(self, control):
         value = self.get_value(control, "comp1.setpoints.CO2.@setpIfLamps")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_co2_doseCap(self, control):
         value = self.get_value(control, "comp1.setpoints.CO2.@doseCapacity")
         valid_dtype = [str]
+
         def preprocess(s):
             if ';' in s:
                 numbers = [[float(x) for x in y.split()] for y in s.split(';')]
@@ -722,6 +806,7 @@ class ParseControl(object):
                 val = float(s)
                 numbers = [[25, val], [50, val], [75, val]]
             return self.flatten(numbers)
+
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_scr_enabled(self, control, scr_id):
@@ -729,24 +814,27 @@ class ParseControl(object):
         valid_dtype = [bool]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_material(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@material")
         valid_dtype = [str]
+
         def preprocess(s):
             choices = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
-            return [float(s==c) for c in choices]
+            return [float(s == c) for c in choices]
+
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_ToutMax(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@ToutMax")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_closeBelow(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@closeBelow")
         valid_dtype = [int, float, str]
+
         def preprocess(s):
             if type(s) == str:
                 numbers = [[float(x) for x in y.split()] for y in s.split(';')]
@@ -754,6 +842,7 @@ class ParseControl(object):
                 val = float(s)
                 numbers = [[0, val], [10, val]]
             return self.flatten(numbers)
+
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_scr_closeAbove(self, control, scr_id):
@@ -761,13 +850,13 @@ class ParseControl(object):
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_scr_LPP(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@lightPollutionPrevention")
         valid_dtype = [bool]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_enabled(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@enabled")
         valid_dtype = [bool]
@@ -779,31 +868,31 @@ class ParseControl(object):
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_hoursLight(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@hoursLight")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_endTime(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@endTime")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_maxIglob(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@maxIglob")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_lmp1_maxPARsum(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@maxPARsum")
         valid_dtype = [int, float]
         preprocess = lambda x: [float(x)]
         return self.value2arr(value, preprocess, valid_dtype)
-    
+
     def parse_plant_density(self, control):
         value = self.get_value(control, "crp_lettuce.Intkam.management.@plantDensity")
         setpoints = self.parse_plant_density_to_setpoints(value)
@@ -812,14 +901,14 @@ class ParseControl(object):
             hour_offset = (day - 1) * 24
             if hour_offset >= self.num_hours:
                 break
-            arr[0,hour_offset:] = density
+            arr[0, hour_offset:] = density
         return arr
 
     @staticmethod
     def parse_plant_density_to_setpoints(pd_str):
         assert type(pd_str) == str
         day_density_strs = pd_str.strip().split(';')
-        
+
         setpoints = []
         for day_density in day_density_strs:
             try:
@@ -827,17 +916,17 @@ class ParseControl(object):
                 day, density = int(day), float(density)
             except:
                 raise ValueError(f'"{day_density}" has invalid format or data types')
-            
+
             assert day >= 1
             assert 1 <= density <= 90
             setpoints.append((day, density))
-        
+
         days = [sp[0] for sp in setpoints]
         densities = [sp[1] for sp in setpoints]
         assert days[0] == 1  # must start with the 1st day
         assert sorted(days) == days  # days must be ascending
         assert sorted(densities, reverse=True) == densities  # densities must be descending
-        
+
         return setpoints
 
 
@@ -856,7 +945,7 @@ def parse_output(output, keys):
         val = [0 if x == 'NaN' else x for x in val]
         output_vals.append(val)
     output_vals = np.asarray(output_vals, dtype=np.float32)
-    return output_vals.T # T x NUM_KEYS
+    return output_vals.T  # T x NUM_KEYS
 
 
 def parse_action(action_dict):
@@ -871,7 +960,7 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             output = load_json_data(f'{output_dir}/{name}')
             if output['responsemsg'] != 'ok':
                 continue
-            
+
             ep = parse_output(output, EP_KEYS)  # T x EP_DIM
             op = parse_output(output, OP_KEYS)  # T x OP_DIM
             pl = parse_output(output, PL_KEYS)  # T x PL_DIM
@@ -920,13 +1009,13 @@ def get_min_max(arr):
 
 # =========== Deprecated: don't use! ===============
 class AGCDataset(Dataset):
-    def __init__(self, 
-        data_dirs, 
-        processed_data_name='processed_data', 
-        ep_keys=None,
-        op_keys=None,
-        force_preprocess=False,
-    ):
+    def __init__(self,
+                 data_dirs,
+                 processed_data_name='processed_data',
+                 ep_keys=None,
+                 op_keys=None,
+                 force_preprocess=False,
+                 ):
         super(AGCDataset, self).__init__()
 
         cp, ep, op, op_next = [], [], [], []
@@ -948,7 +1037,7 @@ class AGCDataset(Dataset):
 
     def __getitem__(self, index):
         input = (self.cp[index], self.ep[index], self.op[index])
-        target = self.op_next[index] 
+        target = self.op_next[index]
         return input, target
 
     def __len__(self):
@@ -957,20 +1046,20 @@ class AGCDataset(Dataset):
     @property
     def cp_dim(self):
         return self.cp.shape[1]
-    
+
     @property
     def ep_dim(self):
         return self.ep.shape[1]
-    
+
     @property
     def op_dim(self):
         return self.op.shape[1]
 
     def get_data(self):
         return {
-            'cp': self.cp, 
-            'ep': self.ep, 
-            'op': self.op, 
+            'cp': self.cp,
+            'ep': self.ep,
+            'op': self.op,
             'op_next': self.op_next
         }
 
@@ -995,9 +1084,9 @@ class AGCDataset(Dataset):
             if output['responsemsg'] != 'ok':
                 continue
 
-            control_vals = parse_control(control) # control_vals: T x CP_DIM
-            env_vals = parse_output(output, ep_keys) # env_vals: T x EP_DIM
-            output_vals = parse_output(output, op_keys) # output_vals: T x OP_DIM
+            control_vals = parse_control(control)  # control_vals: T x CP_DIM
+            env_vals = parse_output(output, ep_keys)  # env_vals: T x EP_DIM
+            output_vals = parse_output(output, op_keys)  # output_vals: T x OP_DIM
 
             # assumption: cp[t] + ep[t-1] + op[t-1] -> op[t]
             cp_vals = control_vals[1:]
@@ -1011,7 +1100,7 @@ class AGCDataset(Dataset):
             ep_arr.append(ep_vals)
             op_pre_arr.append(op_vals)
             op_cur_arr.append(op_next_vals)
-        
+
         cp_arr = np.concatenate(cp_arr, axis=0)
         ep_arr = np.concatenate(ep_arr, axis=0)
         op_pre_arr = np.concatenate(op_pre_arr, axis=0)
@@ -1026,7 +1115,7 @@ class AGCDataset(Dataset):
         ep = data['ep']
         op = data['op']
         delta = data['op_next'] - data['op']
-        
+
         return {
             'cp_mean': np.mean(cp, axis=0), 'cp_std': np.std(cp, axis=0),
             'ep_mean': np.mean(ep, axis=0), 'ep_std': np.std(ep, axis=0),
@@ -1062,16 +1151,16 @@ class ClimateDatasetHour(Dataset):
         "comp1.McPureAir.Value",
     ]
 
-    def __init__(self, 
-        data_dirs,
-        norm_data,
-        ep_keys=None,
-        op_in_keys=None,
-        force_preprocess=False,
-        data_name="climate_model_data",
-    ) -> None:
+    def __init__(self,
+                 data_dirs,
+                 norm_data,
+                 ep_keys=None,
+                 op_in_keys=None,
+                 force_preprocess=False,
+                 data_name="climate_model_data",
+                 ) -> None:
         super().__init__()
-        self.ep_keys = ep_keys or self.EP_KEYS 
+        self.ep_keys = ep_keys or self.EP_KEYS
         self.op_in_keys = op_in_keys or self.OP_IN_KEYS
         self.data_name = data_name
 
@@ -1095,7 +1184,7 @@ class ClimateDatasetHour(Dataset):
         cp_mean, cp_std = norm_data['cp_mean'], norm_data['cp_std']
         ep_mean, ep_std = norm_data['ep_mean'], norm_data['ep_std']
         op_in_mean, op_in_std = norm_data['op_in_mean'], norm_data['op_in_std']
-        
+
         self.cp_normed = normalize(self.cp, cp_mean, cp_std)
         self.ep_normed = normalize(self.ep, ep_mean, ep_std)
         self.op_in_normed = normalize(self.op_in, op_in_mean, op_in_std)
@@ -1103,7 +1192,7 @@ class ClimateDatasetHour(Dataset):
 
     def __getitem__(self, index):
         input = (self.cp_normed[index], self.ep_normed[index], self.op_in_normed[index])
-        target = self.op_in_next_normed[index] 
+        target = self.op_in_next_normed[index]
         return input, target
 
     def __len__(self):
@@ -1112,11 +1201,11 @@ class ClimateDatasetHour(Dataset):
     @property
     def cp_dim(self):
         return self.cp.shape[1]
-    
+
     @property
     def ep_dim(self):
         return self.ep.shape[1]
-    
+
     @property
     def op_in_dim(self):
         return self.op_in.shape[1]
@@ -1128,12 +1217,12 @@ class ClimateDatasetHour(Dataset):
             'ep_dim': self.ep_dim,
             'op_in_dim': self.op_in_dim,
         }
-    
+
     def get_data(self):
         return {
-            'cp': self.cp, 
-            'ep': self.ep, 
-            'op_in': self.op_in, 
+            'cp': self.cp,
+            'ep': self.ep,
+            'op_in': self.op_in,
             'op_in_next': self.op_in_next
         }
 
@@ -1158,9 +1247,9 @@ class ClimateDatasetHour(Dataset):
             if output['responsemsg'] != 'ok':
                 continue
 
-            control_vals = parse_control(control) # control_vals: T x CP_DIM
-            env_vals = parse_output(output, self.ep_keys) # env_vals: T x EP_DIM
-            output_vals = parse_output(output, self.op_in_keys) # output_vals: T x OP_DIM
+            control_vals = parse_control(control)  # control_vals: T x CP_DIM
+            env_vals = parse_output(output, self.ep_keys)  # env_vals: T x EP_DIM
+            output_vals = parse_output(output, self.op_in_keys)  # output_vals: T x OP_DIM
 
             # assumption: cp[t] + ep[t] + op[t] -> op[t+1]
             cp_vals = control_vals[:-1]
@@ -1174,14 +1263,14 @@ class ClimateDatasetHour(Dataset):
             ep_arr.append(ep_vals)
             op_pre_arr.append(op_vals)
             op_cur_arr.append(op_next_vals)
-        
+
         cp = np.concatenate(cp_arr, axis=0)
         ep = np.concatenate(ep_arr, axis=0)
         op_in = np.concatenate(op_pre_arr, axis=0)
         op_in_next = np.concatenate(op_cur_arr, axis=0)
 
         np.savez_compressed(
-            f'{data_dir}/{self.data_name}.npz', 
+            f'{data_dir}/{self.data_name}.npz',
             cp=cp, ep=ep, op_in=op_in, op_in_next=op_in_next)
 
     @staticmethod
@@ -1195,13 +1284,13 @@ class ClimateDatasetHour(Dataset):
                 output = load_json_data(f"{data_dir}/outputs/{name}")
                 ep = parse_output(output, ClimateDatasetHour.EP_KEYS)
                 op_in = parse_output(output, ClimateDatasetHour.OP_IN_KEYS)
-                ep_list.append(ep) 
+                ep_list.append(ep)
                 op_in_list.append(op_in)
-        
+
         cp = np.concatenate(cp_list, axis=0)
         ep = np.concatenate(ep_list, axis=0)
         op_in = np.concatenate(op_in_list, axis=0)
-        
+
         return {
             'cp_mean': np.mean(cp, axis=0), 'cp_std': np.std(cp, axis=0),
             'ep_mean': np.mean(ep, axis=0), 'ep_std': np.std(ep, axis=0),
@@ -1224,13 +1313,13 @@ class PlantDatasetHour(Dataset):
     ]
 
     def __init__(self,
-        data_dirs,
-        norm_data, 
-        op_in_keys=None, 
-        op_pl_keys=None,
-        force_preprocess=False,
-        data_name="plant_model_data",
-    ) -> None:
+                 data_dirs,
+                 norm_data,
+                 op_in_keys=None,
+                 op_pl_keys=None,
+                 force_preprocess=False,
+                 data_name="plant_model_data",
+                 ) -> None:
         super().__init__()
         self.op_in_keys = op_in_keys or self.OP_IN_KEYS
         self.op_pl_keys = op_pl_keys or self.OP_PL_KEYS
@@ -1253,14 +1342,14 @@ class PlantDatasetHour(Dataset):
 
         op_in_mean, op_in_std = norm_data['op_in_mean'], norm_data['op_in_std']
         op_pl_mean, op_pl_std = norm_data['op_pl_mean'], norm_data['op_pl_std']
-        
+
         self.op_in_normed = normalize(self.op_in, op_in_mean, op_in_std)
         self.pl_normed = normalize(self.pl, op_pl_mean, op_pl_std)
         self.pl_next_normed = normalize(self.pl_next, op_pl_mean, op_pl_std)
 
     def __getitem__(self, index):
         input = (self.op_in_normed[index], self.pl_normed[index])
-        target = self.pl_next_normed[index] 
+        target = self.pl_next_normed[index]
         return input, target
 
     def __len__(self):
@@ -1269,7 +1358,7 @@ class PlantDatasetHour(Dataset):
     @property
     def op_in_dim(self):
         return self.op_in.shape[1]
-    
+
     @property
     def op_pl_dim(self):
         return self.pl.shape[1]
@@ -1283,8 +1372,8 @@ class PlantDatasetHour(Dataset):
 
     def get_data(self):
         return {
-            'op_in': self.op_in, 
-            'pl': self.pl, 
+            'op_in': self.op_in,
+            'pl': self.pl,
             'pl_next': self.pl_next
         }
 
@@ -1308,8 +1397,8 @@ class PlantDatasetHour(Dataset):
             if output['responsemsg'] != 'ok':
                 continue
 
-            in_climate_vals = parse_output(output, self.op_in_keys) # env_vals: T x EP_DIM
-            plant_vals = parse_output(output, self.op_pl_keys) # output_vals: T x OP_DIM
+            in_climate_vals = parse_output(output, self.op_in_keys)  # env_vals: T x EP_DIM
+            plant_vals = parse_output(output, self.op_pl_keys)  # output_vals: T x OP_DIM
 
             # assumption: op_in[t] + pl[t] -> pl[t+1]
             op_in_vals = in_climate_vals[:-1]
@@ -1321,13 +1410,13 @@ class PlantDatasetHour(Dataset):
             op_in_arr.append(op_in_vals)
             op_pl_arr.append(op_pl_vals)
             op_pl_next_arr.append(op_pl_next_vals)
-        
+
         op_in_arr = np.concatenate(op_in_arr, axis=0)
         op_pl_arr = np.concatenate(op_pl_arr, axis=0)
         op_pl_next_arr = np.concatenate(op_pl_next_arr, axis=0)
 
         np.savez_compressed(
-            f'{data_dir}/{self.data_name}.npz', 
+            f'{data_dir}/{self.data_name}.npz',
             op_in=op_in_arr, pl=op_pl_arr, pl_next=op_pl_next_arr)
 
     @staticmethod
@@ -1340,10 +1429,10 @@ class PlantDatasetHour(Dataset):
                 pl = parse_output(output, PlantDatasetHour.OP_PL_KEYS)
                 op_in_list.append(op_in)
                 op_pl_list.append(pl)
-        
+
         op_in = np.concatenate(op_in_list, axis=0)
         pl = np.concatenate(op_pl_list, axis=0)
-        
+
         return {
             'op_in_mean': np.mean(op_in, axis=0), 'op_in_std': np.std(op_in, axis=0),
             'op_pl_mean': np.mean(pl, axis=0), 'op_pl_std': np.std(pl, axis=0),
@@ -1351,17 +1440,17 @@ class PlantDatasetHour(Dataset):
 
 
 class ClimateDatasetDay(Dataset):
-    def __init__(self, 
-        data_dirs, 
-        norm_data=None,
-        cp_keys=CP_KEYS,
-        ep_keys=EP_KEYS,
-        op_keys=OP_KEYS,
-        force_preprocess=False, 
-        data_name="climate_data_day",
-        control_folder="controls",
-        output_folder="outputs",
-    ) -> None:
+    def __init__(self,
+                 data_dirs,
+                 norm_data=None,
+                 cp_keys=CP_KEYS,
+                 ep_keys=EP_KEYS,
+                 op_keys=OP_KEYS,
+                 force_preprocess=False,
+                 data_name="climate_data_day",
+                 control_folder="controls",
+                 output_folder="outputs",
+                 ) -> None:
         super().__init__()
         self.cp_keys = cp_keys
         self.ep_keys = ep_keys
@@ -1410,7 +1499,7 @@ class ClimateDatasetDay(Dataset):
             data_path = f'{data_dir}/{self.data_name}.npz'
             if not os.path.exists(data_path) or force_preprocess:
                 self.preprocess_dir(data_dir)
-            
+
             data = np.load(data_path)
             cp.append(data['cp'])  # D_i x 24 x CP_DIM
             ep.append(data['ep'])  # D_i x 24 x EP_DIM
@@ -1444,16 +1533,16 @@ class ClimateDatasetDay(Dataset):
                 continue
 
             # ========= Parse CP params =========
-            cp = parse_control(control, self.cp_keys) # D x 24 x CP_DIM
-            
+            cp = parse_control(control, self.cp_keys)  # D x 24 x CP_DIM
+
             # ========= Parse EP params =========
-            ep = parse_output(output, self.ep_keys) # T x EP_DIM
+            ep = parse_output(output, self.ep_keys)  # T x EP_DIM
             ep = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
 
             # ========= Parse OP params ==========
-            op = parse_output(output, self.op_keys) # T x OP_DIM
+            op = parse_output(output, self.op_keys)  # T x OP_DIM
             # op_init = np.repeat(op[:1], 24, axis=0) # 24 x OP_DIM
-            op_init = np.zeros((24, op.shape[-1])) # 24 x OP_DIM
+            op_init = np.zeros((24, op.shape[-1]))  # 24 x OP_DIM
             op = np.concatenate([op_init, op], axis=0)  # (T+24) x OP_DIM
             op = op.reshape(-1, 24, op.shape[-1])  # (D+1) x 24 x OP_DIM
 
@@ -1465,14 +1554,14 @@ class ClimateDatasetDay(Dataset):
             ep_arr.append(ep)
             op_arr.append(op)
             op_next_arr.append(op_next)
-        
+
         cp = np.concatenate(cp_arr, axis=0)
         ep = np.concatenate(ep_arr, axis=0)
         op = np.concatenate(op_arr, axis=0)
         op_next = np.concatenate(op_next_arr, axis=0)
 
         np.savez_compressed(
-            f'{data_dir}/{self.data_name}.npz', 
+            f'{data_dir}/{self.data_name}.npz',
             cp=cp, ep=ep, op=op, op_next=op_next)
 
     def get_meta_data(self):
@@ -1486,15 +1575,15 @@ class ClimateDatasetDay(Dataset):
 
 class PlantDatasetDay(Dataset):
     def __init__(self,
-        data_dirs,
-        norm_data=None,
-        op_in_keys=OP_IN_KEYS,
-        pl_keys=PL_KEYS,
-        force_preprocess=False,
-        data_name="plant_data_day",
-        control_folder="controls",
-        output_folder="outputs",
-    ) -> None:
+                 data_dirs,
+                 norm_data=None,
+                 op_in_keys=OP_IN_KEYS,
+                 pl_keys=PL_KEYS,
+                 force_preprocess=False,
+                 data_name="plant_data_day",
+                 control_folder="controls",
+                 output_folder="outputs",
+                 ) -> None:
         super().__init__()
         self.op_in_keys = op_in_keys
         self.pl_keys = pl_keys
@@ -1583,7 +1672,7 @@ class PlantDatasetDay(Dataset):
             # ============ Parse Inside Params ==============
             op_in = parse_output(output, self.op_in_keys)  # T x OP_IN_DIM
             op_in = op_in.reshape(-1, 24, op_in.shape[-1])  # D x 24 x OP_IN_DIM
-            
+
             # ============ Parse Plant Params ==============
             pl = parse_output(output, self.pl_keys)  # T x PL_DIM
             pl_init = np.repeat(self.pl_init.reshape(1, pl.shape[-1]), 24, axis=0)  # 24 x PL_DIM
@@ -1598,14 +1687,14 @@ class PlantDatasetDay(Dataset):
             op_in_arr.append(op_in)
             pl_arr.append(pl)
             pl_next_arr.append(pl_next)
-        
+
         pd_arr = np.concatenate(pd_arr, axis=0)
         op_in_arr = np.concatenate(op_in_arr, axis=0)
         pl_arr = np.concatenate(pl_arr, axis=0)
         pl_next_arr = np.concatenate(pl_next_arr, axis=0)
 
         np.savez_compressed(
-            f'{data_dir}/{self.data_name}.npz', 
+            f'{data_dir}/{self.data_name}.npz',
             pd=pd_arr, op_in=op_in_arr, pl=pl_arr, pl_next=pl_next_arr)
 
     def get_meta_data(self):
@@ -1618,6 +1707,7 @@ class PlantDatasetDay(Dataset):
 
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-dirs', type=str, nargs="+", required=True)
     parser.add_argument('--save-dir', type=str, required=True)

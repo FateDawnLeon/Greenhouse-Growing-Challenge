@@ -1,3 +1,5 @@
+from collections import defaultdict
+import datetime
 import os
 import json
 import torch
@@ -8,6 +10,8 @@ import matplotlib.pyplot as plt
 from shutil import copyfile
 matplotlib.use('agg')
 plt.ioff()
+
+from addict import Dict
 
 
 def normalize(data, mean, std, eps=1e-8):
@@ -113,6 +117,40 @@ def dict_to_dataframe(dict, dtype='float'):
 
 def list_keys_to_index(lst):
     return {x: i for i, x in enumerate(lst)}
+
+
+class NestedDefaultDict:
+    @staticmethod
+    def factory():
+        return defaultdict(NestedDefaultDict.factory)
+
+    def __init__(self, separator='.'):
+        self.d = defaultdict(self.factory)
+        self.separator = separator
+
+    def __getitem__(self, item):
+        tokens = item.split(self.separator)
+        d = self.d
+        for token in tokens:
+            d = d[token]
+        return d
+
+    def __setitem__(self, key, value):
+        tokens = key.split('.')
+        d = self.d
+        for token in tokens[:-1]:
+            d = d[token]
+        d[tokens[-1]] = value
+
+    def to_dict(self):
+        return self.__to_dict(self.d)
+
+    @staticmethod
+    def __to_dict(obj):
+        if isinstance(obj, dict):
+            return {k: NestedDefaultDict.__to_dict(v) for k, v in obj.items()}
+        else:
+            return obj
 
 
 if __name__ == '__main__':
