@@ -2,13 +2,12 @@ import os
 import datetime
 import numpy as np
 
-from torch.utils.data import Dataset
-
-from functools import partial
 from tqdm import tqdm
+from functools import partial
 from astral.sun import sun
 from astral.geocoder import lookup, database
 from scipy.interpolate import interp1d
+from torch.utils.data import Dataset
 
 from constant import CITY_NAME, MATERIALS, PL_INIT_VALUE
 from constant import CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS
@@ -494,6 +493,7 @@ class ControlParser:
         assert sorted(densities, reverse=True) == densities  # densities must be descending
 
 
+# =========== Deprecated: don't use! ===============
 class ParseControl(object):
     def __init__(self, start_date, city_name):
         super(ParseControl, self).__init__()
@@ -876,11 +876,13 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             op = parse_output(output, OP_KEYS)  # T x OP_DIM
             pl = parse_output(output, PL_KEYS)  # T x PL_DIM
             pd = parse_output(output, ["comp1.Plant.PlantDensity"])  # T x 1
+            ph = parse_output(output, ["common.Economics.PeakHour"])  # T x 1
 
             ep_trace = ep.reshape(-1, 24, ep.shape[-1])  # D x 24 x EP_DIM
             op_trace = op.reshape(-1, 24, op.shape[-1])  # D x 24 x OP_DIM
             pl_trace = pl.reshape(-1, 24, pl.shape[-1])[:, 12]  # D x PL_DIM
             pd_trace = pd.reshape(-1, 24, pd.shape[-1])[:, 12]  # D x 1
+            ph_trace = ph.reshape(-1, 24, ph.shape[-1])  # D x 24 x 1
 
             trace_dir = f"{save_dir}/{name[:-5]}"
             os.makedirs(trace_dir, exist_ok=True)
@@ -889,23 +891,7 @@ def prepare_traces(data_dirs, save_dir, output_folder="outputs"):
             np.save(f"{trace_dir}/op_trace.npy", op_trace)
             np.save(f"{trace_dir}/pl_trace.npy", pl_trace)
             np.save(f"{trace_dir}/pd_trace.npy", pd_trace)
-
-
-def compute_mean_std(data_dirs, is_control, keys=None):
-    data_list = []
-    
-    for data_dir in data_dirs:
-        if is_control:
-            for name in os.listdir(f"{data_dir}/controls"):
-                control = load_json_data(f"{data_dir}/controls/{name}")
-                data_list.append(parse_control(control))
-        else:
-            for name in os.listdir(f"{data_dir}/outputs"):
-                output = load_json_data(f"{data_dir}/outputs/{name}")
-                data_list.append(parse_output(output, keys)) 
-
-    data = np.concatenate(data_list, axis=0, dtype=np.float32)
-    return np.mean(data, axis=0), np.std(data, axis=0)
+            np.save(f"{trace_dir}/ph_trace.npy", ph_trace)
 
 
 def filter_jsons(filenames):
@@ -932,6 +918,7 @@ def get_min_max(arr):
     return arr.min(0), arr.max(0)
 
 
+# =========== Deprecated: don't use! ===============
 class AGCDataset(Dataset):
     def __init__(self, 
         data_dirs, 
