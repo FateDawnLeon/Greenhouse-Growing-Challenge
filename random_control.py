@@ -21,7 +21,7 @@ class ControlParamSampleSpace(object):
         self.light_intensity = round(random.uniform(0, 500),1)
         self.light_maxIglob = round(random.uniform(0, 500),1)
         self.start_density = random.choice([90, 85, 80])
-        self.change_amount = round(random.uniform(1, 35),1)
+        # self.change_amount = round(random.uniform(1, 35),1)
 
         # self.startdate_gap = 7
         # self.CO2_purecap = 280
@@ -396,7 +396,7 @@ class ControlParamSampleSpace(object):
         import numpy as np
         start_density = self.start_density
         density_min = 5
-        change_amount = self.change_amount
+        # change_amount = self.change_amount
         change_prob = 0.1
 
         start = self.start
@@ -406,6 +406,7 @@ class ControlParamSampleSpace(object):
         density = [start_density]
         for i in range(num_days-1):
             if random.uniform(0,1) < change_prob:
+                change_amount = round(random.uniform(0, 35),1)
                 next_density = density[i] - change_amount
                 if next_density < density_min: break
                 density.append(next_density)
