@@ -166,8 +166,14 @@ class GreenhouseSim(gym.Env):
         done = action[0].squeeze() and pl_new[PL_INDEX['comp1.Plant.headFW']] > self.MIN_FW
         done = done or self.iter == len(self.ep_trace) - 2
 
+        info = {}
+
         self.ep = self.ep_trace[self.iter + 1]
         if self.training:
+            info = {
+            # only meaningful if SELF.TRAINING = True
+            'current_real_observation': np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None, dtype=np.float32)
+            }
             # update state to real next state in the trace
             self.op = self.op_trace[self.iter]
             self.pl = self.pl_trace[self.iter]
@@ -179,11 +185,6 @@ class GreenhouseSim(gym.Env):
             self.pd = plant_density_new
 
         self.iter += 1
-
-        info = {
-            # only meaningful if SELF.TRAINING = True
-            'real_next_state': np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None, dtype=np.float32)
-        }
 
         return output_state, reward, done, info
 

@@ -11,7 +11,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 from env import GreenhouseSim
 
-import click
 import tensorflow as tf
 
 from garage import wrap_experiment
@@ -25,22 +24,13 @@ from bath_buffer import PathBuffer
 from her_replay_buffer import HERReplayBuffer
 from garage.tf.q_functions import ContinuousMLPQFunction
 from garage.trainer import TFTrainer
-from parameters import hyper, log_folder
+from parameters import hyper as h
 
-@click.command()
-@click.option('--pl', default=hyper['pl'])
-@click.option('--pls0', default=hyper['pls'][0])
-@click.option('--pls1', default=hyper['pls'][1])
-@click.option('--qfs0', default=hyper['qfs'][0])
-@click.option('--qfs1', default=hyper['qfs'][1])
-@click.option('--n_epochs', default=hyper['n_epochs'])
-@click.option('--n_cycles', default=hyper['n_cycles'])
-@click.option('--buffer', default=hyper['buffer'])
-@click.option('--expl', default=hyper['expl'])
-@click.option('--batch_size', default=hyper['batch_size'])
-@click.option('--seed', default=hyper['seed'])
-@wrap_experiment(prefix='model_final', name=log_folder, snapshot_mode='last')  # snapshot_mode='last'/'all'
-def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_cycles, n_epochs, batch_size, seed):
+import psutil
+
+@wrap_experiment(prefix='model_batch5', name=f'{h}', snapshot_mode='all')  # snapshot_mode='last'/'all'
+def rl_greenhouse(ctxt, pl=h['pl'], pls=h['pls'], qfs=h['qfs'], buffer=h['buffer'], expl=h['expl'],\
+     n_cycles=h['n_cycles'], n_epochs=h['n_epochs'], batch_size=h['batch_size'], seed=h['seed']):
     """Train DDPG with greenhouse sim.
 
     Args:
@@ -52,22 +42,17 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_cycles, n_ep
     """
     set_seed(seed)
     with TFTrainer(ctxt) as trainer:
-        gh_env = GreenhouseSim(learning=True, off=True)
+        gh_env = GreenhouseSim(training=True)
         env = normalize(GymEnv(gh_env))
 
         if pl == 'cont':
-             policy = ContinuousMLPPolicy(env_spec=env.spec,
-                                     hidden_sizes=(pls0, pls1),
+             policy = ContinuousMLPPolicy(env_spec = env.spec,
+                                     hidden_sizes = pls,
             )
         elif pl == 'mlp':
             policy = GaussianMLPPolicy(
                 env_spec=env.spec,
-                hidden_sizes=(pls0, pls1),
-            )
-        elif pl == 'lstm':
-            policy = GaussianLSTMPolicy(
-                env_spec=env.spec,
-                hidden_dim=pls0,
+                hidden_sizes = pls
             )
 
         if expl == 'Ornstein':
@@ -78,7 +63,7 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_cycles, n_ep
             exploration_policy = epsilon_greedy_policy(env.spec, policy)
         
         qf = ContinuousMLPQFunction(env_spec=env.spec,
-                                    hidden_sizes=(qfs0, qfs1))
+                                    hidden_sizes = qfs)
 
 
         if buffer == 'path':
@@ -91,8 +76,8 @@ def rl_greenhouse(ctxt, pl, pls0, pls1, qfs0, qfs1, buffer, expl, n_cycles, n_ep
                              max_episode_length=env.spec.max_episode_length,
                              is_tf_worker=True,
                              worker_class=FragmentWorker,
-                             worker_args=dict(n_envs=6),
-                            #  n_workers=96
+                             worker_args=dict(n_envs=64),
+                             n_workers=psutil.cpu_count(logical=True)
                              )
 
         #  LocalSample debug
