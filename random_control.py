@@ -6,7 +6,7 @@ import datetime
 from astral.geocoder import lookup, database
 
 BO_NUMBER = 100
-RL_NUMBER = 20
+RL_NUMBER = 1000
 
 class ControlParamSampleSpace(object):
 
@@ -20,13 +20,33 @@ class ControlParamSampleSpace(object):
         self.scr2_material = random.choice(["scr_Blackout.par", "scr_Transparent.par", "scr_Shade.par"])
         self.light_intensity = round(random.uniform(0, 500),1)
         self.light_maxIglob = round(random.uniform(0, 500),1)
+        self.start_density = random.choice([90, 85, 80])
         self.change_amount = round(random.uniform(1, 35),1)
+
+        # self.startdate_gap = 7
+        # self.CO2_purecap = 280
+        # self.scr1_enabled = True
+        # self.scr1_material = "scr_Blackout.par"
+        # self.scr2_enabled =  False
+        # self.scr2_material = "scr_Transparent.par"
+        # self.light_intensity = 3.0
+        # self.light_maxIglob = 500.0
+        # self.change_amount = 22
 
     def sample_control_params(self):
         startdate, startdate_gap = self.sample_startdate()
         enddate, duration = self.sample_enddate(startdate_gap)
         self.start = startdate
         self.end = enddate
+
+        # light_enabled = self.sample_illumination_enabled()
+        light_hours = self.sample_illumination_hoursLight()
+        self.hours =  light_hours
+        light_endTime = self.sample_illumination_endTime()
+        self.endtime = light_endTime
+        light_intensity = self.sample_illumination_intensity()
+        light_maxIglob = self.sample_illumination_maxIglob()
+        light_maxPARsum = self.sample_illumination_maxPARsum()
         
         temp_maxTemp = self.sample_heatingpipes_maxTemp()
         temp_minTemp = self.sample_heatingpipes_minTemp()
@@ -41,12 +61,7 @@ class ControlParamSampleSpace(object):
         CO2_setpIfLamps = self.sample_CO2_setpIfLamps()
         CO2_doseCapacity = self.sample_CO2_doseCapacity()
         
-        # light_enabled = self.sample_illumination_enabled()
-        light_intensity = self.sample_illumination_intensity()
-        light_hours = self.sample_illumination_hoursLight()
-        light_endTime = self.sample_illumination_endTime()
-        light_maxIglob = self.sample_illumination_maxIglob()
-        light_maxPARsum = self.sample_illumination_maxPARsum()
+
         
         vent_startWnd = self.sample_ventilation_startWnd()
         vent_winLeeMin, vent_winLeeMax = self.sample_ventilation_winLeeMinMax()
@@ -92,8 +107,8 @@ class ControlParamSampleSpace(object):
 
         CP.set_value("comp1.illumination.lmp1.@enabled", light_intensity > 0)
         CP.set_value("comp1.illumination.lmp1.@intensity", light_intensity)
-        CP.set_value("comp1.illumination.lmp1.@hoursLight", light_hours)
-        CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
+        CP.set_value("comp1.illumination.lmp1.@hoursLight", self.hours)
+        CP.set_value("comp1.illumination.lmp1.@endTime", self.endtime)
         CP.set_value("comp1.illumination.lmp1.@maxIglob", light_maxIglob)
         CP.set_value("comp1.illumination.lmp1.@maxPARsum", light_maxPARsum)
 
@@ -156,9 +171,10 @@ class ControlParamSampleSpace(object):
             heatingTemp_day = round(random.uniform(min_day, max_day),1)
             city = lookup("Amsterdam", database())
             starttime_a = get_sun_rise_and_set(cur, city)[0]
-            starttime_b = float(self.sample_illumination_endTime().get(key)) -float(self.sample_illumination_hoursLight().get(key))
+            starttime_b = float(self.endtime.get(key)) - float(self.hours.get(key))
             starttime = min(starttime_a, starttime_b)
-            endtime = get_sun_rise_and_set(cur, city)[1]
+            endtime= float(self.endtime.get(key))
+            # endtime = get_sun_rise_and_set(cur, city)[1]
             heatingTemp[key] =  {
                 str(starttime): heatingTemp_night,
                 str(starttime+1): heatingTemp_day,
@@ -207,9 +223,10 @@ class ControlParamSampleSpace(object):
             CO2_setpoint_day = round(random.uniform(min_day, max_day),1)
             city = lookup("Amsterdam", database())
             starttime_a = get_sun_rise_and_set(cur, city)[0]
-            starttime_b = float(self.sample_illumination_endTime().get(key)) -float(self.sample_illumination_hoursLight().get(key))
+            starttime_b = float(self.endtime.get(key)) - float(self.hours.get(key))
             starttime = min(starttime_a, starttime_b)
-            endtime = get_sun_rise_and_set(cur, city)[1]
+            endtime = self.endtime.get(key)
+            # endtime = get_sun_rise_and_set(cur, city)[1]
             CO2_setpoint[key] =  {
                 str(starttime): CO2_setpoint_night,
                 str(starttime+1): CO2_setpoint_day,
@@ -227,7 +244,7 @@ class ControlParamSampleSpace(object):
         return 0
 
     def sample_CO2_doseCapacity(self):
-        return "20 100; 40 50; 70 25"
+        return 100
 
     def sample_illumination_enabled(self):
         return True
@@ -235,7 +252,7 @@ class ControlParamSampleSpace(object):
     # def sample_illumination_intensity(self, min=0, max=10):
     #     return random.randrange(min, max, step=1)
     def sample_illumination_intensity(self):
-        return 180
+        return self.light_intensity
 
     def sample_illumination_hoursLight(self, min=0, max=18):
         start = self.start
@@ -377,7 +394,7 @@ class ControlParamSampleSpace(object):
     # density decrease everyday by change_amount with probability=prob
     def sample_plantDensity(self, duration):
         import numpy as np
-        start_density = 90
+        start_density = self.start_density
         density_min = 5
         change_amount = self.change_amount
         change_prob = 0.1
@@ -502,7 +519,7 @@ if __name__ == '__main__':
 
         SP = ControlParamSampleSpace()
 
-        #Save BO file
+        # Save BO file
         BO = SP.sample_control_params()
         BO.dump_json(save_dir=f'collected_data/{args.group}', save_name=f'BO.json')
 
