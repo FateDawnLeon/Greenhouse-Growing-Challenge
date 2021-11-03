@@ -5,32 +5,33 @@ from utils import ControlParams
 import datetime
 from astral.geocoder import lookup, database
 
-BO_NUMBER = 100
-RL_NUMBER = 1000
+BO_NUMBER = 1
+RL_NUMBER = 5000
 
 class ControlParamSampleSpace(object):
 
     def __init__(self):
         super().__init__()
-        self.startdate_gap = random.randrange(0, 31)
-        self.CO2_purecap = round(random.uniform(100, 500),1)
-        self.scr1_enabled = random.choice([True, False])
-        self.scr1_material = random.choice(["scr_Blackout.par", "scr_Transparent.par", "scr_Shade.par"])
-        self.scr2_enabled = random.choice([True, False])
-        self.scr2_material = random.choice(["scr_Blackout.par", "scr_Transparent.par", "scr_Shade.par"])
-        self.light_intensity = round(random.uniform(0, 500),1)
-        self.light_maxIglob = round(random.uniform(0, 500),1)
-        self.start_density = random.choice([90, 85, 80])
+        # self.startdate_gap = random.randrange(0, 31)
+        # self.CO2_purecap = round(random.uniform(100, 500),1)
+        # self.scr1_enabled = random.choice([True, False])
+        # self.scr1_material = random.choice(["scr_Blackout.par", "scr_Transparent.par", "scr_Shade.par"])
+        # self.scr2_enabled = random.choice([True, False])
+        # self.scr2_material = random.choice(["scr_Blackout.par", "scr_Transparent.par", "scr_Shade.par"])
+        # self.light_intensity = round(random.uniform(0, 500),1)
+        # self.light_maxIglob = round(random.uniform(0, 500),1)
+        # self.start_density = random.choice([90, 85, 80])
         # self.change_amount = round(random.uniform(1, 35),1)
 
-        # self.startdate_gap = 7
-        # self.CO2_purecap = 280
-        # self.scr1_enabled = True
-        # self.scr1_material = "scr_Blackout.par"
-        # self.scr2_enabled =  False
-        # self.scr2_material = "scr_Transparent.par"
-        # self.light_intensity = 3.0
-        # self.light_maxIglob = 500.0
+        self.startdate_gap = 7
+        self.CO2_purecap = 280
+        self.scr1_enabled = True
+        self.scr1_material = "scr_Blackout.par"
+        self.scr2_enabled =  False
+        self.scr2_material = "scr_Transparent.par"
+        self.light_intensity = 3.0
+        self.light_maxIglob = 500.0
+        self.start_density = random.choice([90, 85, 80])
         # self.change_amount = 22
 
     def sample_control_params(self):
@@ -38,6 +39,9 @@ class ControlParamSampleSpace(object):
         enddate, duration = self.sample_enddate(startdate_gap)
         self.start = startdate
         self.end = enddate
+
+        runmode = self.sample_runmode()
+
 
         # light_enabled = self.sample_illumination_enabled()
         light_hours = self.sample_illumination_hoursLight()
@@ -84,6 +88,7 @@ class ControlParamSampleSpace(object):
         CP = ControlParams(start_date = startdate)
         CP.set_value("simset.@startDate", startdate.isoformat())
         CP.set_value("simset.@endDate", enddate.isoformat())
+        CP.set_value("simset.@runMode", runmode)
 
         CP.set_value("common.CO2dosing.@pureCO2cap", CO2_purecap)
 
@@ -144,6 +149,9 @@ class ControlParamSampleSpace(object):
         startdate_gap = startdate_gap + duration
         enddate = datetime.date(2021, 2, 25) + datetime.timedelta(days=startdate_gap)
         return enddate, duration
+
+    def sample_runmode(self):
+        return "standard"
 
     # def sample_heatingpipes_maxTemp(self, min=45, max=75):
         # return random.randrange(min, max, step=3)
