@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CITY_NAME = 'Amsterdam'
-EARLIEST_START_DATE = datetime.date(2021, 2, 5)
+EARLIEST_START_DATE = datetime.date(2021, 2, 25)
 MATERIALS = ['scr_Transparent.par', 'scr_Shade.par', 'scr_Blackout.par']
 
 # ====================== control param related ======================
