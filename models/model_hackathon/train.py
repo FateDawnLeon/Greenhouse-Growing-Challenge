@@ -123,7 +123,13 @@ if __name__ == '__main__':
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, min_lr=args.min_lr, patience=args.lr_patience)
     criterion = torch.nn.MSELoss()
 
+    def save_checkpoint(model, norm_data, save_name):
+        torch.save({'state_dict': model.state_dict(), 'norm_data': norm_data}, 
+            f"{args.root_dir}/checkpoints/{save_name}.pth")
+
     loss_stats = {'train':[], 'val':[]}
+    loss_best = 1e8
+    
     model.train()
     for step in range(1, args.max_iters+1):
         loss = train_step(model, iter_loader, optimizer, criterion)
@@ -141,8 +147,10 @@ if __name__ == '__main__':
             
             print(f'Iter[{step}/{args.max_iters}] Val Loss: {loss_val:.6f}')
             
-            torch.save({'state_dict': model.state_dict(), 'norm_data': norm_data}, 
-                f'{args.root_dir}/checkpoints/step={step}.pth')
+            save_checkpoint(model, norm_data, save_name=f'step={step}')
+            if loss_val < loss_best:
+                loss_best = loss_val
+                save_checkpoint(model, norm_data, save_name="model_best")
 
             loss_stats['val'].append((step, loss_val))
             save_json_data(loss_stats, f'{args.root_dir}/loss_stats.json')

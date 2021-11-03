@@ -187,22 +187,28 @@ class ClimateModelDay(nn.Module):
         self.norm_data = norm_data
         self.loss_func = nn.MSELoss()
 
-        self.net = build_mlp(
-            input_size=self.cp_dim+self.ep_dim+self.op_dim,
-            output_size=self.op_dim,
-            n_layers=3,
-            hidden_size=512,
-            activation=nn.LeakyReLU(inplace=True)
-        )
-
+        num_layers = 3
+        hidden_size = 512
+        
         if version == 'v2':
             self.forward = self.forward_v2
         elif version == 'v2.1':
             self.forward = self.forward_v2_1
+        elif version == 'v2.1s':
+            self.forward = self.forward_v2_1
+            hidden_size = 256
         elif version == 'v2.2':
             self.forward = self.forward_v2_2
         else:
             raise NotImplementedError(f"version {version} not implemented!")
+
+        self.net = build_mlp(
+            input_size=self.cp_dim+self.ep_dim+self.op_dim,
+            output_size=self.op_dim,
+            n_layers=num_layers,
+            hidden_size=hidden_size,
+            activation=nn.LeakyReLU(inplace=True)
+        )
 
     def forward_v2(self, cp, ep, op):
         # all inputs and outputs should be normalized to [0,1]
@@ -371,11 +377,32 @@ class ClimateModelDayV4(nn.Module):
         x = self.feature(cp, ep, op)
         return torch.sigmoid(x)
 
+    def predict(self, cp, ep, op):
+        # all inputs and outputs are not normalized
+        assert cp.shape == (24, self.cp_dim)  # 24 x CP_DIM
+        assert ep.shape == (24, self.ep_dim)  # 24 x EP_DIM
+        assert op.shape == (24, self.op_dim)  # 24 x OP_DIM
+
+        cp = normalize_zero2one(cp, self.norm_data['cp']).flatten()
+        ep = normalize_zero2one(ep, self.norm_data['ep']).flatten()
+        op = normalize_zero2one(op, self.norm_data['op']).flatten()
+
+        with torch.no_grad():
+            cp = make_tensor(cp)
+            ep = make_tensor(ep)
+            op = make_tensor(op)
+            op_next = self.forward(cp, ep, op).squeeze().numpy()
+            op_next = op_next.reshape(24, -1)  # 24 x OP_DIM
+
+        # 24 x OP_DIM
+        return unnormalize_zero2one(op_next, self.norm_data['op'])
+
 
 MODEL_CLASS = {
     'climate_day': {
         'v2': ClimateModelDay,
         'v2.1': ClimateModelDay,
+        'v2.1s': ClimateModelDay,
         'v2.2': ClimateModelDay,
         'v3': ClimateModelDayV3,
         'v4': ClimateModelDayV4,
