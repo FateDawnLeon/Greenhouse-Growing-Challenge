@@ -138,6 +138,7 @@ class GreenhouseSim(gym.Env):
             action_dict['crp_lettuce.Intkam.management.@plantDensity'][1] = 0
         cum_head_m2_new = self.cum_head_m2 + 1. / plant_density_new
         num_spacings_new = self.num_spacings + density_tuple[1]
+        delta_avg_head_m2 = cum_head_m2_new / (self.iter + 2) - self.cum_head_m2 / (self.iter + 1)
 
         # update @plantDensity from relative to absolute value
         model_action_dict = action_dict.copy()
@@ -159,7 +160,7 @@ class GreenhouseSim(gym.Env):
         # compute reward
         gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new)
         gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2)
-        fixed_cost, _ = self.fixed_cost(action_dict, self.iter + 1, num_spacings_new)
+        fixed_cost, _ = self.fixed_cost(action_dict, self.iter + 1, num_spacings_new, delta_avg_head_m2)
         variable_cost, _ = self.variable_cost(self.peakhour_trace[self.iter], op_new)
         reward = gain_curr - gain_prev - fixed_cost - variable_cost
 
@@ -223,13 +224,14 @@ class GreenhouseSim(gym.Env):
         price *= (1 - 0.01 * quality_loss)
 
         # adjust for density
-        num_days = it + 1
-        avg_head_m2 = num_days / cum_head_m2
+        avg_head_m2 = it / cum_head_m2
         price *= avg_head_m2
         return price
 
     @staticmethod
-    def fixed_cost(action_dict, it, num_spacings):
+    def fixed_cost(action_dict, it, num_spacings, delta_avg_head_m2):
+        # plant cost
+        cost_plant = delta_avg_head_m2 * 0.12
         # greenhouse occupation
         cost_occupation = 11.5 / 365
         # CO2 dosing capacity
@@ -246,8 +248,8 @@ class GreenhouseSim(gym.Env):
             cost_spacing = 0
         cost_spacing += num_spacings * 1.5 / 365
 
-        cost_total = cost_occupation + cost_fix_co2 + cost_lamp + cost_screen + cost_spacing
-        return cost_total, (cost_occupation, cost_fix_co2, cost_lamp, cost_screen, cost_spacing)
+        cost_total = cost_plant + cost_occupation + cost_fix_co2 + cost_lamp + cost_screen + cost_spacing
+        return cost_total, (cost_plant, cost_occupation, cost_fix_co2, cost_lamp, cost_screen, cost_spacing)
 
     @staticmethod
     def variable_cost(peakhour, op):
