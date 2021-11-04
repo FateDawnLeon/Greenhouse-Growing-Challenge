@@ -26,11 +26,10 @@ def generate_control(config):
     # light_hours = float(config["light_hours"])
     # light_endTime = float(config["light_endTime"])
     light_maxIglob = float(config["light_maxIglob"])
+    # lamp_type = str(config["lamp_type"])
     plantDensity = str(config["plantDensity"])
     scr1_ToutMax = float(config["scr1_ToutMax"])
     vent_startWnd = float(config["vent_startWnd"])
-
-    duration, plantDensity = config['nd_pd']
 
     light_endTime = {}
     light_hours = {}
@@ -40,63 +39,65 @@ def generate_control(config):
         city = lookup("Amsterdam", database())
         sunrise, sunset = get_sun_rise_and_set(cur, city)
         light_endTime[key] = sunset
-        light_hours[key] = sunset - sunrise
+        light_hours[key] = sunset
 
+    # light_endTime = 19.5
+    # light_hours = 18
     CP = ControlParamSimple()
     CP.set_endDate(duration)
 
-    # heating_temp_scheme = {}
-    # for d in range(duration):
-    #     cur = start_date + datetime.timedelta(days=d)
-    #     key = "{:02d}-{:02d}".format(cur.day, cur.month)
-    #     city = lookup("Amsterdam", database())
-    #     starttime_a = get_sun_rise_and_set(cur, city)[0]
-    #     starttime_b = float(light_endTime) - float(light_hours)
-    #     starttime = min(starttime_a, starttime_b)
-    #     endtime = light_endTime
-    #     # endtime = get_sun_rise_and_set(cur, city)[1]
-    #     heating_temp_scheme[key] =  {
-    #         str(starttime): heatingTemp_night,
-    #         str(starttime+1): heatingTemp_day,
-    #         str(endtime-1): heatingTemp_day,
-    #         str(endtime): heatingTemp_night
-    #     }
-    heating_temp_scheme = {
-        "01-01": {
-            "r": heatingTemp_night,
-            "r+1": heatingTemp_day, 
-            "s-1": heatingTemp_day, 
-            "s": heatingTemp_night
+    heating_temp_scheme = {}
+    for d in range(duration):
+        cur = start_date + datetime.timedelta(days=d)
+        key = "{:02d}-{:02d}".format(cur.day, cur.month)
+        # city = lookup("Amsterdam", database())
+        # starttime_a = get_sun_rise_and_set(cur, city)[0]
+        # starttime_b = float(light_endTime) - float(light_hours)
+        # starttime = min(starttime_a, starttime_b)
+        # endtime = light_endTime
+        # endtime = get_sun_rise_and_set(cur, city)[1]
+        heating_temp_scheme[key] =  {
+            str(0): heatingTemp_night,
+            str(1): heatingTemp_day,
+            str(light_endTime[key]-1): heatingTemp_day,
+            str(light_endTime[key]): heatingTemp_night
         }
-    }
+    # heating_temp_scheme = {
+    #     "01-01": {
+    #         str(light_endTime - light_hours): heatingTemp_night,
+    #         str(light_endTime - light_hours+1): heatingTemp_day, 
+    #         str(light_endTime-1): heatingTemp_day, 
+    #         str(light_endTime): heatingTemp_night
+    #     }
+    # }
 
     CP.set_value("comp1.setpoints.temp.@heatingTemp", heating_temp_scheme)
     CP.set_value("common.CO2dosing.@pureCO2cap", CO2_pureCap)
 
-    # CO2_setpoint_scheme = {}
-    # for d in range(duration):
-    #     cur = start_date + datetime.timedelta(days=d)
-    #     key = "{:02d}-{:02d}".format(cur.day, cur.month)
-    #     city = lookup("Amsterdam", database())
-    #     starttime_a = get_sun_rise_and_set(cur, city)[0]
-    #     starttime_b = float(light_endTime) - float(light_hours)
-    #     starttime = min(starttime_a, starttime_b)
-    #     endtime = light_endTime
-    #     # endtime = get_sun_rise_and_set(cur, city)[1]
-    #     CO2_setpoint_scheme[key] =  {
-    #         str(starttime): CO2_setpoint_night,
-    #         str(starttime+1): CO2_setpoint_day,
-    #         str(endtime-1): CO2_setpoint_day,
-    #         str(endtime): CO2_setpoint_night
-    #     }
-    CO2_setpoint_scheme = {
-        "01-01": {
-            "r": CO2_setpoint_night,
-            "r+1": CO2_setpoint_day, 
-            "s-1": CO2_setpoint_day, 
-            "s": CO2_setpoint_night
+    CO2_setpoint_scheme = {}
+    for d in range(duration):
+        cur = start_date + datetime.timedelta(days=d)
+        key = "{:02d}-{:02d}".format(cur.day, cur.month)
+        # city = lookup("Amsterdam", database())
+        # starttime_a = get_sun_rise_and_set(cur, city)[0]
+        # starttime_b = float(light_endTime) - float(light_hours)
+        # starttime = min(starttime_a, starttime_b)
+        # endtime = light_endTime
+        # endtime = get_sun_rise_and_set(cur, city)[1]
+        CO2_setpoint_scheme[key] =  {
+            str(0): CO2_setpoint_night,
+            str(1): CO2_setpoint_day,
+            str(light_endTime[key]-1): CO2_setpoint_day,
+            str(light_endTime[key]): CO2_setpoint_night
         }
-    }
+    # CO2_setpoint_scheme = {
+    #     "01-01": {
+    #         str(light_endTime - light_hours): CO2_setpoint_night,
+    #         str(light_endTime - light_hours+1): CO2_setpoint_day, 
+    #         str(light_endTime-1): CO2_setpoint_day, 
+    #         str(light_endTime): CO2_setpoint_night
+    #     }
+    # }
             
     CP.set_value("comp1.setpoints.CO2.@setpoint", CO2_setpoint_scheme)
     CP.set_value("comp1.setpoints.CO2.@setpIfLamps", CO2_setpoint_lamp)
@@ -105,6 +106,7 @@ def generate_control(config):
     CP.set_value("comp1.illumination.lmp1.@hoursLight", light_hours)
     CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
     CP.set_value("comp1.illumination.lmp1.@maxIglob", light_maxIglob)
+    # CP.set_value("comp1.illumination.lmp1.@@type", lamp_type)
     CP.set_value("crp_lettuce.Intkam.management.@plantDensity", plantDensity)
     CP.set_value("comp1.screens.scr1.@ToutMax", scr1_ToutMax)
     CP.set_value("comp1.setpoints.ventilation.@startWnd", vent_startWnd)
