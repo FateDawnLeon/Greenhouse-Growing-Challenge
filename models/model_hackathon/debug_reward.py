@@ -75,7 +75,7 @@ for i in range(num_days):
     else:
         delta_avg_head_m2 = (i + 1) / cum_head_m2 - (i + 0) / (cum_head_m2 - 1 / pd[i])
 
-    gains[i] = GreenhouseSim.gain(pl[i], i, cum_head_m2)
+    gains[i] = GreenhouseSim.gain(pl[i], i, cum_head_m2, training=False)
 
     cost_plant[i] = GreenhouseSim.fixed_cost(action_dict, i, num_spacings, delta_avg_head_m2)[1][0]
     cost_occupation[i] = GreenhouseSim.fixed_cost(action_dict, i, num_spacings, delta_avg_head_m2)[1][1]

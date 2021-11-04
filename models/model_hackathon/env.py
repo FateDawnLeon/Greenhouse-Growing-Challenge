@@ -152,8 +152,8 @@ class GreenhouseSim(gym.Env):
                                       axis=None, dtype=np.float32)
 
         # compute reward
-        gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new)
-        gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2)
+        gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new, self.training)
+        gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2, self.training)
         fixed_cost, _ = self.fixed_cost(action_dict, self.iter + 1, num_spacings_new, delta_avg_head_m2)
         variable_cost, _ = self.variable_cost(self.peakhour_trace[self.iter], op_new)
         reward = gain_curr - gain_prev - fixed_cost - variable_cost
@@ -192,21 +192,34 @@ class GreenhouseSim(gym.Env):
         raise NotImplementedError
 
     @staticmethod
-    def gain(pl, it, cum_head_m2):
+    def gain(pl, it, cum_head_m2, training):
         fw = pl[PL_INDEX['comp1.Plant.headFW']]
         dmc = pl[PL_INDEX['comp1.Plant.shootDryMatterContent']]
         quality_loss = pl[PL_INDEX['comp1.Plant.qualityLoss']]
 
-        # mirror fresh weight
-        fw = fw if fw <= 250 else 500 - fw
-        if fw <= 210:
-            price = 0
-        elif fw <= 230:
-            price = 0.4 * (fw - 210) / (230 - 210)
-        elif fw <= 250:
-            price = 0.4 + 0.1 * (fw - 230) / (250 - 230)
+        if training:  # use a slightly different profit curve during training
+            if fw <= 230:
+                price = 0.4 * fw / 230
+            elif fw <= 250:
+                price = 0.4 + 0.1 * (fw - 230) / (250 - 230)
+            elif fw <= 270:
+                price = 0.5 - 0.1 * (fw - 250) / (270 - 250)
+            elif fw <= 290:
+                price = 0.4 - 0.4 * (fw - 270) / (290 - 270)
+            else:  # fw > 290
+                price = 0
         else:
-            raise ValueError
+            # mirror fresh weight
+            fw = fw if fw <= 250 else 500 - fw
+            if fw <= 210:
+                price = 0
+            elif fw <= 230:
+                price = 0.4 * (fw - 210) / (230 - 210)
+            elif fw <= 250:
+                price = 0.4 + 0.1 * (fw - 230) / (250 - 230)
+            else:
+                print(f'{fw=}, how is it fking possible that this is more than 250???')
+                raise ValueError
 
         # adjust for dmc
         if dmc < 0.045:
