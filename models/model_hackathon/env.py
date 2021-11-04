@@ -8,10 +8,10 @@ import torch
 
 from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, FULL_EP_PATH, FULL_PEAKHOUR_PATH, TRACES_DIR, \
     BO_CONTROL_PATH, \
-    CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS, PL_INIT_VALUE, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, PD_DELTA_IDX, \
+    EP_KEYS, OP_KEYS, PL_KEYS, PL_INIT_VALUE, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, PD_DELTA_IDX, \
     INDEX_OP_TO_OP_IN, EARLIEST_START_DATE
 from constant import get_range
-from model import ClimateModelDay, PlantModelDay
+from model import get_model
 from data import parse_action, agent_action_to_dict, agent_action_to_array
 from utils import list_keys_to_index, load_json_data
 
@@ -21,15 +21,12 @@ PL_INDEX = list_keys_to_index(PL_KEYS)
 
 BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
 
-
 class GreenhouseSim(gym.Env):
     MIN_PD = 5
     MIN_FW = 210
 
-    num_cp = (len(CP_KEYS) + 6) * 24
     num_ep = len(EP_KEYS) * 24
     num_op = len(OP_KEYS) * 24
-    num_op_in = len(OP_IN_KEYS) * 24
     num_pl = len(PL_KEYS)
 
     def __init__(self, training=True, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
@@ -55,25 +52,17 @@ class GreenhouseSim(gym.Env):
             self.pd_trace = None
         else:
             # load full ep&peakhour trace
-            self.full_ep_trace = np.load(full_ep_path)
             self.full_peakhour_trace = np.load(full_peakhour_path)
 
+        self.full_ep_trace = np.load(full_ep_path)
         self.ep_trace = None
         self.peakhour_trace = None
 
-        # self._max_episode_steps = self.full_ep_trace.shape[0] - 1 TODO: get _max_episode_steps from full ep trace
-        self._max_episode_steps = 66
+        self._max_episode_steps = self.full_ep_trace.shape[0] - 1
 
         # load model
-        climate_model_ckpt = torch.load(climate_model_paths)
-        self.climate_model = ClimateModelDay(self.num_cp, self.num_ep, self.num_op, climate_model_ckpt['norm_data'])
-        self.climate_model.load_state_dict(climate_model_ckpt['state_dict'])
-        self.climate_model.eval()
-
-        plant_model_ckpt = torch.load(plant_model_path)
-        self.plant_model = PlantModelDay(self.num_op_in, self.num_pl, plant_model_ckpt['norm_data'])
-        self.plant_model.load_state_dict(plant_model_ckpt['state_dict'])
-        self.plant_model.eval()
+        self.climate_model = get_model(climate_model_paths)
+        self.plant_model = get_model(plant_model_path)
 
         # state features definition
         self.ep = None
@@ -145,6 +134,7 @@ class GreenhouseSim(gym.Env):
         model_action_dict['crp_lettuce.Intkam.management.@plantDensity'] = np.array([plant_density_new])
         model_action_dict.update(BO_CONTROLS)
         model_action_dict['day_offset'] = self.iter
+        model_action_dict['comp1.illumination.lmp1.@enabled'] = BO_CONTROLS['comp1.illumination.lmp1.@intensity'] > 0
 
         # use model to predict next state
         # op_{d+1} = ModelClimate(cp_{d+1}, ep_{d+1}, op_{d})
