@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import SGD, Adam, lr_scheduler
 from utils import save_json_data, plot_loss_curve
 from data import ClimateDatasetDay, PlantDatasetDay
-from model import MODEL_CLASS
+from model import MODEL_CLASSES, MODEL_CONFIGS
 
 
 OPTIM = {
@@ -68,12 +68,21 @@ def split_dataset(dataset, val_ratio):
     return random_split(dataset, [num_train, num_val], generator=torch.Generator().manual_seed(42))
 
 
+def save_checkpoint(model, model_class, model_config, save_path):
+    ckpt = {
+        'state_dict': model.state_dict(),
+        'model_class': model_class,
+        'model_config': model_config,
+    }
+    torch.save(ckpt, save_path)
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-R', '--root-dir', type=str, required=True)
     parser.add_argument('-DD', '--data-dirs', nargs='+', required=True)
     parser.add_argument('-M', '--model', type=str, required=True)
-    parser.add_argument('-MV', '--model-version', type=str, default='v2')
+    parser.add_argument('-MC', '--model-config', type=str, default='A0')
     parser.add_argument('-VR', '--val-ratio', type=float, default=0.2)
     parser.add_argument('-CF', '--control-folder', type=str, default="controls")
     parser.add_argument('-OF', '--output-folder', type=str, default="outputs")
@@ -105,15 +114,15 @@ if __name__ == '__main__':
         force_preprocess=args.force_preprocess,
         control_folder=args.control_folder,
         output_folder=args.output_folder)
-    norm_data = dataset.norm_data
 
     train_dataset, val_dataset = split_dataset(dataset, args.val_ratio)
     iter_loader = get_batch(get_dataloader(args.batch_size, train_dataset))
     val_loader = get_dataloader(args.batch_size, val_dataset, is_train=False)
 
-    model_config = dataset.get_meta_data()
-    model_config['version'] = args.model_version
-    model = MODEL_CLASS[args.model][args.model_version](**model_config)
+    model_config = MODEL_CONFIGS[args.model_config]
+    model_class = MODEL_CLASSES[args.model]
+    model_config.update(dataset.get_meta_data())
+    model = model_class(**model_config)
 
     if args.finetune:
         ckpt = torch.load(args.ckpt_path)
@@ -122,10 +131,6 @@ if __name__ == '__main__':
     optimizer = OPTIM[args.optimizer](model.parameters(), lr=args.lr, weight_decay=args.wd)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, min_lr=args.min_lr, patience=args.lr_patience)
     criterion = torch.nn.MSELoss()
-
-    def save_checkpoint(model, norm_data, save_name):
-        torch.save({'state_dict': model.state_dict(), 'norm_data': norm_data}, 
-            f"{args.root_dir}/checkpoints/{save_name}.pth")
 
     loss_stats = {'train':[], 'val':[]}
     loss_best = 1e8
@@ -147,10 +152,13 @@ if __name__ == '__main__':
             
             print(f'Iter[{step}/{args.max_iters}] Val Loss: {loss_val:.6f}')
             
-            save_checkpoint(model, norm_data, save_name=f'step={step}')
+            save_path = f"{args.root_dir}/checkpoints/step-{step}.pth"
+            save_checkpoint(model, args.model, model_config, save_path)
+            
             if loss_val < loss_best:
                 loss_best = loss_val
-                save_checkpoint(model, norm_data, save_name="model_best")
+                save_path = f"{args.root_dir}/ckpt_best.pth"
+                save_checkpoint(model, args.model, model_config, save_path)
 
             loss_stats['val'].append((step, loss_val))
             save_json_data(loss_stats, f'{args.root_dir}/loss_stats.json')

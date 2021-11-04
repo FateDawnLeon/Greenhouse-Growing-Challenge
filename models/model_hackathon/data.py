@@ -49,6 +49,7 @@ class ActionParser:
             "comp1.screens.scr2.@material": self.parse_material,  # e.g. 'scr_Transparent.par'
             "comp1.illumination.lmp1.@intensity": self.parse_other,  # e.g. 100
             "comp1.illumination.lmp1.@maxIglob": self.parse_other,  # e.g. 500
+            "comp1.illumination.lmp1.@enabled": self.parse_enable,  # e.g. True
         }
 
     def parse(self):

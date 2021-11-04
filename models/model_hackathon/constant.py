@@ -177,6 +177,7 @@ CP_KEYS = [
     "comp1.screens.scr2.@material",  # e.g. 'scr_Transparent.par'
     "comp1.illumination.lmp1.@intensity",  # e.g. 100
     "comp1.illumination.lmp1.@maxIglob",  # e.g. 500
+    "comp1.illumination.lmp1.@enabled",  # e.g. True
 ]
 EP_KEYS = [
     'common.Iglob.Value',
