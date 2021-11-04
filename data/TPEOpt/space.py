@@ -2,6 +2,29 @@ from ray import tune
 import numpy as np
 import random
 
+def pd_str2arr(max_days, pd_str):
+    arr = np.zeros(max_days, dtype=np.int32)
+    setpoints = [sp_str.split() for sp_str in pd_str.split('; ')]
+    for day, val in setpoints:
+        day = int(day)
+        val = int(val)
+        arr[day-1:] = val
+    return arr
+
+def compute_averageHeadPerM2(pd_arr):
+    return len(pd_arr) / (1 / pd_arr).sum()
+
+def compute_spacing_cost(max_days, pd_str):
+    num_spacing_changes = len(pd_str.split('; ')) - 1
+    fraction_of_year = max_days / 365
+    return num_spacing_changes * 1.5 * fraction_of_year
+
+def compute_max_return(max_days, pd_str):
+    pd_arr = pd_str2arr(max_days, pd_str)
+    avgHead = compute_averageHeadPerM2(pd_arr)
+    plant_cost = avgHead * 0.12
+    spacing_cost = compute_spacing_cost(max_days, pd_str)
+    return 0.55 * avgHead - plant_cost - spacing_cost
 
 def make_plant_density(max_days):
     start_density_range = np.arange(80, 91, 5)  # 80,85,90
@@ -55,7 +78,7 @@ def make_plant_density(max_days):
 
 
 SPACES = {
-    'G1': {
+    'G1': {  # netprofit=-5.003 and parameters={'duration': 35, 'heatingTemp_night': 7.5, 'heatingTemp_day': 21, 'CO2_pureCap': 280, 'CO2_setpoint_night': 480, 'CO2_setpoint_day': 1110, 'CO2_setpoint_lamp': 0, 'light_intensity': 20, 'light_hours': 8, 'light_endTime': 19.5, 'light_maxIglob': 260, 'scr1_ToutMax': 5, 'vent_startWnd': 55, 'plantDensity': '1 80; 6 45; 12 15; 20 5'}
         "duration": 35,
         "heatingTemp_night": 7.5,
         "heatingTemp_day": 21,
@@ -71,7 +94,23 @@ SPACES = {
         "vent_startWnd": 55,
         "plantDensity": tune.choice(make_plant_density(35)),
     },
-    'G2': {
+    'G1BEST': {  # netprofit=-5.003 and parameters={'duration': 35, 'heatingTemp_night': 7.5, 'heatingTemp_day': 21, 'CO2_pureCap': 280, 'CO2_setpoint_night': 480, 'CO2_setpoint_day': 1110, 'CO2_setpoint_lamp': 0, 'light_intensity': 20, 'light_hours': 8, 'light_endTime': 19.5, 'light_maxIglob': 260, 'scr1_ToutMax': 5, 'vent_startWnd': 55, 'plantDensity': '1 80; 6 45; 12 15; 20 5'}
+        "duration": 35,
+        "heatingTemp_night": 7.5,
+        "heatingTemp_day": 21,
+        "CO2_pureCap": 280,
+        "CO2_setpoint_night": 480,
+        "CO2_setpoint_day": 1110,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 20,
+        "light_hours": 8,
+        "light_endTime": 19.5,
+        "light_maxIglob": 260,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 55,
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },
+    'G2': { # netprofit=-4.374 and parameters={'duration': 36, 'heatingTemp_night': 3.5, 'heatingTemp_day': 16.0, 'CO2_pureCap': 265, 'CO2_setpoint_night': 600, 'CO2_setpoint_day': 1130, 'CO2_setpoint_lamp': 0, 'light_intensity': 0, 'light_hours': 11, 'light_endTime': 18.0, 'light_maxIglob': 200, 'scr1_ToutMax': 5.6000000000000005, 'vent_startWnd': 52.0, 'plantDensity': '1 80; 6 45; 12 15; 20 5'}
         "duration": tune.qrandint(lower=35, upper=45, q=1),
         "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
         "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
@@ -85,6 +124,183 @@ SPACES = {
         "light_maxIglob": tune.qrandint(lower=200, upper=500, q=10),
         "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2),
         "vent_startWnd": tune.quniform(lower=48, upper=57, q=1),
-        "plantDensity": '',
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
     },
+    'G2BEST': { # netprofit=-4.374 and parameters={'duration': 36, 'heatingTemp_night': 3.5, 'heatingTemp_day': 16.0, 'CO2_pureCap': 265, 'CO2_setpoint_night': 600, 'CO2_setpoint_day': 1130, 'CO2_setpoint_lamp': 0, 'light_intensity': 0, 'light_hours': 11, 'light_endTime': 18.0, 'light_maxIglob': 200, 'scr1_ToutMax': 5.6000000000000005, 'vent_startWnd': 52.0, 'plantDensity': '1 80; 6 45; 12 15; 20 5'}
+        "duration": 36,
+        "heatingTemp_night":  3.5,
+        "heatingTemp_day": 16.0,
+        "CO2_pureCap": 265,
+        "CO2_setpoint_night": 600,
+        "CO2_setpoint_day": 1130,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 0,
+        "light_hours": 11,
+        "light_endTime": 18.0,
+        "light_maxIglob": 200,
+        "scr1_ToutMax": 5.6000000000000005,
+        "vent_startWnd": 52,
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },
+    'G3': {  # netprofit=-4.307 and parameters={'duration': 37, 'heatingTemp_night': 3.5, 'heatingTemp_day': 16.0, 'CO2_pureCap': 260, 'CO2_setpoint_night': 300, 'CO2_setpoint_day': 410, 'CO2_setpoint_lamp': 0, 'light_intensity': 0, 'light_hours': 8, 'light_endTime': 18.0, 'light_maxIglob': 250, 'scr1_ToutMax': 5.0, 'vent_startWnd': 52.0, 'plantDensity': '1 80; 6 45; 12 15; 20 5'}
+        "duration": tune.qrandint(lower=35, upper=45, q=1),
+        "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
+        "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
+        "CO2_pureCap": tune.qrandint(lower=250, upper=280, q=5),
+        "CO2_setpoint_night": tune.qrandint(lower=0, upper=400, q=10),
+        "CO2_setpoint_day": tune.qrandint(lower=400, upper=1200, q=10),
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": tune.qrandint(lower=0, upper=100, q=5),
+        "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": tune.qrandint(lower=200, upper=500, q=10),
+        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2),
+        "vent_startWnd": tune.quniform(lower=48, upper=57, q=1),
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },
+    'G3BEST': {  # -4.281
+        'duration': 36, 
+        'heatingTemp_night': 3.5, 
+        'heatingTemp_day': 16.5, 
+        'CO2_pureCap': 265, 
+        'CO2_setpoint_night': 190, 
+        'CO2_setpoint_day': 460, 
+        'CO2_setpoint_lamp': 0, 
+        'light_intensity': 0, 
+        'light_hours': 13, 
+        'light_endTime': 18.0, 
+        'light_maxIglob': 280, 
+        'scr1_ToutMax': 5.4, 
+        'vent_startWnd': 48.0, 
+        'plantDensity': '1 80; 6 45; 12 15; 20 5'
+    },
+    'G4': { 
+        "duration": tune.qrandint(lower=35, upper=60, q=2),
+        "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
+        "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
+        "CO2_pureCap": tune.qrandint(lower=250, upper=280, q=5),
+        "CO2_setpoint_night": tune.qrandint(lower=0, upper=400, q=10),
+        "CO2_setpoint_day": tune.qrandint(lower=400, upper=1200, q=10),
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": tune.qrandint(lower=0, upper=500, q=20),
+        "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": tune.qrandint(lower=200, upper=500, q=10),
+        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2),
+        "vent_startWnd": tune.quniform(lower=48, upper=57, q=1),
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },
+    'G5': { 
+        "duration": tune.qrandint(lower=38, upper=42, q=1),
+        "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
+        "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
+        "CO2_pureCap": tune.qrandint(lower=250, upper=280, q=5),
+        "CO2_setpoint_night": tune.qrandint(lower=0, upper=400, q=10),
+        "CO2_setpoint_day": tune.qrandint(lower=400, upper=1200, q=10),
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": tune.qrandint(lower=100, upper=500, q=20),
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": tune.qrandint(lower=200, upper=500, q=10),
+        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2),
+        "vent_startWnd": tune.quniform(lower=48, upper=57, q=1),
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },
+    'G6': { 
+        "duration": tune.qrandint(lower=38, upper=42, q=1),
+        "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
+        "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
+        "CO2_pureCap": tune.qrandint(lower=250, upper=280, q=5),
+        "CO2_setpoint_night": tune.qrandint(lower=0, upper=400, q=10),
+        "CO2_setpoint_day": tune.qrandint(lower=400, upper=1200, q=10),
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": tune.qrandint(lower=0, upper=100, q=20),
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": 800,
+        "scr1_ToutMax": tune.quniform(lower=4, upper=6, q=0.2),
+        "vent_startWnd": tune.quniform(lower=48, upper=57, q=1),
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },
+    'G7': { 
+        "duration": tune.qrandint(lower=38, upper=50, q=1),
+        "heatingTemp_night": 5,
+        "heatingTemp_day": 20,
+        "CO2_pureCap": 300,
+        "CO2_setpoint_night": 400,
+        "CO2_setpoint_day": 1200,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 0,
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 55,
+        "plantDensity": "1 80; 6 45; 12 15; 20 5",
+    },  
+    'G8': { 
+        "duration": 40,
+        "heatingTemp_night": 5,
+        "heatingTemp_day": 20,
+        "CO2_pureCap": 300,
+        "CO2_setpoint_night": 400,
+        "CO2_setpoint_day": 1200,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 0,
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 55,
+        "plantDensity": tune.choice(make_plant_density(40)),
+    },
+    'G9': { 
+        "duration": 40,
+        "heatingTemp_night": 10,
+        "heatingTemp_day": 25,
+        "CO2_pureCap": 300,
+        "CO2_setpoint_night": 400,
+        "CO2_setpoint_day": 1200,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 100,
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 55,
+        "plantDensity":  '1 90; 8 65; 18 45; 26 25; 35 15',
+    },
+    'G10': { 
+        "duration": 40,
+        "heatingTemp_night": 10,
+        "heatingTemp_day": 25,
+        "CO2_pureCap": 300,
+        "CO2_setpoint_night": 400,
+        "CO2_setpoint_day": 1200,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 100,
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 55,
+        "plantDensity":  '1 90; 26 80; 35 60; 40 40',
+    },
+    'G11': { 
+        "duration": 40,
+        "heatingTemp_night": 10,
+        "heatingTemp_day": 25,
+        "CO2_pureCap": 300,
+        "CO2_setpoint_night": 400,
+        "CO2_setpoint_day": 1200,
+        "CO2_setpoint_lamp": 0,
+        "light_intensity": 130,
+        # "light_hours": tune.qrandint(lower=0, upper=18, q=1),
+        # "light_endTime": tune.quniform(lower=18, upper=20, q=0.5),
+        "light_maxIglob": 800,
+        "scr1_ToutMax": 5,
+        "vent_startWnd": 55,
+        "plantDensity": '1 80; 6 50; 12 25; 18 5'
+    },
+
 }

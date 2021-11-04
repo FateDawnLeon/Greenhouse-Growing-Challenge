@@ -23,52 +23,78 @@ def generate_control(config):
     CO2_setpoint_day = float(config["CO2_setpoint_day"])
     CO2_setpoint_lamp = float(config["CO2_setpoint_lamp"])
     light_intensity = float(config["light_intensity"])
-    light_hours = float(config["light_hours"])
-    light_endTime = float(config["light_endTime"])
+    # light_hours = float(config["light_hours"])
+    # light_endTime = float(config["light_endTime"])
     light_maxIglob = float(config["light_maxIglob"])
     plantDensity = str(config["plantDensity"])
     scr1_ToutMax = float(config["scr1_ToutMax"])
     vent_startWnd = float(config["vent_startWnd"])
 
-    CP = ControlParamSimple()
-    CP.set_endDate(duration)
-
-    heating_temp_scheme = {}
+    light_endTime = {}
+    light_hours = {}
     for d in range(duration):
         cur = start_date + datetime.timedelta(days=d)
         key = "{:02d}-{:02d}".format(cur.day, cur.month)
         city = lookup("Amsterdam", database())
-        starttime_a = get_sun_rise_and_set(cur, city)[0]
-        starttime_b = float(light_endTime) - float(light_hours)
-        starttime = min(starttime_a, starttime_b)
-        endtime = light_endTime
-        # endtime = get_sun_rise_and_set(cur, city)[1]
-        heating_temp_scheme[key] =  {
-            str(starttime): heatingTemp_night,
-            str(starttime+1): heatingTemp_day,
-            str(endtime-1): heatingTemp_day,
-            str(endtime): heatingTemp_night
+        sunrise, sunset = get_sun_rise_and_set(cur, city)
+        light_endTime[key] = sunset
+        light_hours[key] = sunset - sunrise
+
+    CP = ControlParamSimple()
+    CP.set_endDate(duration)
+
+    # heating_temp_scheme = {}
+    # for d in range(duration):
+    #     cur = start_date + datetime.timedelta(days=d)
+    #     key = "{:02d}-{:02d}".format(cur.day, cur.month)
+    #     city = lookup("Amsterdam", database())
+    #     starttime_a = get_sun_rise_and_set(cur, city)[0]
+    #     starttime_b = float(light_endTime) - float(light_hours)
+    #     starttime = min(starttime_a, starttime_b)
+    #     endtime = light_endTime
+    #     # endtime = get_sun_rise_and_set(cur, city)[1]
+    #     heating_temp_scheme[key] =  {
+    #         str(starttime): heatingTemp_night,
+    #         str(starttime+1): heatingTemp_day,
+    #         str(endtime-1): heatingTemp_day,
+    #         str(endtime): heatingTemp_night
+    #     }
+    heating_temp_scheme = {
+        "01-01": {
+            "r": heatingTemp_night,
+            "r+1": heatingTemp_day, 
+            "s-1": heatingTemp_day, 
+            "s": heatingTemp_night
         }
+    }
 
     CP.set_value("comp1.setpoints.temp.@heatingTemp", heating_temp_scheme)
     CP.set_value("common.CO2dosing.@pureCO2cap", CO2_pureCap)
 
-    CO2_setpoint_scheme = {}
-    for d in range(duration):
-        cur = start_date + datetime.timedelta(days=d)
-        key = "{:02d}-{:02d}".format(cur.day, cur.month)
-        city = lookup("Amsterdam", database())
-        starttime_a = get_sun_rise_and_set(cur, city)[0]
-        starttime_b = float(light_endTime) - float(light_hours)
-        starttime = min(starttime_a, starttime_b)
-        endtime = light_endTime
-        # endtime = get_sun_rise_and_set(cur, city)[1]
-        CO2_setpoint_scheme[key] =  {
-            str(starttime): CO2_setpoint_night,
-            str(starttime+1): CO2_setpoint_day,
-            str(endtime-1): CO2_setpoint_day,
-            str(endtime): CO2_setpoint_night
+    # CO2_setpoint_scheme = {}
+    # for d in range(duration):
+    #     cur = start_date + datetime.timedelta(days=d)
+    #     key = "{:02d}-{:02d}".format(cur.day, cur.month)
+    #     city = lookup("Amsterdam", database())
+    #     starttime_a = get_sun_rise_and_set(cur, city)[0]
+    #     starttime_b = float(light_endTime) - float(light_hours)
+    #     starttime = min(starttime_a, starttime_b)
+    #     endtime = light_endTime
+    #     # endtime = get_sun_rise_and_set(cur, city)[1]
+    #     CO2_setpoint_scheme[key] =  {
+    #         str(starttime): CO2_setpoint_night,
+    #         str(starttime+1): CO2_setpoint_day,
+    #         str(endtime-1): CO2_setpoint_day,
+    #         str(endtime): CO2_setpoint_night
+    #     }
+    CO2_setpoint_scheme = {
+        "01-01": {
+            "r": CO2_setpoint_night,
+            "r+1": CO2_setpoint_day, 
+            "s-1": CO2_setpoint_day, 
+            "s": CO2_setpoint_night
         }
+    }
             
     CP.set_value("comp1.setpoints.CO2.@setpoint", CO2_setpoint_scheme)
     CP.set_value("comp1.setpoints.CO2.@setpIfLamps", CO2_setpoint_lamp)
@@ -92,6 +118,17 @@ def objective(config, checkpoint_dir=None):
     
     balance = output['stats']['economics']['balance']
     print(f'Netprofit={balance}, Config={config}')
+    print(output['stats']['economics'])
+    PL_KEYS = [
+        "comp1.Plant.headFW",
+        "comp1.Plant.fractionGroundCover",
+        "comp1.Plant.shootDryMatterContent",
+        "comp1.Plant.qualityLoss",
+    ]  # 4
+    for key in PL_KEYS:
+        data = output['data'][key]['data']
+        print(key, data[-1])
+    
 
     best_control_file_list = glob.glob(f'{BEST_DIR}/best_control_*.json')
     if len(best_control_file_list) == 0:
