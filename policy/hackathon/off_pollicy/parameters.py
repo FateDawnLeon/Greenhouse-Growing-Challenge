@@ -10,3 +10,7 @@ hyper = {
     'batch_size': 5000,  
     'seed': 1
 }
+
+data_path = 'data/local/'
+prefix = 'model_batch5'
+experiment_path = f'{data_path}{prefix}/{hyper}'
