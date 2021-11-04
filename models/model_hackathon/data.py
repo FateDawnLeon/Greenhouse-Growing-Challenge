@@ -208,14 +208,6 @@ class ControlParser:
         h_s = s['sunset'].hour + s['sunset'].minute / 60
         return h_r, h_s
 
-    # @staticmethod
-    # def schedule2arr(schedule, t_rise, t_set, preprocess):
-    #     key_value_pairs = list(schedule.items())
-    #     locals = {'r': t_rise, 's': t_set}
-    #     convert = lambda t: eval(t, locals)
-    #     kv_list = [[convert(t)] + preprocess(v) for t, v in key_value_pairs]
-    #     return ControlParser.flatten(sorted(kv_list))
-
     @staticmethod
     def schedule2list(schedule, t_rise, t_set, preprocess):
         convert = lambda t: eval(t, {'r': t_rise, 's': t_set})
@@ -396,9 +388,7 @@ class ControlParser:
 
     def parse_scr_enabled(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@enabled")
-        valid_dtype = [bool]
-        preprocess = lambda x: [x == True, x == False]
-        return self.value2arr(value, preprocess, valid_dtype)
+        return self._parse_bool_params(value)
 
     def parse_scr_material(self, control, scr_id):
         value = self.get_value(control, f"comp1.screens.scr{scr_id}.@material")
@@ -435,8 +425,11 @@ class ControlParser:
 
     def parse_lmp1_enabled(self, control):
         value = self.get_value(control, "comp1.illumination.lmp1.@enabled")
+        return self._parse_bool_params(value)
+
+    def _parse_bool_params(self, value):
         valid_dtype = [bool]
-        preprocess = lambda x: [float(x)]
+        preprocess = lambda x: [x == True, x == False]
         return self.value2arr(value, preprocess, valid_dtype)
 
     def parse_lmp1_intensity(self, control):
