@@ -25,10 +25,11 @@ from her_replay_buffer import HERReplayBuffer
 from garage.tf.q_functions import ContinuousMLPQFunction
 from garage.trainer import TFTrainer
 from parameters import hyper as h
+from parameters import prefix
 
 import psutil
 
-@wrap_experiment(prefix='model_batch5', name=f'{h}', snapshot_mode='all')  # snapshot_mode='last'/'all'
+@wrap_experiment(prefix=prefix, name=f'{h}', snapshot_mode='all')  # snapshot_mode='last'/'all'
 def rl_greenhouse(ctxt, pl=h['pl'], pls=h['pls'], qfs=h['qfs'], buffer=h['buffer'], expl=h['expl'],\
      n_cycles=h['n_cycles'], n_epochs=h['n_epochs'], batch_size=h['batch_size'], seed=h['seed']):
     """Train DDPG with greenhouse sim.
@@ -76,7 +77,7 @@ def rl_greenhouse(ctxt, pl=h['pl'], pls=h['pls'], qfs=h['qfs'], buffer=h['buffer
                              max_episode_length=env.spec.max_episode_length,
                              is_tf_worker=True,
                              worker_class=FragmentWorker,
-                             worker_args=dict(n_envs=64),
+                             worker_args=dict(n_envs=32),
                              n_workers=psutil.cpu_count(logical=True)
                              )
 
