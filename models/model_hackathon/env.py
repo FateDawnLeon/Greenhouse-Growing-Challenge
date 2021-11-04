@@ -102,7 +102,7 @@ class GreenhouseSim(gym.Env):
 
         self.iter = 0
         self.cum_head_m2 = 1. / BO_CONTROLS['init_plant_density']
-        self.num_spacings = 0
+        self.num_spacings = 0  # number of spacing __CHANGES__
 
         state = np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None, dtype=np.float32)  # flatten
         return state
@@ -237,7 +237,7 @@ class GreenhouseSim(gym.Env):
                        + int(BO_CONTROLS['comp1.screens.scr2.@enabled'])) * 1.25 / 365
         # spacing changes
         if action_dict['crp_lettuce.Intkam.management.@plantDensity'][1]:
-            cost_spacing = (it - 1) * 1.5 / 365
+            cost_spacing = it * 1.5 / 365
         else:
             cost_spacing = 0
         cost_spacing += num_spacings * 1.5 / 365
