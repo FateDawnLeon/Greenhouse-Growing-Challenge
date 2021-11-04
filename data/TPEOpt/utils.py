@@ -2,7 +2,7 @@ import os
 import json
 import datetime
 import requests
-
+from astral.sun import sun
 
 KEYS = {
     'A': 'C48A-ZRJQ-3wcq-rGuC-mEme',
@@ -12,12 +12,10 @@ KEYS = {
     'hack': 'H17-KyEO-iDtD-mVGR'
 }
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
-START_DATE = datetime.date(2021, 3, 4)
-
+EARLY_START_DATE = datetime.date(2021, 2, 25)
 
 # TODO: change this to the ***absolute*** path of 'ClimateControlSample.json' on your own machine
-SAMPLE_CONTROL_PATH = "/home/liuys/Greenhouse-Growing-Challenge/data/samples/ClimateControlSample.json"
-
+SAMPLE_CONTROL_PATH = f"{os.path.dirname(os.path.abspath(__file__))}/ClimateControlSample.json"
 
 def query_simulator(control, sim_id):
     data = {"key": KEYS[sim_id], "parameters": json.dumps(control)}
@@ -37,6 +35,11 @@ def query_simulator(control, sim_id):
     
     return output
 
+def get_sun_rise_and_set(dateinfo, cityinfo):
+    s = sun(cityinfo.observer, date=dateinfo, tzinfo=cityinfo.timezone)
+    h_r = s['sunrise'].hour + s['sunrise'].minute / 60
+    h_s = s['sunset'].hour + s['sunset'].minute / 60
+    return h_r, h_s
 
 def load_json_data(path):
     with open(path, 'r') as f:
@@ -62,9 +65,9 @@ def valseq_to_scheme(vals, start_date):
 
 
 class ControlParamSimple(object):
-    def __init__(self):
+    def __init__(self, start_date):
         super().__init__()
-        self.start_date = START_DATE
+        self.start_date = start_date
         self.data = load_json_data(SAMPLE_CONTROL_PATH)
 
     def dump_json(self, save_dir, save_name=None):

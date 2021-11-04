@@ -4,14 +4,19 @@ import glob
 from ray import tune
 from ray.tune.suggest import ConcurrencyLimiter
 from ray.tune.suggest.hyperopt import HyperOptSearch
+from astral.geocoder import lookup, database
+import datetime
 
 from submit import BEST_DIR, SIM_ID
 from space import SPACES
-from utils import query_simulator, ControlParamSimple, save_json_data
-
+from utils import query_simulator, get_sun_rise_and_set, save_json_data, \
+    ControlParamSimple, EARLY_START_DATE
+import datetime
 
 def generate_control(config):
-    num_days = int(config["num_days"])
+    start_date_gap = int(config["start_date_gap"])
+    start_date = EARLY_START_DATE + datetime.timedelta(days=start_date_gap)
+    duration = int(config["duration"])
     heatingTemp_night = float(config["heatingTemp_night"])
     heatingTemp_day = float(config["heatingTemp_day"])
     CO2_pureCap = float(config["CO2_pureCap"])
@@ -26,34 +31,46 @@ def generate_control(config):
     scr1_ToutMax = float(config["scr1_ToutMax"])
     vent_startWnd = float(config["vent_startWnd"])
 
-    CP = ControlParamSimple()
-    CP.set_endDate(num_days)
-    heating_temp_scheme = {
-        "01-01": {
-            # "r-1": heatingTemp_night,
-            # "r+1": heatingTemp_day, 
-            # "s-1": heatingTemp_day, 
-            # "s+1": heatingTemp_night
-            "r": heatingTemp_night,
-            "8": heatingTemp_day, 
-            "17": heatingTemp_day, 
-            "s": heatingTemp_night
+    CP = ControlParamSimple(start_date)
+    CP.set_endDate(duration)
+
+    heating_temp_scheme = {}
+    for d in range(duration):
+        cur = start_date + datetime.timedelta(days=d)
+        key = "{:02d}-{:02d}".format(cur.day, cur.month)
+        city = lookup("Amsterdam", database())
+        starttime_a = get_sun_rise_and_set(cur, city)[0]
+        starttime_b = float(light_endTime) - float(light_hours)
+        starttime = min(starttime_a, starttime_b)
+        endtime = light_endTime
+        # endtime = get_sun_rise_and_set(cur, city)[1]
+        heating_temp_scheme[key] =  {
+            str(starttime): heatingTemp_night,
+            str(starttime+1): heatingTemp_day,
+            str(endtime-1): heatingTemp_day,
+            str(endtime): heatingTemp_night
         }
-    }
+
     CP.set_value("comp1.setpoints.temp.@heatingTemp", heating_temp_scheme)
     CP.set_value("common.CO2dosing.@pureCO2cap", CO2_pureCap)
-    CO2_setpoint_scheme = {
-        "01-01": {
-            # "r": CO2_setpoint_night, 
-            # "r+1": CO2_setpoint_day,
-            # "s-1": CO2_setpoint_day, 
-            # "s": CO2_setpoint_night,
-            "r": CO2_setpoint_night, 
-            "8": CO2_setpoint_day,
-            "17": CO2_setpoint_day, 
-            "s": CO2_setpoint_night,
+
+    CO2_setpoint_scheme = {}
+    for d in range(duration):
+        cur = start_date + datetime.timedelta(days=d)
+        key = "{:02d}-{:02d}".format(cur.day, cur.month)
+        city = lookup("Amsterdam", database())
+        starttime_a = get_sun_rise_and_set(cur, city)[0]
+        starttime_b = float(light_endTime) - float(light_hours)
+        starttime = min(starttime_a, starttime_b)
+        endtime = light_endTime
+        # endtime = get_sun_rise_and_set(cur, city)[1]
+        CO2_setpoint_scheme[key] =  {
+            str(starttime): CO2_setpoint_night,
+            str(starttime+1): CO2_setpoint_day,
+            str(endtime-1): CO2_setpoint_day,
+            str(endtime): CO2_setpoint_night
         }
-    }
+            
     CP.set_value("comp1.setpoints.CO2.@setpoint", CO2_setpoint_scheme)
     CP.set_value("comp1.setpoints.CO2.@setpIfLamps", CO2_setpoint_lamp)
     CP.set_value("comp1.illumination.lmp1.@enabled", light_intensity > 0)
