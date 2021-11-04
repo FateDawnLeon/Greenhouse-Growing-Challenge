@@ -30,7 +30,7 @@ class GreenhouseSim(gym.Env):
     num_op = len(OP_KEYS) * 24
     num_pl = len(PL_KEYS)
 
-    def __init__(self, training=True, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
+    def __init__(self, training=True, grad_gain=False, climate_model_paths=CLIMATE_MODEL_PATH, plant_model_path=PLANT_MODEL_PATH,
                  full_ep_path=FULL_EP_PATH, full_peakhour_path=FULL_PEAKHOUR_PATH, traces_dir=TRACES_DIR):
         action_lo, action_hi = get_range(ACTION_PARAM_SPACE.keys(), ACTION_PARAM_SPACE)
         self.action_space = gym.spaces.Box(low=action_lo, high=action_hi)
@@ -38,6 +38,7 @@ class GreenhouseSim(gym.Env):
                                                 shape=(self.num_ep + self.num_op + self.num_pl + 1,))
 
         self.training = training
+        self.grad_gain = grad_gain
 
         if self.training:
             # load initial state distribution
@@ -152,8 +153,8 @@ class GreenhouseSim(gym.Env):
                                       axis=None, dtype=np.float32)
 
         # compute reward
-        gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new, self.training)
-        gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2, self.training)
+        gain_curr = self.gain(pl_new, self.iter + 1, cum_head_m2_new, self.grad_gain)
+        gain_prev = self.gain(self.pl, self.iter, self.cum_head_m2, self.grad_gain)
         fixed_cost, _ = self.fixed_cost(action_dict, self.iter + 1, num_spacings_new, delta_avg_head_m2)
         variable_cost, _ = self.variable_cost(self.peakhour_trace[self.iter], op_new)
         reward = gain_curr - gain_prev - fixed_cost - variable_cost
@@ -192,12 +193,12 @@ class GreenhouseSim(gym.Env):
         raise NotImplementedError
 
     @staticmethod
-    def gain(pl, it, cum_head_m2, training):
+    def gain(pl, it, cum_head_m2, grad_gain):
         fw = pl[PL_INDEX['comp1.Plant.headFW']]
         dmc = pl[PL_INDEX['comp1.Plant.shootDryMatterContent']]
         quality_loss = pl[PL_INDEX['comp1.Plant.qualityLoss']]
 
-        if training:  # use a slightly different profit curve during training
+        if grad_gain:  # use a slightly different profit curve during training
             if fw <= 230:
                 price = 0.4 * fw / 230
             elif fw <= 250:

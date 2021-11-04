@@ -20,7 +20,7 @@ from garage.sampler import LocalSampler, RaySampler, DefaultWorker, VecWorker, F
 from ddpg import DDPG
 from garage.tf.policies import GaussianMLPPolicy, GaussianLSTMPolicy, ContinuousMLPPolicy
 from garage.np.exploration_policies import AddOrnsteinUhlenbeckNoise, AddGaussianNoise, epsilon_greedy_policy
-from bath_buffer import PathBuffer
+from path_buffer import PathBuffer
 from her_replay_buffer import HERReplayBuffer
 from garage.tf.q_functions import ContinuousMLPQFunction
 from garage.trainer import TFTrainer
@@ -31,7 +31,7 @@ import psutil
 
 @wrap_experiment(prefix=prefix, name=f'{h}', snapshot_mode='all')  # snapshot_mode='last'/'all'
 def rl_greenhouse(ctxt, pl=h['pl'], pls=h['pls'], qfs=h['qfs'], buffer=h['buffer'], expl=h['expl'],\
-     n_cycles=h['n_cycles'], n_epochs=h['n_epochs'], batch_size=h['batch_size'], seed=h['seed']):
+     n_cycles=h['n_cycles'], n_epochs=h['n_epochs'], batch_size=h['batch_size'], seed=h['seed'], grad_gain=h['grad_gain']):
     """Train DDPG with greenhouse sim.
 
     Args:
@@ -43,7 +43,7 @@ def rl_greenhouse(ctxt, pl=h['pl'], pls=h['pls'], qfs=h['qfs'], buffer=h['buffer
     """
     set_seed(seed)
     with TFTrainer(ctxt) as trainer:
-        gh_env = GreenhouseSim(training=True)
+        gh_env = GreenhouseSim(training=True, grad_gain=grad_gain)
         env = normalize(GymEnv(gh_env))
 
         if pl == 'cont':

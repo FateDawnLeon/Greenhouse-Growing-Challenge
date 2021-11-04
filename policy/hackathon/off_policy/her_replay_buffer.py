@@ -6,7 +6,7 @@ import copy
 
 import numpy as np
 
-from garage.replay_buffer.path_buffer import PathBuffer
+from path_buffer import PathBuffer
 
 
 class HERReplayBuffer(PathBuffer):

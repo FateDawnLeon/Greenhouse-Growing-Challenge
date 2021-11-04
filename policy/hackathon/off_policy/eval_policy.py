@@ -24,7 +24,7 @@ def predict_actions(num_trials, policy_itr = 30):
         # # See what the trained policy can accomplish
         # # Load the policy and the env in which it was trained
         policy = data['algo'].policy
-        gh_env = GreenhouseSim(training=False)
+        gh_env = GreenhouseSim(training=False, grad_gain=False)
         env = normalize(GymEnv(gh_env))
         
         for i in range(num_trials):

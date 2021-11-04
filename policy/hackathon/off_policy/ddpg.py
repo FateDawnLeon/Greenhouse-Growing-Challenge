@@ -284,6 +284,7 @@ class DDPG(RLAlgorithm):
 
         for _ in trainer.step_epochs():
             for cycle in range(self._steps_per_epoch):
+                print(f'Train once: epochs:{_}/{trainer._train_args.n_epochs}; cycle:{cycle}/{self._steps_per_epoch}; itr:{trainer.step_itr}')
                 trainer.step_episode = trainer.obtain_episodes(
                     trainer.step_itr)
                 if hasattr(self.exploration_policy, 'update'):
@@ -302,7 +303,7 @@ class DDPG(RLAlgorithm):
         return np.mean(last_returns)
 
     def _train_once(self, itr, episodes):
-        # episodes are one trace
+        # episodes are traces with batch_size
         """Perform one step of policy optimization given one batch of samples.
 
         Args:
