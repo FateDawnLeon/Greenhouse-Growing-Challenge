@@ -183,7 +183,7 @@ class ControlParser:
             self.parse_lmp1_maxPARsum(control),
             self.parse_plant_density(control),
         ]
-        return np.concatenate(cp_list, axis=1, dtype=np.float32)  # D x CP_DIM
+        return np.concatenate(cp_list, axis=-1, dtype=np.float32)  # D x 24 x CP_DIM
 
     def parse2dict(self, keys):
         assert self.end_date > self.start_date
