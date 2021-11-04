@@ -133,8 +133,8 @@ class ControlParamSampleSpace(object):
 
         return CP
 
-    # 31 = 66 (latest end - ealiest start)- 35 (shortest period)
-    def sample_startdate(self, min=0, max=31):
+    # 30 = 65 (latest end - ealiest start)- 35 (shortest period)
+    def sample_startdate(self, min=0, max=30):
         startdate_gap = self.startdate_gap
         # startdate_gap = 17
         startdate =  datetime.date(2021, 2, 25) + datetime.timedelta(days=startdate_gap)
@@ -142,7 +142,7 @@ class ControlParamSampleSpace(object):
 
     def sample_enddate(self, startdate_gap, min = 35, max = 45):
         duration = random.randrange(min, max)
-        duration = 66 - startdate_gap if (startdate_gap+duration > 66) else duration
+        duration = 65 - startdate_gap if (startdate_gap+duration > 65) else duration
         startdate_gap = startdate_gap + duration
         enddate = datetime.date(2021, 2, 25) + datetime.timedelta(days=startdate_gap)
         return enddate, duration
