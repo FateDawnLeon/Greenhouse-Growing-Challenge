@@ -21,6 +21,7 @@ PL_INDEX = list_keys_to_index(PL_KEYS)
 
 BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
 
+
 class GreenhouseSim(gym.Env):
     MIN_PD = 5
     MIN_FW = 210
@@ -127,7 +128,10 @@ class GreenhouseSim(gym.Env):
             action_dict['crp_lettuce.Intkam.management.@plantDensity'][1] = 0
         cum_head_m2_new = self.cum_head_m2 + 1. / plant_density_new
         num_spacings_new = self.num_spacings + density_tuple[1]
-        delta_avg_head_m2 = cum_head_m2_new / (self.iter + 2) - self.cum_head_m2 / (self.iter + 1)
+        if self.iter == 0:
+            delta_avg_head_m2 = (self.iter + 1) / cum_head_m2_new
+        else:
+            delta_avg_head_m2 = (self.iter + 1) / cum_head_m2_new - self.iter / self.cum_head_m2
 
         # update @plantDensity from relative to absolute value
         model_action_dict = action_dict.copy()
@@ -214,7 +218,7 @@ class GreenhouseSim(gym.Env):
         price *= (1 - 0.01 * quality_loss)
 
         # adjust for density
-        avg_head_m2 = it / cum_head_m2
+        avg_head_m2 = (it + 1) / cum_head_m2
         price *= avg_head_m2
         return price
 
@@ -223,14 +227,14 @@ class GreenhouseSim(gym.Env):
         # plant cost
         cost_plant = delta_avg_head_m2 * 0.12
         # greenhouse occupation
-        cost_occupation = 11.5 / 365
+        cost_occupation = 17 / 365
         # CO2 dosing capacity
         cost_fix_co2 = BO_CONTROLS['common.CO2dosing.@pureCO2cap'] * 0.015 / 365
         # lamp maintenance
-        cost_lamp = BO_CONTROLS['comp1.illumination.lmp1.@intensity'] * 0.0281 / 365
+        cost_lamp = BO_CONTROLS['comp1.illumination.lmp1.@intensity'] * 0.0393 / 365
         # screen usage
         cost_screen = (int(BO_CONTROLS['comp1.screens.scr1.@enabled'])
-                       + int(BO_CONTROLS['comp1.screens.scr2.@enabled'])) * 0.75 / 365
+                       + int(BO_CONTROLS['comp1.screens.scr2.@enabled'])) * 1.25 / 365
         # spacing changes
         if action_dict['crp_lettuce.Intkam.management.@plantDensity'][1]:
             cost_spacing = (it - 1) * 1.5 / 365
