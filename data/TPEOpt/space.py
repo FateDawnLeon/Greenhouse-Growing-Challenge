@@ -2,6 +2,7 @@ from ray import tune
 import numpy as np
 import random
 
+
 def pd_str2arr(max_days, pd_str):
     arr = np.zeros(max_days, dtype=np.int32)
     setpoints = [sp_str.split() for sp_str in pd_str.split('; ')]
@@ -11,20 +12,25 @@ def pd_str2arr(max_days, pd_str):
         arr[day-1:] = val
     return arr
 
+
 def compute_averageHeadPerM2(pd_arr):
     return len(pd_arr) / (1 / pd_arr).sum()
+
 
 def compute_spacing_cost(max_days, pd_str):
     num_spacing_changes = len(pd_str.split('; ')) - 1
     fraction_of_year = max_days / 365
     return num_spacing_changes * 1.5 * fraction_of_year
 
+
 def compute_max_return(max_days, pd_str):
     pd_arr = pd_str2arr(max_days, pd_str)
     avgHead = compute_averageHeadPerM2(pd_arr)
+    max_product = 0.55 * avgHead
     plant_cost = avgHead * 0.12
     spacing_cost = compute_spacing_cost(max_days, pd_str)
-    return 0.55 * avgHead - plant_cost - spacing_cost
+    return max_product - plant_cost - spacing_cost
+
 
 def make_plant_density(max_days):
     start_density_range = np.arange(80, 91, 5)  # 80,85,90
@@ -75,6 +81,23 @@ def make_plant_density(max_days):
             control_densitys.append(control_density)
 
     return control_densitys
+
+
+def sample_pd(max_days, max_return_threshold=10):
+    while True:
+        setpoints = []
+        min_density = random.choice([5, 10, 15])
+        day, density = 1, random.choice([80, 85, 90])
+
+        while day <= max_days and density >= min_density:
+            setpoints.append(f'{day} {density}')
+            day += random.choice([5,6,7,8,9,10])
+            density -= random.choice([5,10,15,20,25,30,35])
+
+        pd_str = '; '.join(setpoints)
+
+        if compute_max_return(max_days, pd_str) > max_return_threshold:
+            return pd_str
 
 
 SPACES = {
@@ -300,7 +323,8 @@ SPACES = {
         "light_maxIglob": 800,
         "scr1_ToutMax": 5,
         "vent_startWnd": 55,
-        "plantDensity": '1 80; 6 50; 12 25; 18 5'
+        # "plantDensity": '1 80; 6 50; 12 25; 18 5',
+        "plantDensity": tune.sample_from(lambda spec: sample_pd(spec.config.duration)),
     },
 
 }

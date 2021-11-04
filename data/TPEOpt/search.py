@@ -30,6 +30,8 @@ def generate_control(config):
     scr1_ToutMax = float(config["scr1_ToutMax"])
     vent_startWnd = float(config["vent_startWnd"])
 
+    duration, plantDensity = config['nd_pd']
+
     light_endTime = {}
     light_hours = {}
     for d in range(duration):
