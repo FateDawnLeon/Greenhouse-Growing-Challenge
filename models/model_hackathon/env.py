@@ -6,7 +6,8 @@ import gym
 import numpy as np
 import torch
 
-from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, FULL_EP_PATH, FULL_PEAKHOUR_PATH, TRACES_DIR, BO_CONTROL_PATH, \
+from constant import CLIMATE_MODEL_PATH, PLANT_MODEL_PATH, FULL_EP_PATH, FULL_PEAKHOUR_PATH, TRACES_DIR, \
+    BO_CONTROL_PATH, \
     CP_KEYS, EP_KEYS, OP_KEYS, OP_IN_KEYS, PL_KEYS, PL_INIT_VALUE, ACTION_PARAM_SPACE, BOOL_ACTION_IDX, PD_DELTA_IDX, \
     INDEX_OP_TO_OP_IN, EARLIEST_START_DATE
 from constant import get_range
@@ -19,6 +20,7 @@ OP_INDEX = list_keys_to_index(OP_KEYS)
 PL_INDEX = list_keys_to_index(PL_KEYS)
 
 BO_CONTROLS = load_json_data(BO_CONTROL_PATH)
+
 
 class GreenhouseSim(gym.Env):
     MIN_PD = 5
@@ -46,7 +48,8 @@ class GreenhouseSim(gym.Env):
             #             TRACES_DIR/{IDX}/op_trace.npy
             #             TRACES_DIR/{IDX}/pl_trace.npy
             #             TRACES_DIR/{IDX}/pd_trace.npy
-            self.trace_paths = [f'{traces_dir}/{f}' for f in os.listdir(traces_dir) if os.path.isdir(f'{traces_dir}/{f}')]
+            self.trace_paths = [f'{traces_dir}/{f}' for f in os.listdir(traces_dir) if
+                                os.path.isdir(f'{traces_dir}/{f}')]
             self.op_trace = None
             self.pl_trace = None
             self.pd_trace = None
@@ -172,8 +175,9 @@ class GreenhouseSim(gym.Env):
         self.ep = self.ep_trace[self.iter + 1]
         if self.training:
             info = {
-            # only meaningful if SELF.TRAINING = True
-            'current_real_observation': np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None, dtype=np.float32)
+                # only meaningful if SELF.TRAINING = True
+                'current_real_observation': np.concatenate((self.ep, self.op, self.pl, self.pd), axis=None,
+                                                           dtype=np.float32)
             }
             # update state to real next state in the trace
             self.op = self.op_trace[self.iter]
@@ -249,10 +253,7 @@ class GreenhouseSim(gym.Env):
     def variable_cost(peakhour, op):
         # electricity cost
         electricity = op[:, OP_INDEX['comp1.Lmp1.ElecUse']]
-        if np.where(peakhour.squeeze() > 0.5):
-            cost_elec = electricity / 1000 * 0.1
-        else:
-            cost_elec = electricity / 1000 * 0.06
+        cost_elec = electricity / 1000 * np.where(peakhour.squeeze() > 0.5, 0.1, 0.06)
         # heating cost
         pipe_value = op[:, OP_INDEX['comp1.PConPipe1.Value']]
         cost_heating = pipe_value / 1000 * 0.03
@@ -262,4 +263,4 @@ class GreenhouseSim(gym.Env):
 
         cost_total = np.sum(cost_elec + cost_heating + cost_var_co2)
 
-        return cost_total, (cost_elec, cost_heating, cost_var_co2)
+        return cost_total, (np.sum(cost_elec), np.sum(cost_heating), np.sum(cost_var_co2))
