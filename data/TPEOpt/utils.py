@@ -12,7 +12,7 @@ KEYS = {
     'hack': 'H17-KyEO-iDtD-mVGR'
 }
 URL = 'https://www.digigreenhouse.wur.nl/Kasprobeta/'
-EARLY_START_DATE = datetime.date(2021, 2, 25)
+EARLY_START_DATE = datetime.date(2021, 2, 1)
 
 # TODO: change this to the ***absolute*** path of 'ClimateControlSample.json' on your own machine
 SAMPLE_CONTROL_PATH = f"{os.path.dirname(os.path.abspath(__file__))}/ClimateControlSample.json"
@@ -65,9 +65,9 @@ def valseq_to_scheme(vals, start_date):
 
 
 class ControlParamSimple(object):
-    def __init__(self, start_date):
+    def __init__(self):
         super().__init__()
-        self.start_date = start_date
+        self.start_date = EARLY_START_DATE
         self.data = load_json_data(SAMPLE_CONTROL_PATH)
 
     def dump_json(self, save_dir, save_name=None):
@@ -91,7 +91,6 @@ class ControlParamSimple(object):
     
     def set_endDate(self, num_days:int):
         end_date = self.start_date + datetime.timedelta(days=num_days)
-        self.set_value("simset.@startDate", self.start_date.isoformat())
         self.set_value("simset.@endDate", end_date.isoformat())
 
     def set_heatingTemp(self, heatingTemp_night, heatingTemp_day):

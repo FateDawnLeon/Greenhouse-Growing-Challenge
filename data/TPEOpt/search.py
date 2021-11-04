@@ -14,8 +14,7 @@ from utils import query_simulator, get_sun_rise_and_set, save_json_data, \
 import datetime
 
 def generate_control(config):
-    start_date_gap = int(config["start_date_gap"])
-    start_date = EARLY_START_DATE + datetime.timedelta(days=start_date_gap)
+    start_date = EARLY_START_DATE
     duration = int(config["duration"])
     heatingTemp_night = float(config["heatingTemp_night"])
     heatingTemp_day = float(config["heatingTemp_day"])
@@ -31,7 +30,7 @@ def generate_control(config):
     scr1_ToutMax = float(config["scr1_ToutMax"])
     vent_startWnd = float(config["vent_startWnd"])
 
-    CP = ControlParamSimple(start_date)
+    CP = ControlParamSimple()
     CP.set_endDate(duration)
 
     heating_temp_scheme = {}

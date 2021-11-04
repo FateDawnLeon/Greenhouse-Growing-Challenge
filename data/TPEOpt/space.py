@@ -56,7 +56,6 @@ def make_plant_density(max_days):
 
 SPACES = {
     'G1': {
-        "start_date_gap": 4,
         "duration": 35,
         "heatingTemp_night": 7.5,
         "heatingTemp_day": 21,
@@ -73,7 +72,6 @@ SPACES = {
         "plantDensity": tune.choice(make_plant_density(35)),
     },
     'G2': {
-        "start_date_gap": tune.qrandint(lower=0, upper=30, q=1),
         "duration": tune.qrandint(lower=35, upper=45, q=1),
         "heatingTemp_night": tune.quniform(lower=2, upper=10, q=0.5),
         "heatingTemp_day": tune.quniform(lower=15, upper=25, q=0.5),
