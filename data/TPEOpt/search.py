@@ -16,11 +16,11 @@ import datetime
 def generate_control(config, mode, to_day):
     start_date = EARLY_START_DATE
     
-    heatingTemp_night = float(config["heatingTemp_night"])
-    heatingTemp_day = float(config["heatingTemp_day"])
+    # heatingTemp_night = float(config["heatingTemp_night"])
+    # heatingTemp_day = float(config["heatingTemp_day"])
     CO2_pureCap = float(config["CO2_pureCap"])
-    CO2_setpoint_night = float(config["CO2_setpoint_night"])
-    CO2_setpoint_day = float(config["CO2_setpoint_day"])
+    # CO2_setpoint_night = float(config["CO2_setpoint_night"])
+    # CO2_setpoint_day = float(config["CO2_setpoint_day"])
     CO2_setpoint_lamp = float(config["CO2_setpoint_lamp"])
     light_intensity = float(config["light_intensity"])
     # light_hours = float(config["light_hours"])
@@ -58,10 +58,14 @@ def generate_control(config, mode, to_day):
         # endtime = light_endTime
         # endtime = get_sun_rise_and_set(cur, city)[1]
         heating_temp_scheme[key] =  {
-            str(0): heatingTemp_night,
-            str(1): heatingTemp_day,
-            str(light_endTime[key]-1): heatingTemp_day,
-            str(light_endTime[key]): heatingTemp_night
+            # str(0): heatingTemp_night,
+            # str(1): heatingTemp_day,
+            # str(light_endTime[key]-1): heatingTemp_day,
+            # str(light_endTime[key]): heatingTemp_night
+            str(0): float(config[f'heatingTemp_night_{d}']),
+            str(1): float(config[f'heatingTemp_day_{d}']),
+            str(light_endTime[key]-1): float(config[f'heatingTemp_day_{d}']),
+            str(light_endTime[key]): float(config[f'heatingTemp_night_{d}']),
         }
     # heating_temp_scheme = {
     #     "01-01": {
@@ -86,10 +90,14 @@ def generate_control(config, mode, to_day):
         # endtime = light_endTime
         # endtime = get_sun_rise_and_set(cur, city)[1]
         CO2_setpoint_scheme[key] =  {
-            str(0): CO2_setpoint_night,
-            str(1): CO2_setpoint_day,
-            str(light_endTime[key]-1): CO2_setpoint_day,
-            str(light_endTime[key]): CO2_setpoint_night
+            # str(0): CO2_setpoint_night,
+            # str(1): CO2_setpoint_day,
+            # str(light_endTime[key]-1): CO2_setpoint_day,
+            # str(light_endTime[key]): CO2_setpoint_night
+            str(0): float(config[f'CO2_setpoint_night_{d}']),
+            str(1): float(config[f'CO2_setpoint_day_{d}']),
+            str(light_endTime[key]-1): float(config[f'CO2_setpoint_day_{d}']),
+            str(light_endTime[key]): float(config[f'CO2_setpoint_night_{d}']),
         }
     # CO2_setpoint_scheme = {
     #     "01-01": {
