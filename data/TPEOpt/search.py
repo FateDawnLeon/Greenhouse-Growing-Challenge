@@ -99,10 +99,12 @@ def generate_control(config, mode, to_day):
     #         str(light_endTime): CO2_setpoint_night
     #     }
     # }
-            
+    scr1_material = config["scr1_material"]
     CP.set_value("comp1.setpoints.CO2.@setpoint", CO2_setpoint_scheme)
     CP.set_value("comp1.setpoints.CO2.@setpIfLamps", CO2_setpoint_lamp)
     CP.set_value("comp1.illumination.lmp1.@enabled", light_intensity > 0)
+    CP.set_value("comp1.screens.scr1.@material", scr1_material)
+    # CP.set_value("comp1.screens.scr1.@lightPollutionPrevention", False)
     CP.set_value("comp1.illumination.lmp1.@intensity", light_intensity)
     CP.set_value("comp1.illumination.lmp1.@hoursLight", light_hours)
     CP.set_value("comp1.illumination.lmp1.@endTime", light_endTime)
