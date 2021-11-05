@@ -13,9 +13,9 @@ from utils import query_simulator, get_sun_rise_and_set, save_json_data, \
     ControlParamSimple, EARLY_START_DATE
 import datetime
 
-def generate_control(config):
+def generate_control(config, mode, to_day):
     start_date = EARLY_START_DATE
-    duration = int(config["duration"])
+    
     heatingTemp_night = float(config["heatingTemp_night"])
     heatingTemp_day = float(config["heatingTemp_day"])
     CO2_pureCap = float(config["CO2_pureCap"])
@@ -33,7 +33,7 @@ def generate_control(config):
 
     light_endTime = {}
     light_hours = {}
-    for d in range(duration):
+    for d in range(to_day):
         cur = start_date + datetime.timedelta(days=d)
         key = "{:02d}-{:02d}".format(cur.day, cur.month)
         city = lookup("Amsterdam", database())
@@ -44,10 +44,11 @@ def generate_control(config):
     # light_endTime = 19.5
     # light_hours = 18
     CP = ControlParamSimple()
-    CP.set_endDate(duration)
+    CP.set_value("simset.@runMode", mode)
+    CP.set_endDate(to_day)
 
     heating_temp_scheme = {}
-    for d in range(duration):
+    for d in range(to_day):
         cur = start_date + datetime.timedelta(days=d)
         key = "{:02d}-{:02d}".format(cur.day, cur.month)
         # city = lookup("Amsterdam", database())
@@ -75,7 +76,7 @@ def generate_control(config):
     CP.set_value("common.CO2dosing.@pureCO2cap", CO2_pureCap)
 
     CO2_setpoint_scheme = {}
-    for d in range(duration):
+    for d in range(to_day):
         cur = start_date + datetime.timedelta(days=d)
         key = "{:02d}-{:02d}".format(cur.day, cur.month)
         # city = lookup("Amsterdam", database())
@@ -112,13 +113,33 @@ def generate_control(config):
     CP.set_value("comp1.setpoints.ventilation.@startWnd", vent_startWnd)
     return CP.data
 
+def objective(config, mode='pause', to_day=None, bo=True):
 
-def objective(config, checkpoint_dir=None):
-    control = generate_control(config)
-    save_json_data(control, 'control.json')
-    
+    if bo:
+        to_day = int(config["duration"])
+    else:
+        to_day = to_day
+
+    control = generate_control(config, mode, to_day)
     output = query_simulator(control, sim_id=SIM_ID)
-    save_json_data(output, 'output.json')
+
+    if bo:
+        save_json_data(control, 'control.json')
+        save_json_data(output, 'output.json')
+    elif mode == 'pause':
+        control_file_list = glob.glob(f'control_*.json')
+        for f in control_file_list:
+            os.remove(f)
+        output_file_list = glob.glob(f'output_*.json')
+        for f in output_file_list:
+            os.remove(f)
+        save_json_data(control, 'control_0.json')
+        save_json_data(output, 'output_0.json')
+    elif mode == 'step':
+        control_file_list = glob.glob(f'control_*.json')
+        call_step_time = max([int(f.split('_')[-1].split('.')[0]) for f in control_file_list])
+        save_json_data(control, f'control_{call_step_time+1}.json')
+        save_json_data(output, f'output_{call_step_time+1}.json')
     
     balance = output['stats']['economics']['balance']
     print(f'Netprofit={balance}, Config={config}')
@@ -131,9 +152,11 @@ def objective(config, checkpoint_dir=None):
     ]  # 4
     for key in PL_KEYS:
         data = output['data'][key]['data']
-        print(key, data[-1])
-    
-
+        if len(data) > 0:
+            print(key, data[-1])
+        else:
+            print(key, data)
+        
     best_control_file_list = glob.glob(f'{BEST_DIR}/best_control_*.json')
     if len(best_control_file_list) == 0:
         best_control_file = f'{BEST_DIR}/best_control_{balance}.json'
@@ -146,7 +169,8 @@ def objective(config, checkpoint_dir=None):
             best_control_file = f'{BEST_DIR}/best_control_{balance}.json'
             save_json_data(control, best_control_file)
 
-    tune.report(netprofit=balance)
+    if bo:
+        tune.report(netprofit=balance)
 
 
 def run_search(args):
