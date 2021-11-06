@@ -294,7 +294,7 @@ class DDPG(RLAlgorithm):
                         self._min_buffer_size):
                     trainer.enable_logging = True
                     eval_episodes = obtain_evaluation_episodes(
-                        self.policy, self._eval_env,num_eps=20)
+                        self.policy, self._eval_env)
                     last_returns = log_performance(trainer.step_itr,
                                                    eval_episodes,
                                                    discount=self._discount)

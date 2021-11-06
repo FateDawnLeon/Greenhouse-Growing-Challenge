@@ -1,9 +1,9 @@
 hyper = {
     'alg': 'DDPG',  # DDPG
     'pl': 'cont',  # cont, mlp
-    'pls': [256, 128, 64],  # policy hidden size
+    'pls': [128, 32],  # policy hidden size
     'expl': 'Ornstein',  # Gaussian, epsilon
-    'qfs': [256, 128, 64],  # q function hidden size
+    'qfs': [128, 32],  # q function hidden size
     'buffer': 'path',  # her
     'n_cycles': 50,
     'n_epochs': 500,
