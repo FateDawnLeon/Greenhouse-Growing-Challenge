@@ -87,9 +87,9 @@ def get_args():
     parser.add_argument('-CF', '--control-folder', type=str, default="controls")
     parser.add_argument('-OF', '--output-folder', type=str, default="outputs")
     parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--wd', type=float, default=0)
     parser.add_argument('-LP', '--lr-patience', type=int, default=5)
     parser.add_argument('-ML', '--min-lr', type=float, default=1e-5)
-    parser.add_argument('--wd', type=float, default=0)
     parser.add_argument('-MI', '--max-iters', type=int, default=20000)
     parser.add_argument('-BS', '--batch-size', type=int, default=100)
     parser.add_argument('--log-interval', type=int, default=100)
@@ -123,6 +123,8 @@ if __name__ == '__main__':
     model_class = MODEL_CLASSES[args.model]
     model_config.update(dataset.get_meta_data())
     model = model_class(**model_config)
+
+    print(model)
 
     if args.finetune:
         ckpt = torch.load(args.ckpt_path)

@@ -100,6 +100,27 @@ def sample_pd(max_days, max_return_threshold=10):
             return pd_str
 
 
+def optimize_pd(max_days, num_iters=1000):
+    max_return = 0
+    for _ in range(num_iters):
+        setpoints = []
+        min_density = random.choice([5, 10, 15])
+        day, density = 1, random.choice([80, 85, 90])
+
+        while day <= max_days and density >= min_density:
+            setpoints.append(f'{day} {density}')
+            day += random.choice([5,6,7,8,9,10])
+            density -= random.choice([5,10,15,20,25,30,35])
+
+        pd_str = '; '.join(setpoints)
+
+        cur_return = compute_max_return(max_days, pd_str)
+        if cur_return > max_return:
+            max_return = cur_return
+            best_pd = pd_str
+    return best_pd, max_return
+
+
 SPACES = {
     'G1': {  # netprofit=-5.003 and parameters={'duration': 35, 'heatingTemp_night': 7.5, 'heatingTemp_day': 21, 'CO2_pureCap': 280, 'CO2_setpoint_night': 480, 'CO2_setpoint_day': 1110, 'CO2_setpoint_lamp': 0, 'light_intensity': 20, 'light_hours': 8, 'light_endTime': 19.5, 'light_maxIglob': 260, 'scr1_ToutMax': 5, 'vent_startWnd': 55, 'plantDensity': '1 80; 6 45; 12 15; 20 5'}
         "duration": 35,

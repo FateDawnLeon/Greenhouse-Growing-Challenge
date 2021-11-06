@@ -408,9 +408,14 @@ MODEL_CONFIGS = {
         'hidden_size': 512,
         'forward_version': '1',
     },
-    'C2': {
-        'num_layers': 3,
-        'hidden_size': 512,
+    'C1s': {
+        'num_layers': 2,
+        'hidden_size': 360,
+        'forward_version': '1',
+    },
+    'C2s': {
+        'num_layers': 2,
+        'hidden_size': 360,
         'forward_version': '2',
     },
     'P0': {
